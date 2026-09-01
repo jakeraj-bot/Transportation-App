@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
-import { saveDistrict, softDelete } from "@/app/actions";
-import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { softDelete } from "@/app/actions";
+import { CollapsibleSection } from "@/components/collapsible";
+import { DistrictForm } from "@/components/district-form";
+import { PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 
 export default async function DistrictPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,26 +13,31 @@ export default async function DistrictPage({ params }: { params: Promise<{ id: s
     "use server";
     await softDelete("district", id, "/districts");
   }
+  const address =
+    [district.street, district.city, district.state, district.zip].filter(Boolean).join(", ") || "No letter address yet";
   return (
-    <div>
-      <PageHeader title={district.name} backHref="/districts" actions={<form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>} />
-      <Card>
-        <form action={saveDistrict} className="grid gap-4 md:grid-cols-2">
-          <input type="hidden" name="id" value={district.id} />
-          <Field label="District name" className="md:col-span-2"><input className={inputClass} name="name" required defaultValue={district.name} /></Field>
-          <Field label="Transportation email"><input className={inputClass} name="email" type="email" defaultValue={district.email ?? ""} /></Field>
-          <Field label="Phone"><input className={inputClass} name="phone" defaultValue={district.phone ?? ""} /></Field>
-          <Field label="Code"><input className={inputClass} name="code" defaultValue={district.code ?? ""} /></Field>
-          <Field label="Street for letters" className="md:col-span-2" hint="This address is printed on approval, disapproval, and PT-4 letters for this district.">
-            <input className={inputClass} name="street" defaultValue={district.street ?? ""} />
-          </Field>
-          <Field label="City"><input className={inputClass} name="city" defaultValue={district.city ?? ""} /></Field>
-          <Field label="State"><input className={inputClass} name="state" defaultValue={district.state ?? ""} placeholder="NJ" /></Field>
-          <Field label="ZIP"><input className={inputClass} name="zip" defaultValue={district.zip ?? ""} /></Field>
-          <Field label="Notes" className="md:col-span-2"><textarea className={inputClass} name="notes" rows={3} defaultValue={district.notes ?? ""} /></Field>
-          <div><Button type="submit">Save district</Button></div>
-        </form>
-      </Card>
+    <div className="space-y-4">
+      <PageHeader
+        title={district.name}
+        backHref="/districts"
+        hint="Click a heading to open it. Click it again to close it."
+        actions={
+          <form action={remove}>
+            <button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">
+              Remove
+            </button>
+          </form>
+        }
+      />
+      <CollapsibleSection
+        title="Name and contact"
+        hint={district.contactName ? `${district.contactName}${district.contactPosition ? `, ${district.contactPosition}` : ""}` : "Add the person letters should be addressed to"}
+      >
+        <DistrictForm district={district} fields="identity" />
+      </CollapsibleSection>
+      <CollapsibleSection title="Letter address" hint={address}>
+        <DistrictForm district={district} fields="address" />
+      </CollapsibleSection>
     </div>
   );
 }

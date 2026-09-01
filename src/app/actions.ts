@@ -22,8 +22,8 @@ import {
 } from "@/lib/utils";
 import { buildLabelPdf } from "@/lib/labels";
 import {
+  contractLetterFields,
   defaultLetterDocx,
-  districtMergeFields,
   ensureUploadDir,
   fillDocx,
   uploadPath,
@@ -48,6 +48,8 @@ export async function saveDistrict(form: FormData) {
     code: formString(form, "code") || null,
     email: formString(form, "email") || null,
     phone: formString(form, "phone") || null,
+    contactName: formString(form, "contactName") || null,
+    contactPosition: formString(form, "contactPosition") || null,
     street: formString(form, "street") || null,
     city: formString(form, "city") || null,
     state: formString(form, "state") || null,
@@ -65,30 +67,8 @@ export async function saveDistrict(form: FormData) {
     summary: `${id ? "Updated" : "Added"} district ${row.name}`,
   });
   revalidateAll();
-  redirect(`/districts/${row.id}`);
-}
-
-export async function saveDistrictAddresses(form: FormData) {
-  const user = await requireSession();
-  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
-  const districts = await prisma.district.findMany({ where: { deletedAt: null } });
-  for (const district of districts) {
-    const street = formString(form, `street_${district.id}`) || null;
-    const city = formString(form, `city_${district.id}`) || null;
-    const state = formString(form, `state_${district.id}`) || null;
-    const zip = formString(form, `zip_${district.id}`) || null;
-    await prisma.district.update({
-      where: { id: district.id },
-      data: { street, city, state, zip },
-    });
-  }
-  await writeAudit({
-    userId: user.id,
-    action: "update",
-    entityType: "district",
-    summary: "Updated district letter addresses",
-  });
-  revalidateAll();
+  const returnTo = formString(form, "returnTo");
+  redirect(returnTo === "/districts" ? "/districts" : `/districts/${row.id}`);
 }
 
 export async function saveContractor(form: FormData) {
@@ -683,55 +663,86 @@ async function certTemplateBuffer(kind: "approved" | "disapproved") {
 export async function generateContractLetter(form: FormData) {
   const user = await requireSession();
   if (!can(user, "approve")) throw new Error("You do not have permission.");
-  const id = formString(form, "id");
   const kind = formString(form, "kind") as "approved" | "disapproved";
   const letterDate = parseDate(formString(form, "letterDate")) || new Date();
-  const contract = await prisma.contract.findUniqueOrThrow({
-    where: { id },
-    include: { district: true, contractor: true, routes: true },
+  const ids = Array.from(
+    new Set(
+      [...form.getAll("ids"), form.get("id")]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (!ids.length) throw new Error("Choose at least one contract.");
+  const contracts = await prisma.contract.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    include: {
+      district: true,
+      contractor: true,
+      hostDistrict: true,
+      routes: { include: { addenda: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } } },
+    },
   });
+  if (contracts.length !== ids.length) throw new Error("One of those contracts could not be found.");
+  const first = contracts[0];
+  if (contracts.some((row) => row.type !== first.type)) {
+    throw new Error("All contracts on one letter must be the same type.");
+  }
+  if (contracts.some((row) => row.districtId !== first.districtId)) {
+    throw new Error("All contracts on one letter must be for the same district.");
+  }
+  if (contracts.some((row) => row.schoolYear !== first.schoolYear)) {
+    throw new Error("All contracts on one letter must be for the same school year.");
+  }
+  const ordered = ids.map((id) => contracts.find((row) => row.id === id)!);
   const notes = formString(form, "notes");
-  const fields = {
-    letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    ...districtMergeFields(contract.district),
-    contractor: contract.contractor.legalName,
-    vendorCode: contract.contractor.vendorCode || "—",
-    schoolYear: contract.schoolYear,
-    multiContractNumber: contract.multiContractNumber,
-    routes: contract.routes.map((r) => r.number).join(", ") || "—",
-    type: contractTypeLabel(contract.type),
+  const fields = contractLetterFields({
+    letterDate,
+    district: first.district,
+    schoolYear: first.schoolYear,
+    type: contractTypeLabel(first.type),
     decision: kind === "approved" ? "approved" : "disapproved",
     notes,
-    missingItems: "",
-  };
-  const buf = fillDocx(await templateBuffer(kind, contract.type), fields);
+    rows: ordered.map((row) => ({
+      multiContractNumber: row.multiContractNumber,
+      contractorName: row.contractor.legalName,
+      vendorCode: row.contractor.vendorCode,
+      routes: row.routes.map((route) => route.number),
+      addendumNumbers: row.routes.flatMap((route) =>
+        route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
+      ),
+      hostDistrictName: row.hostDistrict?.name,
+      jointDistrict: row.joinerDistricts,
+      receivedDate: row.receivedDate,
+    })),
+  });
+  const buf = fillDocx(await templateBuffer(kind, first.type), fields);
   const dir = ensureUploadDir("letters");
-  const fileName = `${kind}-${contract.multiContractNumber}-${Date.now()}.docx`.replace(/\s+/g, "_");
+  const fileName = `${kind}-${first.district.name}-${first.type}-${ordered.length}-${Date.now()}.docx`.replace(/\s+/g, "_");
   fs.writeFileSync(path.join(dir, fileName), buf);
-  await prisma.letter.create({
-    data: {
+  const statusName = kind === "approved" ? "Approved" : "Disapproved";
+  for (const row of ordered) {
+    await prisma.letter.create({
+      data: {
+        entityType: "contract",
+        entityId: row.id,
+        kind,
+        letterDate,
+        filePath: `letters/${fileName}`,
+        createdById: user.id,
+      },
+    });
+    await prisma.contract.update({
+      where: { id: row.id },
+      data: { statusName, letterDate },
+    });
+    await writeAudit({
+      userId: user.id,
+      action: kind,
       entityType: "contract",
-      entityId: id,
-      kind,
-      letterDate,
-      filePath: `letters/${fileName}`,
-      createdById: user.id,
-    },
-  });
-  await prisma.contract.update({
-    where: { id },
-    data: {
-      statusName: kind === "approved" ? "Approved" : "Disapproved",
-      letterDate,
-    },
-  });
-  await writeAudit({
-    userId: user.id,
-    action: kind,
-    entityType: "contract",
-    entityId: id,
-    summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${contract.multiContractNumber}`,
-  });
+      entityId: row.id,
+      summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${row.multiContractNumber}${ordered.length > 1 ? ` on a ${ordered.length}-contract letter` : ""}`,
+    });
+  }
   revalidateAll();
   return `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}`;
 }
@@ -746,19 +757,22 @@ export async function generateCertLetter(form: FormData) {
     where: { id },
     include: { contractor: true },
   });
-  const fields = {
-    letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    ...districtMergeFields({ name: "All districts served by this contractor" }),
-    contractor: cert.contractor.legalName,
-    vendorCode: cert.contractor.vendorCode || "—",
+  const fields = contractLetterFields({
+    letterDate,
+    district: { name: "All districts served by this contractor" },
     schoolYear: cert.schoolYear,
-    multiContractNumber: "Annual certification",
-    routes: "—",
     type: "Annual certification",
     decision: kind === "approved" ? "approved" : "disapproved",
     notes: formString(form, "notes"),
-    missingItems: "",
-  };
+    rows: [
+      {
+        multiContractNumber: "Annual certification",
+        contractorName: cert.contractor.legalName,
+        vendorCode: cert.contractor.vendorCode,
+        routes: [],
+      },
+    ],
+  });
   const buf = fillDocx(await certTemplateBuffer(kind), fields);
   const dir = ensureUploadDir("letters");
   const fileName = `cert-${kind}-${cert.contractor.vendorCode || cert.id}-${Date.now()}.docx`;
@@ -877,19 +891,22 @@ export async function generatePt4AndEmail(form: FormData) {
     formString(form, "body") ||
     `Hello,\n\nThe Passaic County transportation office reviewed this submission and still needs the items on the attached PT-4.\n\n${missingText}\n\nPlease send the missing information so we can finish the review.\n\nThank you,\nPassaic County Transportation`;
 
-  const fields = {
-    letterDate: new Date().toLocaleDateString("en-US", { dateStyle: "long" }),
-    ...districtMergeFields(districtForLetter ?? { name: districtName }),
-    contractor,
-    vendorCode: "",
+  const fields = contractLetterFields({
+    letterDate: new Date(),
+    district: districtForLetter ?? { name: districtName },
     schoolYear,
-    multiContractNumber: multi,
-    routes,
     type,
     decision: "",
     notes: formString(form, "notes"),
     missingItems: missingText || "See comments on the checklist.",
-  };
+    rows: [
+      {
+        multiContractNumber: multi || "PT-4",
+        contractorName: contractor,
+        routes: routes ? routes.split(", ").filter(Boolean) : [],
+      },
+    ],
+  });
   const buf = fillDocx(await templateBuffer("pt4"), fields);
   const dir = ensureUploadDir("letters");
   const fileName = `PT4-${Date.now()}.docx`;

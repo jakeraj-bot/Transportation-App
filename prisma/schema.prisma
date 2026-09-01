@@ -67,6 +67,8 @@ model District {
   code      String?
   email     String?
   phone     String?
+  contactName     String?
+  contactPosition String?
   street    String?
   city      String?
   state     String?

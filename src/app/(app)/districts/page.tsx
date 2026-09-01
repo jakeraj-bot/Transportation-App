@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { CollapsibleBlock } from "@/components/collapsible";
+import { DistrictForm } from "@/components/district-form";
+import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
+
+function addressPreview(district: { street: string | null; city: string | null; state: string | null; zip: string | null }) {
+  const parts = [district.street, district.city, district.state, district.zip].filter(Boolean);
+  return parts.length ? parts.join(", ") : "No letter address yet";
+}
 
 export default async function DistrictsPage() {
   const rows = await prisma.district.findMany({
@@ -8,22 +15,25 @@ export default async function DistrictsPage() {
     orderBy: { name: "asc" },
   });
   return (
-    <div>
-      <PageHeader title="Districts" hint="Passaic County districts we review packets for." actions={<Button href="/districts/new">Add district</Button>} />
+    <div className="space-y-4">
+      <PageHeader
+        title="Districts"
+        hint="Click a district to change its name, letter contact, or mailing address. Click it again to close it."
+        actions={<Button href="/districts/new">Add district</Button>}
+      />
       {rows.length === 0 ? (
         <EmptyState title="No districts" body="Add the first district." action={<Button href="/districts/new">Add district</Button>} />
       ) : (
-        <Card className="divide-y divide-line p-0">
-          {rows.map((d) => (
-            <Link key={d.id} href={`/districts/${d.id}`} className="block px-5 py-3 hover:bg-teal-soft/40">
-              <p className="font-medium">{d.name}</p>
-              <p className="text-sm text-muted">
-                {d.email || "Add a transportation email so PT-4s can send"}
-                {d.street || d.city ? ` · ${[d.street, [d.city, d.state, d.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}` : " · Add a letter address"}
-              </p>
-            </Link>
-          ))}
-        </Card>
+        rows.map((district) => (
+          <CollapsibleBlock key={district.id} title={district.name} hint={addressPreview(district)}>
+            <DistrictForm district={district} returnTo="/districts" />
+            <p className="text-sm text-muted">
+              <Link className="text-teal" href={`/districts/${district.id}`}>
+                Open the full district page
+              </Link>
+            </p>
+          </CollapsibleBlock>
+        ))
       )}
     </div>
   );

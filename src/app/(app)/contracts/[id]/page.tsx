@@ -28,7 +28,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   });
   if (!contract) notFound();
 
-  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold] =
+  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts] =
     await Promise.all([
       getSchoolYear(),
       activeDistricts(),
@@ -39,6 +39,17 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       ensureChecklist("contract", contract.id, contract.type),
       getSetting("cpi", "2.50"),
       getSetting("bidThreshold", "7500"),
+      prisma.contract.findMany({
+        where: {
+          id: { not: contract.id },
+          districtId: contract.districtId,
+          type: contract.type,
+          schoolYear: contract.schoolYear,
+          deletedAt: null,
+        },
+        include: { contractor: true },
+        orderBy: { multiContractNumber: "asc" },
+      }),
     ]);
 
   const cert = contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
@@ -178,7 +189,16 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           <p className="mb-3 text-sm text-muted">
             Generating a letter moves the status to Approved or Disapproved while you wait for a signature. After the signed letter is sent, mark the date it went to the district.
           </p>
-          <LetterButtons kind="contract" id={contract.id} contractTypeLabel={contractTypeLabel(contract.type)} />
+          <LetterButtons
+            kind="contract"
+            id={contract.id}
+            contractTypeLabel={contractTypeLabel(contract.type)}
+            sameTypeContracts={sameTypeContracts.map((row) => ({
+              id: row.id,
+              multiContractNumber: row.multiContractNumber,
+              contractorName: row.contractor.legalName,
+            }))}
+          />
           {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
             <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
               <input type="hidden" name="id" value={contract.id} />

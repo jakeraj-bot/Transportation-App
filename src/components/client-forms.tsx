@@ -32,14 +32,18 @@ export function LetterButtons({
   kind,
   id,
   contractTypeLabel,
+  sameTypeContracts,
 }: {
   kind: "contract" | "cert";
   id: string;
   contractTypeLabel?: string;
+  sameTypeContracts?: Array<{ id: string; multiContractNumber: string; contractorName: string }>;
 }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const extras = sameTypeContracts?.filter((row) => row.id !== id) ?? [];
+  const [included, setIncluded] = useState<string[]>([]);
 
   async function run(decision: "approved" | "disapproved") {
     setBusy(true);
@@ -48,6 +52,8 @@ export function LetterButtons({
     form.set("kind", decision);
     form.set("letterDate", date);
     form.set("notes", notes);
+    form.append("ids", id);
+    for (const extraId of included) form.append("ids", extraId);
     const url =
       kind === "contract" ? await generateContractLetter(form) : await generateCertLetter(form);
     window.open(url, "_blank");
@@ -59,7 +65,33 @@ export function LetterButtons({
       {kind === "contract" && contractTypeLabel ? (
         <p className="text-sm text-muted">
           This uses the {contractTypeLabel.toLowerCase()} approval or disapproval letter from Settings, and fills in this district’s mailing address.
+          {extras.length
+            ? ` Check other ${contractTypeLabel.toLowerCase()} contracts for this district to put them on the same letter, one row each.`
+            : ""}
         </p>
+      ) : null}
+      {extras.length ? (
+        <div className="space-y-2 rounded-xl border border-line bg-cream px-4 py-3">
+          <p className="text-sm font-medium">Also include on this letter</p>
+          {extras.map((row) => (
+            <label key={row.id} className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 size-4"
+                checked={included.includes(row.id)}
+                onChange={(e) => {
+                  setIncluded((current) =>
+                    e.target.checked ? [...current, row.id] : current.filter((value) => value !== row.id)
+                  );
+                }}
+              />
+              <span>
+                <span className="font-medium">{row.multiContractNumber}</span>
+                <span className="text-muted"> · {row.contractorName}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       ) : null}
       <Field label="Letter date" hint="Today is fine. Use a future date if the letter should show that date.">
         <input className={inputClass} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -74,7 +106,9 @@ export function LetterButtons({
           onClick={() => run("approved")}
           className="rounded-xl bg-sage px-4 py-2.5 font-medium text-white"
         >
-          Approve and print letter
+          {included.length
+            ? `Approve ${included.length + 1} contracts and print letter`
+            : "Approve and print letter"}
         </button>
         <button
           type="button"
@@ -82,7 +116,9 @@ export function LetterButtons({
           onClick={() => run("disapproved")}
           className="rounded-xl bg-rose px-4 py-2.5 font-medium text-white"
         >
-          Disapprove and print letter
+          {included.length
+            ? `Disapprove ${included.length + 1} contracts and print letter`
+            : "Disapprove and print letter"}
         </button>
       </div>
     </div>

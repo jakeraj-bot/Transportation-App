@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { saveDistrictAddresses, saveSettings, uploadTemplate } from "@/app/actions";
+import { saveSettings, uploadTemplate } from "@/app/actions";
 import { CollapsibleBlock, CollapsibleSection } from "@/components/collapsible";
 import { Button, Field, PageHeader, inputClass } from "@/components/ui";
 import { getSetting } from "@/lib/data";
@@ -39,11 +39,6 @@ function TemplateRow({
   );
 }
 
-function addressPreview(district: { street: string | null; city: string | null; state: string | null; zip: string | null }) {
-  const parts = [district.street, district.city, district.state, district.zip].filter(Boolean);
-  return parts.length ? parts.join(", ") : "No address yet";
-}
-
 function letterHint(byKey: Record<string, string>, type: string) {
   const approved = byKey[contractLetterTemplateKey("approved", type)];
   const disapproved = byKey[contractLetterTemplateKey("disapproved", type)];
@@ -54,18 +49,16 @@ function letterHint(byKey: Record<string, string>, type: string) {
 }
 
 export default async function SettingsPage() {
-  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates, districts] =
-    await Promise.all([
-      getSetting("schoolYear"),
-      getSetting("cpi"),
-      getSetting("bidThreshold"),
-      getSetting("officeName"),
-      getSetting("officeEmail"),
-      getSetting("secondReviewAlertOn", "off"),
-      getSetting("secondReviewAlertHours", "48"),
-      prisma.templateFile.findMany(),
-      prisma.district.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
-    ]);
+  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] = await Promise.all([
+    getSetting("schoolYear"),
+    getSetting("cpi"),
+    getSetting("bidThreshold"),
+    getSetting("officeName"),
+    getSetting("officeEmail"),
+    getSetting("secondReviewAlertOn", "off"),
+    getSetting("secondReviewAlertHours", "48"),
+    prisma.templateFile.findMany(),
+  ]);
   const byKey = Object.fromEntries(templates.map((t) => [t.key, t.originalName]));
   return (
     <div className="space-y-6">
@@ -100,49 +93,24 @@ export default async function SettingsPage() {
           Outlook send: {outlookConfigured() ? "connected." : "not connected yet. Ask county IT to put MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, and MS_MAILBOX in the .env file. Emails will still be saved as drafts."}
         </p>
       </CollapsibleSection>
-      <CollapsibleSection
-        title="District letter addresses"
-        hint={
-          districts.length
-            ? `${districts.length} districts — click a district to edit its mailing address`
-            : "Add districts first, then come back here"
-        }
-      >
-        <p className="mb-4 text-muted">
-          Each district has its own mailing address. Letters use the address on the contract’s district — not a shared county address. You can also edit one district at a time under Districts.
-        </p>
-        {districts.length === 0 ? (
-          <p className="text-muted">Add districts first, then come back here to enter their addresses.</p>
-        ) : (
-          <form action={saveDistrictAddresses} className="space-y-3">
-            <div className="max-h-[min(24rem,50vh)] space-y-3 overflow-y-auto pr-1">
-              {districts.map((district) => (
-                <CollapsibleBlock key={district.id} title={district.name} hint={addressPreview(district)}>
-                  <div className="grid gap-3 md:grid-cols-6">
-                    <Field label="Street" className="md:col-span-3">
-                      <input className={inputClass} name={`street_${district.id}`} defaultValue={district.street ?? ""} />
-                    </Field>
-                    <Field label="City" className="md:col-span-1">
-                      <input className={inputClass} name={`city_${district.id}`} defaultValue={district.city ?? ""} />
-                    </Field>
-                    <Field label="State">
-                      <input className={inputClass} name={`state_${district.id}`} defaultValue={district.state ?? ""} placeholder="NJ" />
-                    </Field>
-                    <Field label="ZIP">
-                      <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
-                    </Field>
-                  </div>
-                </CollapsibleBlock>
-              ))}
-            </div>
-            <Button type="submit">Save district addresses</Button>
-          </form>
-        )}
-      </CollapsibleSection>
       <CollapsibleSection title="Letters by contract type" hint="Upload a different approval and disapproval letter for original, renewal, quote, parental, addendum, and joint">
-        <p className="mb-4 text-muted">
-          A parental contract uses the parental letters, a renewal uses the renewal letters, and so on. If a type has no file yet, we use the default letter or the built-in one. Merge fields: {"{district}"}, {"{districtAddress}"}, {"{street}"}, {"{city}"}, {"{state}"}, {"{zip}"}, {"{contractor}"}, {"{letterDate}"}, {"{multiContractNumber}"}, {"{routes}"}, {"{schoolYear}"}, {"{type}"}, {"{missingItems}"}.
-        </p>
+        <div className="mb-4 space-y-3 text-muted">
+          <p>
+            A parental contract uses the parental letters, a renewal uses the renewal letters, and so on. If a type has no file yet, we use the default letter or the built-in one. District names and addresses are edited under Districts, not here.
+          </p>
+          <p>
+            For one letter that lists several contracts, keep a single data row in the Word table and wrap it in a loop. Do not paste {"{multiContractNumber}"} six times — every copy would fill with the same number.
+          </p>
+          <div className="rounded-xl bg-cream px-4 py-3 text-sm text-ink">
+            <p className="font-medium">Table row in Word</p>
+            <p className="mt-1 font-mono text-[13px]">
+              {"{#contracts}{multiContractNumber}"} &nbsp;|&nbsp; {"{contractor}{/contracts}"}
+            </p>
+            <p className="mt-2 text-muted">
+              Header fields: {"{letterDate}"}, {"{districtContact}"}, {"{districtContactPosition}"}, {"{districtName}"}, {"{districtAddress}"}, {"{city}"}, {"{state}"}, {"{zipCode}"}, {"{schoolYear}"}. Parental also uses {"{parentName}"}. Joint also uses {"{hostDistrict}"}, {"{jointDistrict}"}, {"{dateReceived}"}. Addendum also uses {"{routeNumber}"}, {"{addendumNumber}"}.
+            </p>
+          </div>
+        </div>
         <div className="space-y-3">
           {CONTRACT_TYPES.map((type) => (
             <CollapsibleBlock key={type.value} title={type.label} hint={letterHint(byKey, type.value)}>
