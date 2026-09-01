@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #f3faf8;
+  --card: #ffffff;
+  --ink: #1f3d42;
+  --muted: #4f6b70;
+  --line: #d5e6e2;
+  --teal: #2f9d90;
+  --teal-dark: #247f75;
+  --teal-soft: #d5f3ee;
+  --navy: #2c6b78;
+  --sage: #4cae6e;
+  --sage-soft: #dcf6e5;
+  --amber: #e0a12e;
+  --amber-soft: #fff1d0;
+  --rose: #d45d66;
+  --rose-soft: #fde6e8;
+  --blue: #4a93c4;
+  --blue-soft: #dff1fb;
+}
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-teal: var(--teal);
+  --color-teal-dark: var(--teal-dark);
+  --color-teal-soft: var(--teal-soft);
+  --color-navy: var(--navy);
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-rose: var(--rose);
+  --color-rose-soft: var(--rose-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans), "Segoe UI", sans-serif;
+  font-size: 16.5px;
+  line-height: 1.5;
+}
+
+h1, h2, h3, .serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+a { color: inherit; }
+
+input, select, textarea, button { font: inherit; }
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--teal) 45%, white);
+  outline-offset: 2px;
+}
+
+.chip-sage { background: var(--sage-soft); color: #2d7044; }
+.chip-amber { background: var(--amber-soft); color: #8a5f10; }
+.chip-rose { background: var(--rose-soft); color: #9a3540; }
+.chip-blue { background: var(--blue-soft); color: #2a6288; }
+.chip-teal { background: var(--teal-soft); color: var(--teal-dark); }
+
+.stat-amber { background: var(--amber); color: #fff; }
+.stat-blue { background: var(--blue); color: #fff; }
+.stat-teal { background: var(--teal); color: #fff; }
+.stat-sage { background: var(--sage); color: #fff; }
+.stat-rose { background: var(--rose); color: #fff; }
+.stat-navy { background: var(--navy); color: #fff; }
+.stat-plum { background: #8a6fad; color: #fff; }

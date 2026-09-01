@@ -1,0 +1,7 @@
+prisma/dev.db
+prisma/dev.db-journal
+.env
+.env.*
+!.env.example
+uploads
+.git

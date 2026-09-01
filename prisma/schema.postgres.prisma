@@ -1,0 +1,379 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("staff")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  permissions       UserPermission[]
+  assignedDistricts UserDistrict[]
+  auditLogs         AuditLog[]
+  letters           Letter[]
+  emails            EmailLog[]
+  firstReviews      Contract[]       @relation("FirstReviewer")
+}
+
+model UserDistrict {
+  userId     String
+  districtId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+
+  @@id([userId, districtId])
+}
+
+model Permission {
+  key   String @id
+  label String
+  users UserPermission[]
+}
+
+model UserPermission {
+  userId        String
+  permissionKey String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([userId, permissionKey])
+}
+
+model Status {
+  id         String    @id @default(cuid())
+  entityType String
+  name       String
+  color      String    @default("teal")
+  sortOrder  Int       @default(0)
+  deletedAt  DateTime?
+
+  @@unique([entityType, name])
+}
+
+model District {
+  id        String    @id @default(cuid())
+  name      String
+  code      String?
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  contracts            Contract[]
+  hostedContracts      Contract[]             @relation("HostDistrict")
+  insurance            InsuranceCertificate[]
+  bidSpecs             BidSpec[]
+  routeDescriptions    RouteDescription[]
+  emergencyQuotes      EmergencyQuote[]
+  emails               EmailLog[]
+  assignedUsers        UserDistrict[]
+}
+
+model Contractor {
+  id              String    @id @default(cuid())
+  legalName       String
+  dba             String?
+  vendorCode      String?
+  ospCode         String?
+  busLocation     String?
+  contactName     String?
+  email           String?
+  phone           String?
+  brcNumber       String?
+  brcNameControl  String?
+  brcStatus       String    @default("Not on file")
+  brcVerifiedAt   DateTime?
+  debarred        Boolean   @default(false)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  contracts       Contract[]
+  annualCerts     AnnualCert[]
+  insurance       InsuranceCertificate[]
+  emergencyQuotes EmergencyQuote[]
+}
+
+model AnnualCert {
+  id           String    @id @default(cuid())
+  contractorId String
+  schoolYear   String
+  statusName   String    @default("Not received")
+  notes        String?
+  letterDate   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  contractor Contractor @relation(fields: [contractorId], references: [id])
+
+  @@unique([contractorId, schoolYear])
+}
+
+model Contract {
+  id                   String    @id @default(cuid())
+  districtId           String
+  contractorId         String
+  hostDistrictId       String?
+  joinerDistricts      String?
+  schoolYear           String
+  type                 String
+  multiContractNumber  String
+  cost                 Float?
+  priorYearCost        Float?
+  bondAmount           Float?
+  bondType             String    @default("none")
+  insuranceAmount      Float?
+  boardMeetingDate     DateTime?
+  receivedDate         DateTime?
+  statusName           String    @default("Need review")
+  bidSpecId            String?
+  emergencyQuoteId     String?
+  routePacketId        String?
+  startsOn             DateTime?
+  endsOn               DateTime?
+  sentToDistrictAt     DateTime?
+  firstReviewerId      String?
+  secondReviewStartedAt DateTime?
+  letterDate           DateTime?
+  rationaleNeeded      Boolean   @default(false)
+  nextMeetingFlag      Boolean   @default(false)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  district        District         @relation(fields: [districtId], references: [id])
+  hostDistrict    District?        @relation("HostDistrict", fields: [hostDistrictId], references: [id])
+  contractor      Contractor       @relation(fields: [contractorId], references: [id])
+  bidSpec         BidSpec?         @relation(fields: [bidSpecId], references: [id])
+  emergencyQuote  EmergencyQuote?  @relation(fields: [emergencyQuoteId], references: [id])
+  routePacket     RouteDescription? @relation("ContractPacket", fields: [routePacketId], references: [id])
+  firstReviewer   User?            @relation("FirstReviewer", fields: [firstReviewerId], references: [id])
+  routes          Route[]
+  routeLinks      ContractRouteDescription[]
+}
+
+model Route {
+  id          String  @id @default(cuid())
+  contractId  String
+  number      String
+  destination String?
+  description String?
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  addenda     RouteAddendum[]
+}
+
+model RouteAddendum {
+  id               String    @id @default(cuid())
+  routeId          String
+  reason           String
+  description      String?
+  costChange       Float?
+  boardMeetingDate DateTime?
+  receivedDate     DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+  route            Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}
+
+model RouteDescription {
+  id           String    @id @default(cuid())
+  districtId   String
+  schoolYear   String
+  kind         String    @default("bid")
+  title        String
+  destination  String    @default("")
+  routeNumbers String
+  content      String?
+  filePath     String?
+  extractedText String?
+  statusName   String    @default("Need Review")
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  district  District @relation(fields: [districtId], references: [id])
+  contracts ContractRouteDescription[]
+  linkedContracts Contract[] @relation("ContractPacket")
+  lines     RouteLine[]
+}
+
+model RouteLine {
+  id          String    @id @default(cuid())
+  packetId    String
+  routeNumber String
+  destination String?
+  startTime   String?
+  endTime     String?
+  startDate   String?
+  endDate     String?
+  sortOrder   Int       @default(0)
+  packet      RouteDescription @relation(fields: [packetId], references: [id], onDelete: Cascade)
+}
+
+model ContractRouteDescription {
+  contractId          String
+  routeDescriptionId  String
+  contract            Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  routeDescription    RouteDescription @relation(fields: [routeDescriptionId], references: [id], onDelete: Cascade)
+
+  @@id([contractId, routeDescriptionId])
+}
+
+model BidSpec {
+  id               String    @id @default(cuid())
+  districtId       String
+  schoolYear       String
+  title            String
+  filePath         String?
+  extractedText    String?
+  insuranceAmount  Float?
+  bondType         String?
+  highlightsJson   String?
+  statusName       String    @default("Need review")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  district  District   @relation(fields: [districtId], references: [id])
+  contracts Contract[]
+}
+
+model EmergencyQuote {
+  id           String    @id @default(cuid())
+  districtId   String
+  contractorId String?
+  schoolYear   String
+  title        String
+  quoteDate    DateTime?
+  approvedAt   DateTime?
+  amount       Float?
+  notes        String?
+  statusName   String    @default("Need review")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  district   District    @relation(fields: [districtId], references: [id])
+  contractor Contractor? @relation(fields: [contractorId], references: [id])
+  contracts  Contract[]
+}
+
+model InsuranceCertificate {
+  id            String    @id @default(cuid())
+  contractorId  String
+  districtId    String
+  schoolYear    String
+  policyNumber  String?
+  amount        Float?
+  startsOn      DateTime?
+  expiresAt     DateTime?
+  namedDistrict String?
+  filePath      String?
+  statusName    String    @default("On file")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  contractor Contractor @relation(fields: [contractorId], references: [id])
+  district   District   @relation(fields: [districtId], references: [id])
+}
+
+model ChecklistTemplate {
+  id           String @id @default(cuid())
+  entityType   String
+  contractType String?
+  name         String
+  items        ChecklistTemplateItem[]
+}
+
+model ChecklistTemplateItem {
+  id         String @id @default(cuid())
+  templateId String
+  label      String
+  helpText   String?
+  sortOrder  Int    @default(0)
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model ChecklistResponse {
+  id         String  @id @default(cuid())
+  entityType String
+  entityId   String
+  itemLabel  String
+  checked    Boolean @default(false)
+  comment    String?
+
+  @@unique([entityType, entityId, itemLabel])
+}
+
+model Letter {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  kind       String
+  letterDate DateTime
+  filePath   String
+  createdById String
+  createdAt  DateTime @default(now())
+  createdBy  User     @relation(fields: [createdById], references: [id])
+}
+
+model EmailLog {
+  id         String    @id @default(cuid())
+  districtId String?
+  toAddress  String
+  ccAddress  String?
+  subject    String
+  body       String
+  kind       String
+  status     String    @default("drafted")
+  error      String?
+  sentAt     DateTime?
+  sentById   String
+  createdAt  DateTime  @default(now())
+  district   District? @relation(fields: [districtId], references: [id])
+  sentBy     User      @relation(fields: [sentById], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  summary    String
+  details    String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model TemplateFile {
+  key          String @id
+  filePath     String
+  originalName String
+}
