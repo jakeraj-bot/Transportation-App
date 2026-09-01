@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { saveDistrictAddresses, saveSettings, uploadTemplate } from "@/app/actions";
-import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
-import { contractLetterTemplateKey } from "@/lib/utils";
+import { CollapsibleBlock, CollapsibleSection } from "@/components/collapsible";
+import { Button, Field, PageHeader, inputClass } from "@/components/ui";
 import { getSetting } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
-import { CONTRACT_TYPES } from "@/lib/utils";
+import { CONTRACT_TYPES, contractLetterTemplateKey } from "@/lib/utils";
 
 const SHARED_TEMPLATES = [
   ["contract_approved", "Default contract approval letter"],
@@ -39,6 +39,20 @@ function TemplateRow({
   );
 }
 
+function addressPreview(district: { street: string | null; city: string | null; state: string | null; zip: string | null }) {
+  const parts = [district.street, district.city, district.state, district.zip].filter(Boolean);
+  return parts.length ? parts.join(", ") : "No address yet";
+}
+
+function letterHint(byKey: Record<string, string>, type: string) {
+  const approved = byKey[contractLetterTemplateKey("approved", type)];
+  const disapproved = byKey[contractLetterTemplateKey("disapproved", type)];
+  if (approved && disapproved) return "Approval and disapproval letters uploaded";
+  if (approved) return "Approval letter uploaded";
+  if (disapproved) return "Disapproval letter uploaded";
+  return "Using the default or built-in letters until you upload";
+}
+
 export default async function SettingsPage() {
   const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates, districts] =
     await Promise.all([
@@ -55,14 +69,16 @@ export default async function SettingsPage() {
   const byKey = Object.fromEntries(templates.map((t) => [t.key, t.originalName]));
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" hint="School year, CPI, letters, people, and statuses." />
+      <PageHeader
+        title="Settings"
+        hint="School year, CPI, letters, people, and statuses. Click a heading to open that section; click it again to close it."
+      />
       <div className="flex flex-wrap gap-3">
         <Button href="/settings/users" variant="secondary">Users and permissions</Button>
         <Button href="/settings/statuses" variant="secondary">Statuses</Button>
         <Button href="/districts" variant="secondary">Districts</Button>
       </div>
-      <Card>
-        <h2 className="serif mb-4 text-2xl">Office settings</h2>
+      <CollapsibleSection title="Office settings" hint="School year, CPI, bid threshold, office contact, and 2nd-review alerts">
         <form action={saveSettings} className="grid gap-4 md:grid-cols-2">
           <Field label="Current school year"><input className={inputClass} name="schoolYear" defaultValue={schoolYear} /></Field>
           <Field label="CPI percent for renewals" hint="Example: 2.50"><input className={inputClass} name="cpi" defaultValue={cpi} /></Field>
@@ -83,19 +99,24 @@ export default async function SettingsPage() {
         <p className="mt-4 text-sm text-muted">
           Outlook send: {outlookConfigured() ? "connected." : "not connected yet. Ask county IT to put MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, and MS_MAILBOX in the .env file. Emails will still be saved as drafts."}
         </p>
-      </Card>
-      <Card>
-        <h2 className="serif mb-2 text-2xl">District letter addresses</h2>
+      </CollapsibleSection>
+      <CollapsibleSection
+        title="District letter addresses"
+        hint={
+          districts.length
+            ? `${districts.length} districts — click a district to edit its mailing address`
+            : "Add districts first, then come back here"
+        }
+      >
         <p className="mb-4 text-muted">
           Each district has its own mailing address. Letters use the address on the contract’s district — not a shared county address. You can also edit one district at a time under Districts.
         </p>
         {districts.length === 0 ? (
           <p className="text-muted">Add districts first, then come back here to enter their addresses.</p>
         ) : (
-          <form action={saveDistrictAddresses} className="space-y-4">
+          <form action={saveDistrictAddresses} className="space-y-3">
             {districts.map((district) => (
-              <div key={district.id} className="rounded-xl border border-line p-4">
-                <p className="mb-3 font-medium">{district.name}</p>
+              <CollapsibleBlock key={district.id} title={district.name} hint={addressPreview(district)}>
                 <div className="grid gap-3 md:grid-cols-6">
                   <Field label="Street" className="md:col-span-3">
                     <input className={inputClass} name={`street_${district.id}`} defaultValue={district.street ?? ""} />
@@ -110,22 +131,19 @@ export default async function SettingsPage() {
                     <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
                   </Field>
                 </div>
-              </div>
+              </CollapsibleBlock>
             ))}
             <Button type="submit">Save district addresses</Button>
           </form>
         )}
-      </Card>
-      <Card>
-        <h2 className="serif mb-2 text-2xl">Word templates</h2>
+      </CollapsibleSection>
+      <CollapsibleSection title="Letters by contract type" hint="Upload a different approval and disapproval letter for original, renewal, quote, parental, addendum, and joint">
         <p className="mb-4 text-muted">
-          Upload your letterhead documents. Approval and disapproval letters can be different for each contract type — a parental contract uses the parental letters, a renewal uses the renewal letters, and so on. If a type has no file yet, we use the default letter or the built-in one. Merge fields: {"{district}"}, {"{districtAddress}"}, {"{street}"}, {"{city}"}, {"{state}"}, {"{zip}"}, {"{contractor}"}, {"{letterDate}"}, {"{multiContractNumber}"}, {"{routes}"}, {"{schoolYear}"}, {"{type}"}, {"{missingItems}"}.
+          A parental contract uses the parental letters, a renewal uses the renewal letters, and so on. If a type has no file yet, we use the default letter or the built-in one. Merge fields: {"{district}"}, {"{districtAddress}"}, {"{street}"}, {"{city}"}, {"{state}"}, {"{zip}"}, {"{contractor}"}, {"{letterDate}"}, {"{multiContractNumber}"}, {"{routes}"}, {"{schoolYear}"}, {"{type}"}, {"{missingItems}"}.
         </p>
-        <h3 className="serif mb-3 text-xl">By contract type</h3>
-        <div className="space-y-6">
+        <div className="space-y-3">
           {CONTRACT_TYPES.map((type) => (
-            <div key={type.value} className="space-y-3 rounded-xl border border-line p-4">
-              <p className="font-medium">{type.label}</p>
+            <CollapsibleBlock key={type.value} title={type.label} hint={letterHint(byKey, type.value)}>
               <TemplateRow
                 templateKey={contractLetterTemplateKey("approved", type.value)}
                 label="Approval letter"
@@ -138,10 +156,11 @@ export default async function SettingsPage() {
                 hint="Using the default or built-in disapproval letter until you upload one."
                 originalName={byKey[contractLetterTemplateKey("disapproved", type.value)]}
               />
-            </div>
+            </CollapsibleBlock>
           ))}
         </div>
-        <h3 className="serif mb-3 mt-8 text-xl">Default letters, annual certs, and PT-4</h3>
+      </CollapsibleSection>
+      <CollapsibleSection title="Default letters, annual certs, and PT-4" hint="Fallback Word files used when a contract type has no letter of its own">
         <p className="mb-4 text-sm text-muted">
           The default contract letters are used only when that contract type does not have its own file.
         </p>
@@ -156,7 +175,7 @@ export default async function SettingsPage() {
             />
           ))}
         </div>
-      </Card>
+      </CollapsibleSection>
       <p className="text-sm text-muted">
         Need a reminder of who can do what? Open <Link className="text-teal" href="/settings/users">Users and permissions</Link>.
       </p>

@@ -110,3 +110,27 @@ input, select, textarea, button { font: inherit; }
 .nav-scroll::-webkit-scrollbar-corner {
   background: var(--navy);
 }
+
+.collapse-summary {
+  list-style: none;
+}
+
+.collapse-summary::-webkit-details-marker,
+.collapse-summary::marker {
+  display: none;
+  content: none;
+}
+
+.collapse-summary:hover {
+  background: color-mix(in srgb, var(--teal-soft) 50%, white);
+}
+
+.collapse-chevron {
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+details[open] > summary .collapse-chevron {
+  transform: rotate(180deg);
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}

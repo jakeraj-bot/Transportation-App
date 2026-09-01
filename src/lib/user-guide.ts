@@ -258,6 +258,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Office settings",
         bullets: [
+          "Click a heading on Settings to open that section. Click it again to close it, so you do not have to scroll the whole page.",
           "School year, CPI percent for renewals, and the bid threshold (used to flag quotes that look over the limit).",
           "Office name and email used on letters and follow-up.",
           "Second-review alert: turn on if you want Home to warn you when a contract sits in 2nd review longer than the hours you set.",
