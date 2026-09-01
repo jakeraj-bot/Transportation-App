@@ -4,28 +4,33 @@ const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const ENV_HELP = `
-Vercel did not receive a Postgres DATABASE_URL at build time (it was missing, empty, or still a SQLite file: URL).
 
-Copy the URIs from Supabase:
+const ENV_CLICKS = `
+Copy URIs from Supabase:
   1. supabase.com/dashboard → your project
-  2. Connect (or Project Settings → Database)
-  3. ORM → Prisma
-  4. Copy DATABASE_URL (Transaction pooler, port 6543). If it has no ?pgbouncer=true, add it.
-  5. Copy DIRECT_URL (Session pooler, port 5432).
-  6. Replace [YOUR-PASSWORD] with the database password. Do not use anon / service_role keys.
+  2. Connect → ORM → Prisma
+  3. DATABASE_URL = Transaction pooler (port 6543). Add ?pgbouncer=true if missing.
+  4. DIRECT_URL = Session pooler (port 5432).
+  5. Replace [YOUR-PASSWORD] with the database password. Not anon / service_role keys.
 
-Paste them into Vercel:
+Paste into Vercel:
   1. vercel.com/yea14/transportation-app
   2. Settings → Environment Variables
-  3. Add these for Production (turn on Production; also enable them for the Build):
+  3. Production + Build must be ON for:
        DATABASE_URL    postgresql://…@…pooler.supabase.com:6543/postgres?pgbouncer=true
        DIRECT_URL      postgresql://…@…pooler.supabase.com:5432/postgres
        AUTH_SECRET     a long random string
        SEED_DEMO       0
-  4. Save. If the variables already exist, click each one and confirm the value starts with postgresql:// not file:
-  5. Deployments → newest commit (not the old c8c64d5) → Redeploy → turn OFF “Use existing Build Cache”.
+  4. Deployments → commit 1a58d70 or newer (not c8c64d5) → Redeploy, cache OFF.
 `.trim();
+
+function fail(message, extra) {
+  console.error("\n========== BUILD FAILED ==========");
+  console.error(`Error: ${message}`);
+  if (extra) console.error(`\n${extra}`);
+  console.error("\n========== END BUILD ERROR ==========\n");
+  process.exit(1);
+}
 
 function normalizeDbUrl(value) {
   if (value == null) return value;
@@ -38,7 +43,21 @@ function normalizeDbUrl(value) {
   ) {
     url = url.slice(1, -1).trim();
   }
-  return url;
+  return encodePasswordInUrl(url);
+}
+
+function encodePasswordInUrl(raw) {
+  if (!raw || !/^postgres(ql)?:\/\//i.test(raw)) return raw;
+  const match = raw.match(/^(postgres(?:ql)?:\/\/)([^/]+)@(.+)$/i);
+  if (!match) return raw;
+  const [, proto, userPass, rest] = match;
+  const colon = userPass.indexOf(":");
+  if (colon < 0) return raw;
+  const user = userPass.slice(0, colon);
+  const password = userPass.slice(colon + 1);
+  if (!password || /%[0-9A-Fa-f]{2}/.test(password)) return raw;
+  if (!/[^A-Za-z0-9._~-]/.test(password)) return raw;
+  return `${proto}${encodeURIComponent(user)}:${encodeURIComponent(password)}@${rest}`;
 }
 
 function isPostgresUrl(url) {
@@ -49,32 +68,53 @@ function isSqliteUrl(url) {
   return Boolean(url && (/^file:/i.test(url) || /dev\.db/i.test(url)));
 }
 
+function parseUrl(url) {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
 function describeUrl(url) {
   if (url == null || url === "") return "(missing)";
   if (isSqliteUrl(url)) return "SQLite file: URL (not allowed on Vercel)";
-  try {
-    const parsed = new URL(url);
-    const port = parsed.port || "default";
-    return `${parsed.protocol}//${parsed.hostname}:${port}${parsed.pathname} (password ${parsed.password ? "set" : "MISSING"})`;
-  } catch {
-    return "(could not parse — check special characters in the password; they must be URL-encoded)";
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return "(could not parse — a special character in the password may need encoding)";
   }
+  return `${parsed.protocol}//${parsed.hostname}:${parsed.port || "default"}${parsed.pathname} (password ${parsed.password ? "set" : "MISSING"})`;
 }
 
-function fail(message) {
-  console.error(`\nError: ${message}\n\n${ENV_HELP}\n`);
-  process.exit(1);
+function withSsl(url) {
+  const parsed = parseUrl(url);
+  if (!parsed) return url;
+  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
+  return parsed.toString();
 }
 
-function toDirectUrl(databaseUrl) {
-  try {
-    const parsed = new URL(databaseUrl);
-    if (parsed.port === "6543") parsed.port = "5432";
-    parsed.searchParams.delete("pgbouncer");
-    return parsed.toString();
-  } catch {
-    return databaseUrl;
+function asSessionUrl(url) {
+  const parsed = parseUrl(url);
+  if (!parsed) return url;
+  if (parsed.port === "6543") parsed.port = "5432";
+  parsed.searchParams.delete("pgbouncer");
+  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
+  return parsed.toString();
+}
+
+function asPoolerUrl(url) {
+  const parsed = parseUrl(url);
+  if (!parsed) return url;
+  if (!parsed.searchParams.has("pgbouncer") && parsed.port === "6543") {
+    parsed.searchParams.set("pgbouncer", "true");
   }
+  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
+  return parsed.toString();
+}
+
+function isDirectDbHost(url) {
+  const parsed = parseUrl(url);
+  return Boolean(parsed && /^db\./i.test(parsed.hostname) && /supabase\.co$/i.test(parsed.hostname));
 }
 
 function prismaCli() {
@@ -93,75 +133,119 @@ function tsxCli() {
   }
 }
 
-function run(args, extraEnv) {
-  execFileSync(process.execPath, args, {
-    cwd: root,
-    stdio: "inherit",
-    env: { ...process.env, ...extraEnv },
-  });
+function run(label, args, extraEnv) {
+  try {
+    execFileSync(process.execPath, args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...extraEnv },
+    });
+  } catch (error) {
+    const tail = `${error.stdout || ""}\n${error.stderr || ""}`.trim().slice(-4000);
+    if (tail) {
+      console.error(tail);
+      error.logTail = tail;
+    }
+    error.step = label;
+    throw error;
+  }
 }
 
 function main() {
-  const databaseUrl = normalizeDbUrl(process.env.DATABASE_URL);
-  const directUrl = normalizeDbUrl(process.env.DIRECT_URL);
-  if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
-  if (directUrl) process.env.DIRECT_URL = directUrl;
+  console.log("Vercel database setup (commit must show: node scripts/vercel-db-setup.cjs)");
+  console.log("If the line above vercel-build still says tsx scripts/vercel-db-setup.ts, this is the old c8c64d5 commit — Redeploy 1a58d70 or newer.");
 
-  console.log("Vercel database setup");
+  let databaseUrl = normalizeDbUrl(process.env.DATABASE_URL);
+  let directUrl = normalizeDbUrl(process.env.DIRECT_URL);
+
   console.log(`  DATABASE_URL: ${describeUrl(databaseUrl)}`);
   console.log(`  DIRECT_URL:   ${describeUrl(directUrl)}`);
   console.log(`  AUTH_SECRET:  ${process.env.AUTH_SECRET ? "set" : "(missing)"}`);
   console.log(`  SEED_DEMO:    ${process.env.SEED_DEMO ?? "(unset)"}`);
 
   if (!databaseUrl) {
-    fail("DATABASE_URL is missing on Vercel. Add the Supabase Transaction pooler URI (postgresql://…:6543/…) under Settings → Environment Variables for Production + Build.");
+    fail(
+      "DATABASE_URL is missing on Vercel (not set for Production + Build).",
+      ENV_CLICKS
+    );
   }
   if (isSqliteUrl(databaseUrl)) {
-    fail("DATABASE_URL is still a SQLite file: URL. On Vercel it must be the Supabase postgres/postgresql URI, not file:./dev.db.");
+    fail(
+      "DATABASE_URL is still a SQLite file: URL. Use the Supabase postgresql:// pooler URI, not file:./dev.db.",
+      ENV_CLICKS
+    );
   }
   if (!isPostgresUrl(databaseUrl)) {
-    fail("DATABASE_URL is not a postgres:// or postgresql:// URI. Paste the Supabase Prisma connection string, not an API key.");
+    fail(
+      "DATABASE_URL is not postgres:// or postgresql://. Paste the Supabase Prisma connection string, not an API key.",
+      ENV_CLICKS
+    );
+  }
+  if (isDirectDbHost(databaseUrl)) {
+    fail(
+      "DATABASE_URL uses db.xxx.supabase.co (IPv6-only). Vercel often cannot reach it. Use Connect → Prisma Transaction pooler (…pooler.supabase.com:6543).",
+      ENV_CLICKS
+    );
   }
 
-  if (!process.env.DIRECT_URL) {
-    process.env.DIRECT_URL = toDirectUrl(databaseUrl);
-    console.log(`DIRECT_URL was missing; derived session URL: ${describeUrl(process.env.DIRECT_URL)}`);
-  } else if (isSqliteUrl(process.env.DIRECT_URL) || !isPostgresUrl(process.env.DIRECT_URL)) {
-    fail("DIRECT_URL is set but is not a postgresql:// URI. Use the Supabase Session pooler (port 5432).");
+  databaseUrl = asPoolerUrl(databaseUrl);
+  process.env.DATABASE_URL = databaseUrl;
+
+  if (!directUrl) {
+    directUrl = asSessionUrl(databaseUrl);
+    console.log(`DIRECT_URL was missing; using session URL: ${describeUrl(directUrl)}`);
+  } else if (isSqliteUrl(directUrl) || !isPostgresUrl(directUrl)) {
+    fail("DIRECT_URL is set but is not a postgresql:// URI. Use the Session pooler (port 5432).", ENV_CLICKS);
+  } else if (isDirectDbHost(directUrl)) {
+    console.log("DIRECT_URL uses db.xxx.supabase.co; switching to the pooler host from DATABASE_URL so Vercel can connect.");
+    directUrl = asSessionUrl(databaseUrl);
+  } else {
+    directUrl = asSessionUrl(directUrl);
   }
+  process.env.DIRECT_URL = directUrl;
+  console.log(`  DIRECT_URL for db push: ${describeUrl(directUrl)}`);
 
   if (!process.env.AUTH_SECRET) {
-    fail("AUTH_SECRET is missing. Set a long random value so login cookies work across deploys.");
+    fail(
+      "AUTH_SECRET is missing. In Vercel → Settings → Environment Variables add AUTH_SECRET (any long random string) for Production + Build.",
+      ENV_CLICKS
+    );
   }
 
   const prisma = prismaCli();
 
   console.log("Generating Prisma client for PostgreSQL...");
   try {
-    run([prisma, "generate", "--schema", "prisma/schema.postgres.prisma"]);
+    run("prisma generate", [prisma, "generate", "--schema", "prisma/schema.postgres.prisma"]);
   } catch (error) {
     fail(
-      `prisma generate failed (${error.status ?? "error"}). If engines were skipped during npm install, this retry should download them. Check that DATABASE_URL and DIRECT_URL are valid postgresql:// URIs.`
+      "prisma generate failed. The Prisma output is above / in the block below.",
+      error.logTail || String(error.message)
     );
   }
 
   console.log("Pushing Prisma schema to Supabase Postgres...");
   try {
-    run([prisma, "db", "push", "--schema", "prisma/schema.postgres.prisma", "--skip-generate"]);
+    run("prisma db push", [prisma, "db", "push", "--schema", "prisma/schema.postgres.prisma", "--skip-generate"]);
   } catch (error) {
     fail(
-      `prisma db push failed (${error.status ?? "error"}). Typical causes: wrong database password, [YOUR-PASSWORD] still in the URI, DIRECT_URL using the 6543 transaction pooler, or the IPv6-only direct host. Use the Session pooler (port 5432) for DIRECT_URL.`
+      "prisma db push could not reach Supabase. Check the database password, URL-encode special characters, use pooler.supabase.com (not db.xxx), DIRECT_URL port 5432, and that both env vars are enabled for Production + Build.",
+      `${error.logTail || error.message}\n\n${ENV_CLICKS}`
     );
   }
 
   console.log("Seeding empty office (SEED_DEMO=0)...");
   try {
-    run([tsxCli(), "prisma/seed.ts"], {
+    run("seed", [tsxCli(), "prisma/seed.ts"], {
       SEED_DEMO: "0",
       NODE_ENV: "production",
     });
   } catch (error) {
-    fail(`Seed failed (${error.status ?? "error"}). Schema push succeeded but prisma/seed.ts crashed.`);
+    fail(
+      "Seed failed after schema push. Prisma/seed output is below.",
+      error.logTail || error.message
+    );
   }
 
   console.log("Database setup finished. Starting next build...");
