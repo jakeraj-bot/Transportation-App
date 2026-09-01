@@ -201,11 +201,11 @@ function prismaCli() {
   }
 }
 
-function tsxCli() {
+function assertTsxInstalled() {
   try {
-    return require.resolve("tsx/dist/cli.mjs");
+    require.resolve("tsx/package.json");
   } catch {
-    fail("tsx is not installed. Keep it in dependencies so Vercel can run prisma/seed.ts.");
+    fail("tsx is not installed. It must stay in package.json dependencies (not only devDependencies) so Vercel can seed.");
   }
 }
 
@@ -349,9 +349,10 @@ function main() {
 
   console.log("Seeding empty office (SEED_DEMO=0)...");
   try {
+    assertTsxInstalled();
     run(
       "seed",
-      [tsxCli(), "prisma/seed.ts"],
+      ["--import", "tsx", "prisma/seed.ts"],
       {
         ...prismaEnv,
         SEED_DEMO: "0",
