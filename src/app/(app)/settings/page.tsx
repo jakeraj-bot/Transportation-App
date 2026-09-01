@@ -115,24 +115,26 @@ export default async function SettingsPage() {
           <p className="text-muted">Add districts first, then come back here to enter their addresses.</p>
         ) : (
           <form action={saveDistrictAddresses} className="space-y-3">
-            {districts.map((district) => (
-              <CollapsibleBlock key={district.id} title={district.name} hint={addressPreview(district)}>
-                <div className="grid gap-3 md:grid-cols-6">
-                  <Field label="Street" className="md:col-span-3">
-                    <input className={inputClass} name={`street_${district.id}`} defaultValue={district.street ?? ""} />
-                  </Field>
-                  <Field label="City" className="md:col-span-1">
-                    <input className={inputClass} name={`city_${district.id}`} defaultValue={district.city ?? ""} />
-                  </Field>
-                  <Field label="State">
-                    <input className={inputClass} name={`state_${district.id}`} defaultValue={district.state ?? ""} placeholder="NJ" />
-                  </Field>
-                  <Field label="ZIP">
-                    <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
-                  </Field>
-                </div>
-              </CollapsibleBlock>
-            ))}
+            <div className="max-h-[min(24rem,50vh)] space-y-3 overflow-y-auto pr-1">
+              {districts.map((district) => (
+                <CollapsibleBlock key={district.id} title={district.name} hint={addressPreview(district)}>
+                  <div className="grid gap-3 md:grid-cols-6">
+                    <Field label="Street" className="md:col-span-3">
+                      <input className={inputClass} name={`street_${district.id}`} defaultValue={district.street ?? ""} />
+                    </Field>
+                    <Field label="City" className="md:col-span-1">
+                      <input className={inputClass} name={`city_${district.id}`} defaultValue={district.city ?? ""} />
+                    </Field>
+                    <Field label="State">
+                      <input className={inputClass} name={`state_${district.id}`} defaultValue={district.state ?? ""} placeholder="NJ" />
+                    </Field>
+                    <Field label="ZIP">
+                      <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
+                    </Field>
+                  </div>
+                </CollapsibleBlock>
+              ))}
+            </div>
             <Button type="submit">Save district addresses</Button>
           </form>
         )}
