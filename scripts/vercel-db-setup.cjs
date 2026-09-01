@@ -6,22 +6,9 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 
 const ENV_CLICKS = `
-Copy URIs from Supabase:
-  1. supabase.com/dashboard → your project
-  2. Connect → ORM → Prisma
-  3. DATABASE_URL = Transaction pooler (port 6543). Add ?pgbouncer=true if missing.
-  4. DIRECT_URL = Session pooler (port 5432).
-  5. Replace [YOUR-PASSWORD] with the database password. Not anon / service_role keys.
-
-Paste into Vercel:
-  1. vercel.com/yea14/transportation-app
-  2. Settings → Environment Variables
-  3. Production + Build must be ON for:
-       DATABASE_URL    postgresql://…@…pooler.supabase.com:6543/postgres?pgbouncer=true
-       DIRECT_URL      postgresql://…@…pooler.supabase.com:5432/postgres
-       AUTH_SECRET     a long random string
-       SEED_DEMO       0
-  4. Deployments → newest main (not c8c64d5) → Redeploy, cache OFF.
+If prisma db push failed, the Prisma text is in the BUILD FAILED block.
+Password: a literal @ in the password must be %40 once (not %2540).
+Keep DIRECT_URL on port 5432 (session pooler), DATABASE_URL on 6543 with pgbouncer=true.
 `.trim();
 
 function fail(message, extra) {
@@ -32,7 +19,7 @@ function fail(message, extra) {
   process.exit(1);
 }
 
-function normalizeDbUrl(value) {
+function stripWrap(value) {
   if (value == null) return value;
   let url = String(value).trim().replace(/^\uFEFF/, "");
   if (/^DATABASE_URL\s*=/i.test(url)) url = url.replace(/^DATABASE_URL\s*=\s*/i, "");
@@ -43,21 +30,74 @@ function normalizeDbUrl(value) {
   ) {
     url = url.slice(1, -1).trim();
   }
-  return encodePasswordInUrl(url);
+  return url;
 }
 
-function encodePasswordInUrl(raw) {
-  if (!raw || !/^postgres(ql)?:\/\//i.test(raw)) return raw;
-  const match = raw.match(/^(postgres(?:ql)?:\/\/)([^/]+)@(.+)$/i);
-  if (!match) return raw;
-  const [, proto, userPass, rest] = match;
+function encodePasswordOnce(password) {
+  if (!password) return "";
+  let decoded = password;
+  try {
+    decoded = decodeURIComponent(password);
+  } catch {
+    decoded = password;
+  }
+  return encodeURIComponent(decoded);
+}
+
+function decodeOnce(value) {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function parsePgUrl(raw) {
+  if (!raw || !/^postgres(ql)?:\/\//i.test(raw)) return null;
+  const proto = raw.match(/^(postgres(?:ql)?:\/\/)/i)[1];
+  const after = raw.slice(proto.length);
+  const at = after.lastIndexOf("@");
+  if (at < 0) return null;
+  const userPass = after.slice(0, at);
+  const hostPart = after.slice(at + 1);
   const colon = userPass.indexOf(":");
-  if (colon < 0) return raw;
-  const user = userPass.slice(0, colon);
-  const password = userPass.slice(colon + 1);
-  if (!password || /%[0-9A-Fa-f]{2}/.test(password)) return raw;
-  if (!/[^A-Za-z0-9._~-]/.test(password)) return raw;
-  return `${proto}${encodeURIComponent(user)}:${encodeURIComponent(password)}@${rest}`;
+  const user = colon >= 0 ? userPass.slice(0, colon) : userPass;
+  const password = colon >= 0 ? userPass.slice(colon + 1) : "";
+  const qMark = hostPart.indexOf("?");
+  const query = qMark >= 0 ? hostPart.slice(qMark + 1) : "";
+  const hostPath = qMark >= 0 ? hostPart.slice(0, qMark) : hostPart;
+  const slash = hostPath.indexOf("/");
+  const hostPort = slash >= 0 ? hostPath.slice(0, slash) : hostPath;
+  const pathname = slash >= 0 ? hostPath.slice(slash) : "/postgres";
+  const lastColon = hostPort.lastIndexOf(":");
+  let hostname = hostPort;
+  let port = "";
+  if (lastColon >= 0 && /^\d+$/.test(hostPort.slice(lastColon + 1))) {
+    hostname = hostPort.slice(0, lastColon);
+    port = hostPort.slice(lastColon + 1);
+  }
+  return { proto, user, password, hostname, port, pathname, query };
+}
+
+function formatPgUrl(parts, opts = {}) {
+  const params = new URLSearchParams(parts.query);
+  if (opts.dropPgbouncer) params.delete("pgbouncer");
+  if (opts.ensurePgbouncer) params.set("pgbouncer", "true");
+  if (opts.ssl && !params.has("sslmode")) params.set("sslmode", "require");
+  const port = opts.port || parts.port;
+  const user = encodeURIComponent(decodeOnce(parts.user));
+  const password = encodePasswordOnce(parts.password);
+  const q = params.toString();
+  return `${parts.proto}${user}:${password}@${parts.hostname}${port ? `:${port}` : ""}${parts.pathname || "/postgres"}${q ? `?${q}` : ""}`;
+}
+
+function normalizeDbUrl(value) {
+  const stripped = stripWrap(value);
+  if (!stripped) return stripped;
+  const parts = parsePgUrl(stripped);
+  if (!parts) return stripped;
+  return formatPgUrl(parts);
 }
 
 function isPostgresUrl(url) {
@@ -68,22 +108,14 @@ function isSqliteUrl(url) {
   return Boolean(url && (/^file:/i.test(url) || /dev\.db/i.test(url)));
 }
 
-function parseUrl(url) {
-  try {
-    return new URL(url);
-  } catch {
-    return null;
-  }
-}
-
 function describeUrl(url) {
   if (url == null || url === "") return "(missing)";
   if (isSqliteUrl(url)) return "SQLite file: URL (not allowed on Vercel)";
-  const parsed = parseUrl(url);
-  if (!parsed) {
-    return "(could not parse — a special character in the password may need encoding)";
-  }
-  return `${parsed.protocol}//${parsed.hostname}:${parsed.port || "default"}${parsed.pathname} (password ${parsed.password ? "set" : "MISSING"})`;
+  const parts = parsePgUrl(url);
+  if (!parts) return "(could not parse postgres URL)";
+  const user = decodeOnce(parts.user);
+  const userHint = user ? user.replace(/^(postgres\.[a-z0-9]{4}).*$/i, "$1…") : "MISSING USER";
+  return `${parts.hostname}:${parts.port || "?"} db=${parts.pathname || "/"} user=${userHint} password=${parts.password ? "set" : "MISSING"}`;
 }
 
 function redactPrefix(url) {
@@ -92,10 +124,10 @@ function redactPrefix(url) {
   if (/^file:/i.test(trimmed) || /dev\.db/i.test(trimmed)) {
     return `sqlite ${trimmed.slice(0, 40)}`;
   }
+  const parts = parsePgUrl(trimmed);
+  if (parts) return `postgres ${parts.hostname}:${parts.port || "?"}`;
   if (/^postgres(ql)?:\/\//i.test(trimmed)) {
-    const parsed = parseUrl(trimmed);
-    if (parsed) return `postgres ${parsed.hostname}:${parsed.port || "?"}`;
-    return "postgres (unparseable — encode special characters in the password)";
+    return "postgres (unparseable — encode @ in the password as %40)";
   }
   const scheme = (trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/) || ["", "unknown"])[1];
   return `other scheme=${scheme} prefix=${trimmed.slice(0, 20)}`;
@@ -131,35 +163,29 @@ function pickPostgres(names) {
   return firstSet || { name: names[0], url: undefined };
 }
 
-function withSsl(url) {
-  const parsed = parseUrl(url);
-  if (!parsed) return url;
-  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
-  return parsed.toString();
-}
-
 function asSessionUrl(url) {
-  const parsed = parseUrl(url);
-  if (!parsed) return url;
-  if (parsed.port === "6543") parsed.port = "5432";
-  parsed.searchParams.delete("pgbouncer");
-  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
-  return parsed.toString();
+  const parts = parsePgUrl(url);
+  if (!parts) return url;
+  return formatPgUrl(parts, {
+    port: "5432",
+    dropPgbouncer: true,
+    ssl: true,
+  });
 }
 
 function asPoolerUrl(url) {
-  const parsed = parseUrl(url);
-  if (!parsed) return url;
-  if (!parsed.searchParams.has("pgbouncer") && parsed.port === "6543") {
-    parsed.searchParams.set("pgbouncer", "true");
-  }
-  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "require");
-  return parsed.toString();
+  const parts = parsePgUrl(url);
+  if (!parts) return url;
+  return formatPgUrl(parts, {
+    port: parts.port || "6543",
+    ensurePgbouncer: parts.port === "6543" || !parts.port,
+    ssl: true,
+  });
 }
 
 function isDirectDbHost(url) {
-  const parsed = parseUrl(url);
-  return Boolean(parsed && /^db\./i.test(parsed.hostname) && /supabase\.co$/i.test(parsed.hostname));
+  const parts = parsePgUrl(url);
+  return Boolean(parts && /^db\./i.test(parts.hostname) && /supabase\.co$/i.test(parts.hostname));
 }
 
 function prismaCli() {
@@ -178,28 +204,43 @@ function tsxCli() {
   }
 }
 
-function run(label, args, extraEnv) {
+function run(label, args, extraEnv, timeoutMs) {
+  const seconds = Math.round(timeoutMs / 1000);
+  console.log(`Starting ${label} (stdio inherit, ${seconds}s timeout, IPv4 DNS first)...`);
+  const nodeOptions = [process.env.NODE_OPTIONS, extraEnv.NODE_OPTIONS, "--dns-result-order=ipv4first"]
+    .filter(Boolean)
+    .join(" ");
   try {
     execFileSync(process.execPath, args, {
       cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...extraEnv },
+      stdio: ["ignore", "inherit", "inherit"],
+      timeout: timeoutMs,
+      killSignal: "SIGTERM",
+      env: {
+        ...process.env,
+        ...extraEnv,
+        CI: "1",
+        NODE_OPTIONS: nodeOptions,
+      },
     });
   } catch (error) {
-    const tail = `${error.stdout || ""}\n${error.stderr || ""}`.trim().slice(-4000);
-    if (tail) {
-      console.error(tail);
-      error.logTail = tail;
-    }
-    error.step = label;
+    const timedOut = Boolean(error.killed) || error.signal === "SIGTERM" || error.code === "ETIMEDOUT";
+    error.logTail = [
+      `step=${label}`,
+      `exit=${error.status ?? "unknown"}`,
+      `signal=${error.signal || "none"}`,
+      `timedOut=${timedOut}`,
+      `message=${error.message}`,
+      timedOut
+        ? `${label} hung for ${seconds}s with no finish. Prisma prints above this line when stdio is inherited. Usually the Vercel build cannot open TCP/SSL to the Supabase session pooler (DIRECT_URL port 5432).`
+        : `${label} exited ${error.status}. Prisma’s stderr/stdout is in the lines immediately above this Error.`,
+    ].join("\n");
     throw error;
   }
 }
 
 function main() {
   console.log("Vercel database setup (commit must show: node scripts/vercel-db-setup.cjs)");
-  console.log("If vercel-build still says tsx scripts/vercel-db-setup.ts, this is the old c8c64d5 commit — Redeploy newest main.");
   const diagnostic = envDiagnostic();
   console.log(`Env diagnostic (redacted, no passwords): ${diagnostic}`);
 
@@ -220,28 +261,16 @@ function main() {
   console.log(`  SEED_DEMO:    ${process.env.SEED_DEMO ?? "(unset)"}`);
 
   if (!databaseUrl) {
-    fail(
-      `DATABASE_URL is unset at build time (not passed to the Build). ${diagnostic}`,
-      ENV_CLICKS
-    );
+    fail(`DATABASE_URL is unset at build time. ${diagnostic}`, ENV_CLICKS);
   }
   if (isSqliteUrl(databaseUrl)) {
-    fail(
-      `DATABASE_URL is still SQLite (${redactPrefix(databaseUrl)}). Use a postgresql:// pooler URI, not file:./dev.db. ${diagnostic}`,
-      ENV_CLICKS
-    );
+    fail(`DATABASE_URL is still SQLite (${redactPrefix(databaseUrl)}).`, ENV_CLICKS);
   }
   if (!isPostgresUrl(databaseUrl)) {
-    fail(
-      `DATABASE_URL is not postgres/postgresql (${redactPrefix(databaseUrl)}). Paste the Supabase Prisma URI, not an API key. ${diagnostic}`,
-      ENV_CLICKS
-    );
+    fail(`DATABASE_URL is not postgres/postgresql (${redactPrefix(databaseUrl)}).`, ENV_CLICKS);
   }
   if (isDirectDbHost(databaseUrl)) {
-    fail(
-      "DATABASE_URL uses db.xxx.supabase.co (IPv6-only). Vercel often cannot reach it. Use Connect → Prisma Transaction pooler (…pooler.supabase.com:6543).",
-      ENV_CLICKS
-    );
+    fail("DATABASE_URL uses db.xxx.supabase.co (IPv6-only). Use the pooler host.", ENV_CLICKS);
   }
 
   databaseUrl = asPoolerUrl(databaseUrl);
@@ -251,9 +280,9 @@ function main() {
     directUrl = asSessionUrl(databaseUrl);
     console.log(`DIRECT_URL was missing; using session URL: ${describeUrl(directUrl)}`);
   } else if (isSqliteUrl(directUrl) || !isPostgresUrl(directUrl)) {
-    fail("DIRECT_URL is set but is not a postgresql:// URI. Use the Session pooler (port 5432).", ENV_CLICKS);
+    fail("DIRECT_URL is set but is not a postgresql:// URI.", ENV_CLICKS);
   } else if (isDirectDbHost(directUrl)) {
-    console.log("DIRECT_URL uses db.xxx.supabase.co; switching to the pooler host from DATABASE_URL so Vercel can connect.");
+    console.log("DIRECT_URL uses db.xxx.supabase.co; switching to the pooler host from DATABASE_URL.");
     directUrl = asSessionUrl(databaseUrl);
   } else {
     directUrl = asSessionUrl(directUrl);
@@ -261,46 +290,63 @@ function main() {
   process.env.DIRECT_URL = directUrl;
   console.log(`  DIRECT_URL for db push: ${describeUrl(directUrl)}`);
 
+  const dbParts = parsePgUrl(databaseUrl);
+  const directParts = parsePgUrl(directUrl);
+  if (!dbParts?.user || !directParts?.user) {
+    fail("Rewritten database URL is missing the postgres.PROJECT username. Re-copy the Prisma URI from Supabase.");
+  }
+  if (directParts.port && directParts.port !== "5432") {
+    fail(`DIRECT_URL for db push must be port 5432 (got ${directParts.port}).`);
+  }
+
   if (!process.env.AUTH_SECRET) {
-    fail(
-      "AUTH_SECRET is missing. In Vercel → Settings → Environment Variables add AUTH_SECRET (any long random string) for Production + Build.",
-      ENV_CLICKS
-    );
+    fail("AUTH_SECRET is missing.", ENV_CLICKS);
   }
 
   const prisma = prismaCli();
+  const prismaEnv = {
+    DATABASE_URL: databaseUrl,
+    DIRECT_URL: directUrl,
+    CI: "1",
+  };
 
   console.log("Generating Prisma client for PostgreSQL...");
   try {
-    run("prisma generate", [prisma, "generate", "--schema", "prisma/schema.postgres.prisma"]);
+    run("prisma generate", [prisma, "generate", "--schema", "prisma/schema.postgres.prisma"], prismaEnv, 60_000);
   } catch (error) {
-    fail(
-      "prisma generate failed. The Prisma output is above / in the block below.",
-      error.logTail || String(error.message)
-    );
+    fail("prisma generate failed.", error.logTail || String(error.message));
   }
 
-  console.log("Pushing Prisma schema to Supabase Postgres...");
+  console.log("Pushing Prisma schema to Supabase Postgres (DIRECT_URL port 5432, sslmode=require)...");
+  console.log("Ignore Supabase Connect Step 1 (npm install prisma / prisma init). This app already has Prisma. Only the two URIs from Step 2 are used.");
   try {
-    run("prisma db push", [prisma, "db", "push", "--schema", "prisma/schema.postgres.prisma", "--skip-generate"]);
+    run(
+      "prisma db push",
+      [prisma, "db", "push", "--schema", "prisma/schema.postgres.prisma", "--skip-generate"],
+      prismaEnv,
+      45_000
+    );
   } catch (error) {
     fail(
-      "prisma db push could not reach Supabase. Check the database password, URL-encode special characters, use pooler.supabase.com (not db.xxx), DIRECT_URL port 5432, and that both env vars are enabled for Production + Build.",
+      "prisma db push failed or hung. Do not run npm install prisma in Supabase. Check password @ is %40 once (not %2540), DIRECT_URL port 5432, DATABASE_URL port 6543.",
       `${error.logTail || error.message}\n\n${ENV_CLICKS}`
     );
   }
 
   console.log("Seeding empty office (SEED_DEMO=0)...");
   try {
-    run("seed", [tsxCli(), "prisma/seed.ts"], {
-      SEED_DEMO: "0",
-      NODE_ENV: "production",
-    });
-  } catch (error) {
-    fail(
-      "Seed failed after schema push. Prisma/seed output is below.",
-      error.logTail || error.message
+    run(
+      "seed",
+      [tsxCli(), "prisma/seed.ts"],
+      {
+        ...prismaEnv,
+        SEED_DEMO: "0",
+        NODE_ENV: "production",
+      },
+      60_000
     );
+  } catch (error) {
+    fail("Seed failed after schema push.", error.logTail || error.message);
   }
 
   console.log("Database setup finished. Starting next build...");
