@@ -21,7 +21,7 @@ Paste into Vercel:
        DIRECT_URL      postgresql://…@…pooler.supabase.com:5432/postgres
        AUTH_SECRET     a long random string
        SEED_DEMO       0
-  4. Deployments → commit 1a58d70 or newer (not c8c64d5) → Redeploy, cache OFF.
+  4. Deployments → newest main (not c8c64d5) → Redeploy, cache OFF.
 `.trim();
 
 function fail(message, extra) {
@@ -84,6 +84,51 @@ function describeUrl(url) {
     return "(could not parse — a special character in the password may need encoding)";
   }
   return `${parsed.protocol}//${parsed.hostname}:${parsed.port || "default"}${parsed.pathname} (password ${parsed.password ? "set" : "MISSING"})`;
+}
+
+function redactPrefix(url) {
+  if (url == null || String(url).trim() === "") return "unset";
+  const trimmed = String(url).trim();
+  if (/^file:/i.test(trimmed) || /dev\.db/i.test(trimmed)) {
+    return `sqlite ${trimmed.slice(0, 40)}`;
+  }
+  if (/^postgres(ql)?:\/\//i.test(trimmed)) {
+    const parsed = parseUrl(trimmed);
+    if (parsed) return `postgres ${parsed.hostname}:${parsed.port || "?"}`;
+    return "postgres (unparseable — encode special characters in the password)";
+  }
+  const scheme = (trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/) || ["", "unknown"])[1];
+  return `other scheme=${scheme} prefix=${trimmed.slice(0, 20)}`;
+}
+
+function envDiagnostic() {
+  const names = [
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_URL",
+    "POSTGRES_URL_NON_POOLING",
+    "AUTH_SECRET",
+    "SEED_DEMO",
+  ];
+  return names
+    .map((name) => {
+      if (name === "AUTH_SECRET") return `${name}=${process.env.AUTH_SECRET ? "set" : "unset"}`;
+      if (name === "SEED_DEMO") return `${name}=${process.env.SEED_DEMO ?? "unset"}`;
+      return `${name}=${redactPrefix(normalizeDbUrl(process.env[name]) || process.env[name])}`;
+    })
+    .join(" ");
+}
+
+function pickPostgres(names) {
+  let firstSet;
+  for (const name of names) {
+    const url = normalizeDbUrl(process.env[name]);
+    if (!url) continue;
+    if (!firstSet) firstSet = { name, url };
+    if (isPostgresUrl(url) && !isSqliteUrl(url)) return { name, url };
+  }
+  return firstSet || { name: names[0], url: undefined };
 }
 
 function withSsl(url) {
@@ -154,10 +199,20 @@ function run(label, args, extraEnv) {
 
 function main() {
   console.log("Vercel database setup (commit must show: node scripts/vercel-db-setup.cjs)");
-  console.log("If the line above vercel-build still says tsx scripts/vercel-db-setup.ts, this is the old c8c64d5 commit — Redeploy 1a58d70 or newer.");
+  console.log("If vercel-build still says tsx scripts/vercel-db-setup.ts, this is the old c8c64d5 commit — Redeploy newest main.");
+  const diagnostic = envDiagnostic();
+  console.log(`Env diagnostic (redacted, no passwords): ${diagnostic}`);
 
-  let databaseUrl = normalizeDbUrl(process.env.DATABASE_URL);
-  let directUrl = normalizeDbUrl(process.env.DIRECT_URL);
+  const dbPick = pickPostgres(["DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL"]);
+  const directPick = pickPostgres(["DIRECT_URL", "POSTGRES_URL_NON_POOLING", "POSTGRES_URL"]);
+  let databaseUrl = dbPick.url;
+  let directUrl = directPick.url;
+  if (databaseUrl && dbPick.name !== "DATABASE_URL") {
+    console.log(`Using ${dbPick.name} as DATABASE_URL`);
+  }
+  if (directUrl && directPick.name !== "DIRECT_URL") {
+    console.log(`Using ${directPick.name} as DIRECT_URL`);
+  }
 
   console.log(`  DATABASE_URL: ${describeUrl(databaseUrl)}`);
   console.log(`  DIRECT_URL:   ${describeUrl(directUrl)}`);
@@ -166,19 +221,19 @@ function main() {
 
   if (!databaseUrl) {
     fail(
-      "DATABASE_URL is missing on Vercel (not set for Production + Build).",
+      `DATABASE_URL is unset at build time (not passed to the Build). ${diagnostic}`,
       ENV_CLICKS
     );
   }
   if (isSqliteUrl(databaseUrl)) {
     fail(
-      "DATABASE_URL is still a SQLite file: URL. Use the Supabase postgresql:// pooler URI, not file:./dev.db.",
+      `DATABASE_URL is still SQLite (${redactPrefix(databaseUrl)}). Use a postgresql:// pooler URI, not file:./dev.db. ${diagnostic}`,
       ENV_CLICKS
     );
   }
   if (!isPostgresUrl(databaseUrl)) {
     fail(
-      "DATABASE_URL is not postgres:// or postgresql://. Paste the Supabase Prisma connection string, not an API key.",
+      `DATABASE_URL is not postgres/postgresql (${redactPrefix(databaseUrl)}). Paste the Supabase Prisma URI, not an API key. ${diagnostic}`,
       ENV_CLICKS
     );
   }
