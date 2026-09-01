@@ -58,8 +58,10 @@ Office sign-in after empty seed: `jjacobs@doe.nj.gov` / `Passaic2026!` — chang
    - **Session pooler** (or Direct) → Vercel `DIRECT_URL`.
    - Use the database connection URI, **not** the `anon` / `service_role` API keys.
 3. [Vercel](https://vercel.com) → **Add New… → Project** → import this app (or `npx vercel login` then `npx vercel --prod`).
-4. Vercel project **Settings → Environment Variables** (Production): paste `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SEED_DEMO=0`.
-5. Deploy. `vercel-build` runs `node scripts/vercel-db-setup.cjs` (`prisma generate`, `prisma db push`, empty seed), then `next build`. If that script exits 1, the log line starting with `Error:` lists which env vars to fix.
+4. Open [Vercel → transportation-app](https://vercel.com/yea14/transportation-app) → **Settings** → **Environment Variables**. Add all four for **Production** (enable them for the build):
+   - `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SEED_DEMO` = `0`
+   - The two URLs must start with `postgres://` or `postgresql://`. If you see `file:./dev.db`, that is the local demo value — do not use it on Vercel.
+5. **Deployments** → newest commit → **Redeploy** with **Use existing Build Cache** turned **off**. `vercel-build` runs `node scripts/vercel-db-setup.cjs`, then `next build`. If it fails, the log line starting with `Error:` says which env var to fix.
 
 `npm run build` locally still uses SQLite generate only. It does not write to Supabase.
 
