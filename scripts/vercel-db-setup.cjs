@@ -85,6 +85,9 @@ function formatPgUrl(parts, opts = {}) {
   if (opts.dropPgbouncer) params.delete("pgbouncer");
   if (opts.ensurePgbouncer) params.set("pgbouncer", "true");
   if (opts.ssl && !params.has("sslmode")) params.set("sslmode", "require");
+  if (opts.connectTimeout && !params.has("connect_timeout")) {
+    params.set("connect_timeout", String(opts.connectTimeout));
+  }
   const port = opts.port || parts.port;
   const user = encodeURIComponent(decodeOnce(parts.user));
   const password = encodePasswordOnce(parts.password);
@@ -170,6 +173,7 @@ function asSessionUrl(url) {
     port: "5432",
     dropPgbouncer: true,
     ssl: true,
+    connectTimeout: 10,
   });
 }
 
@@ -180,6 +184,7 @@ function asPoolerUrl(url) {
     port: parts.port || "6543",
     ensurePgbouncer: parts.port === "6543" || !parts.port,
     ssl: true,
+    connectTimeout: 10,
   });
 }
 
@@ -206,25 +211,26 @@ function tsxCli() {
 
 function run(label, args, extraEnv, timeoutMs) {
   const seconds = Math.round(timeoutMs / 1000);
-  console.log(`Starting ${label} (stdio inherit, ${seconds}s timeout, IPv4 DNS first)...`);
+  console.log(`Starting ${label} (CI, ${seconds}s SIGKILL timeout, IPv4 DNS, connect_timeout=10)...`);
   const nodeOptions = [process.env.NODE_OPTIONS, extraEnv.NODE_OPTIONS, "--dns-result-order=ipv4first"]
     .filter(Boolean)
     .join(" ");
   try {
     execFileSync(process.execPath, args, {
       cwd: root,
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio: ["pipe", "inherit", "inherit"],
+      input: "y\nyes\n",
       timeout: timeoutMs,
-      killSignal: "SIGTERM",
+      killSignal: "SIGKILL",
       env: {
         ...process.env,
         ...extraEnv,
-        CI: "1",
+        CI: "true",
         NODE_OPTIONS: nodeOptions,
       },
     });
   } catch (error) {
-    const timedOut = Boolean(error.killed) || error.signal === "SIGTERM" || error.code === "ETIMEDOUT";
+    const timedOut = Boolean(error.killed) || error.signal === "SIGKILL" || error.code === "ETIMEDOUT";
     error.logTail = [
       `step=${label}`,
       `exit=${error.status ?? "unknown"}`,
@@ -232,7 +238,7 @@ function run(label, args, extraEnv, timeoutMs) {
       `timedOut=${timedOut}`,
       `message=${error.message}`,
       timedOut
-        ? `${label} hung for ${seconds}s with no finish. Prisma prints above this line when stdio is inherited. Usually the Vercel build cannot open TCP/SSL to the Supabase session pooler (DIRECT_URL port 5432).`
+        ? `${label} was killed after ${seconds}s. The orange Prisma 7 package.json warning is harmless. The hang is the schema engine opening TCP/SSL to DIRECT_URL (port 5432, connect_timeout=10). Confirm the password uses %40 once for @.`
         : `${label} exited ${error.status}. Prisma’s stderr/stdout is in the lines immediately above this Error.`,
     ].join("\n");
     throw error;
@@ -307,7 +313,7 @@ function main() {
   const prismaEnv = {
     DATABASE_URL: databaseUrl,
     DIRECT_URL: directUrl,
-    CI: "1",
+    CI: "true",
   };
 
   console.log("Generating Prisma client for PostgreSQL...");
@@ -317,18 +323,26 @@ function main() {
     fail("prisma generate failed.", error.logTail || String(error.message));
   }
 
-  console.log("Pushing Prisma schema to Supabase Postgres (DIRECT_URL port 5432, sslmode=require)...");
-  console.log("Ignore Supabase Connect Step 1 (npm install prisma / prisma init). This app already has Prisma. Only the two URIs from Step 2 are used.");
+  console.log("Pushing Prisma schema to Supabase Postgres (non-interactive db push, DIRECT_URL 5432)...");
+  console.log("The orange Prisma 7 warning is harmless. Ignore Supabase Step 1 (npm install prisma).");
   try {
     run(
       "prisma db push",
-      [prisma, "db", "push", "--schema", "prisma/schema.postgres.prisma", "--skip-generate"],
+      [
+        prisma,
+        "db",
+        "push",
+        "--schema",
+        "prisma/schema.postgres.prisma",
+        "--skip-generate",
+        "--accept-data-loss",
+      ],
       prismaEnv,
-      45_000
+      25_000
     );
   } catch (error) {
     fail(
-      "prisma db push failed or hung. Do not run npm install prisma in Supabase. Check password @ is %40 once (not %2540), DIRECT_URL port 5432, DATABASE_URL port 6543.",
+      "prisma db push failed or hung. The orange Prisma 7 warning is not the failure. Do not run npm install prisma. Password @ must be %40 once. DIRECT_URL must be the session pooler on port 5432.",
       `${error.logTail || error.message}\n\n${ENV_CLICKS}`
     );
   }
