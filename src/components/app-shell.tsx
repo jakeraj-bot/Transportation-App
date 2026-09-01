@@ -32,13 +32,13 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-cream">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-navy text-white/90 lg:flex">
-        <div className="px-5 pb-4 pt-6">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col overflow-hidden bg-navy text-white/90 lg:flex">
+        <div className="shrink-0 px-5 pb-4 pt-6">
           <p className="text-xs uppercase tracking-[0.16em] text-white/50">Passaic County</p>
           <p className="serif mt-1 text-2xl leading-tight text-white">Transportation</p>
           <p className="mt-1 text-sm text-white/55">School year {schoolYear}</p>
         </div>
-        <nav className="flex-1 space-y-0.5 px-3">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3">
           {nav.map((item) => (
             <Link
               key={item.href}
@@ -49,7 +49,7 @@ export function AppShell({
             </Link>
           ))}
         </nav>
-        <form action="/api/auth/logout" method="post" className="p-4">
+        <form action="/api/auth/logout" method="post" className="shrink-0 p-4">
           <p className="mb-2 truncate px-1 text-sm text-white/60">{user.name}</p>
           <button className="w-full rounded-xl bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15" type="submit">
             Sign out

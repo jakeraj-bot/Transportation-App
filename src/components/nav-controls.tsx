@@ -40,14 +40,14 @@ export function MobileNav({
       {open ? (
         <div className="fixed inset-0 z-40">
           <button className="absolute inset-0 bg-navy/40" type="button" onClick={() => setOpen(false)} aria-label="Close menu" />
-          <div className="absolute inset-y-0 left-0 flex w-72 flex-col bg-navy text-white shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4">
+          <div className="absolute inset-y-0 left-0 flex w-72 flex-col overflow-hidden bg-navy text-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between px-5 py-4">
               <p className="serif text-xl">Transportation</p>
               <button type="button" onClick={() => setOpen(false)} className="text-white/70">
                 Close
               </button>
             </div>
-            <nav className="flex-1 space-y-1 px-3">
+            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
               {items.map((item) => (
                 <Link
                   key={item.href}
@@ -59,7 +59,7 @@ export function MobileNav({
                 </Link>
               ))}
             </nav>
-            <form action="/api/auth/logout" method="post" className="p-4">
+            <form action="/api/auth/logout" method="post" className="shrink-0 p-4">
               <p className="mb-2 text-sm text-white/60">{userName}</p>
               <button className="w-full rounded-xl bg-white/10 px-3 py-2 text-sm" type="submit">
                 Sign out
