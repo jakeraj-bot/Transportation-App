@@ -178,7 +178,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           <p className="mb-3 text-sm text-muted">
             Generating a letter moves the status to Approved or Disapproved while you wait for a signature. After the signed letter is sent, mark the date it went to the district.
           </p>
-          <LetterButtons kind="contract" id={contract.id} />
+          <LetterButtons kind="contract" id={contract.id} contractTypeLabel={contractTypeLabel(contract.type)} />
           {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
             <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
               <input type="hidden" name="id" value={contract.id} />

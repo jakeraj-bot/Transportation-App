@@ -6,21 +6,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { can, requireSession } from "@/lib/auth";
-import { nameControlFrom, schoolYearDates } from "@/lib/utils";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { ensureChecklist, getSetting, refreshContractFlags } from "@/lib/data";
 import {
+  contractLetterTemplateKey,
   contractTypeLabel,
+  nameControlFrom,
   parseDate,
   parseMoney,
+  schoolYearDates,
   splitRoutes,
 } from "@/lib/utils";
 import { buildLabelPdf } from "@/lib/labels";
 import {
   defaultLetterDocx,
+  districtMergeFields,
   ensureUploadDir,
   fillDocx,
   uploadPath,
@@ -45,6 +48,10 @@ export async function saveDistrict(form: FormData) {
     code: formString(form, "code") || null,
     email: formString(form, "email") || null,
     phone: formString(form, "phone") || null,
+    street: formString(form, "street") || null,
+    city: formString(form, "city") || null,
+    state: formString(form, "state") || null,
+    zip: formString(form, "zip") || null,
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -59,6 +66,29 @@ export async function saveDistrict(form: FormData) {
   });
   revalidateAll();
   redirect(`/districts/${row.id}`);
+}
+
+export async function saveDistrictAddresses(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const districts = await prisma.district.findMany({ where: { deletedAt: null } });
+  for (const district of districts) {
+    const street = formString(form, `street_${district.id}`) || null;
+    const city = formString(form, `city_${district.id}`) || null;
+    const state = formString(form, `state_${district.id}`) || null;
+    const zip = formString(form, `zip_${district.id}`) || null;
+    await prisma.district.update({
+      where: { id: district.id },
+      data: { street, city, state, zip },
+    });
+  }
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "district",
+    summary: "Updated district letter addresses",
+  });
+  revalidateAll();
 }
 
 export async function saveContractor(form: FormData) {
@@ -619,17 +649,26 @@ export async function uploadTemplate(form: FormData) {
   revalidateAll();
 }
 
-async function templateBuffer(key: "approved" | "disapproved" | "pt4") {
-  const map: Record<string, string> = {
-    approved: "contract_approved",
-    disapproved: "contract_disapproved",
-    pt4: "pt4",
-  };
-  const row = await prisma.templateFile.findUnique({ where: { key: map[key] } });
+async function readTemplateFile(key: string) {
+  const row = await prisma.templateFile.findUnique({ where: { key } });
   if (row && fs.existsSync(uploadPath(row.filePath))) {
     return fs.readFileSync(uploadPath(row.filePath));
   }
-  return defaultLetterDocx(key);
+  return null;
+}
+
+async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractType?: string) {
+  if (key === "pt4") {
+    return (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4");
+  }
+  const typed = contractLetterTemplateKey(key, contractType);
+  const generic = `contract_${key}`;
+  const lookups = typed === generic ? [generic] : [typed, generic];
+  for (const lookup of lookups) {
+    const buf = await readTemplateFile(lookup);
+    if (buf) return buf;
+  }
+  return defaultLetterDocx(key, contractType);
 }
 
 async function certTemplateBuffer(kind: "approved" | "disapproved") {
@@ -654,7 +693,7 @@ export async function generateContractLetter(form: FormData) {
   const notes = formString(form, "notes");
   const fields = {
     letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: contract.district.name,
+    ...districtMergeFields(contract.district),
     contractor: contract.contractor.legalName,
     vendorCode: contract.contractor.vendorCode || "—",
     schoolYear: contract.schoolYear,
@@ -665,7 +704,7 @@ export async function generateContractLetter(form: FormData) {
     notes,
     missingItems: "",
   };
-  const buf = fillDocx(await templateBuffer(kind), fields);
+  const buf = fillDocx(await templateBuffer(kind, contract.type), fields);
   const dir = ensureUploadDir("letters");
   const fileName = `${kind}-${contract.multiContractNumber}-${Date.now()}.docx`.replace(/\s+/g, "_");
   fs.writeFileSync(path.join(dir, fileName), buf);
@@ -709,7 +748,7 @@ export async function generateCertLetter(form: FormData) {
   });
   const fields = {
     letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: "All districts served by this contractor",
+    ...districtMergeFields({ name: "All districts served by this contractor" }),
     contractor: cert.contractor.legalName,
     vendorCode: cert.contractor.vendorCode || "—",
     schoolYear: cert.schoolYear,
@@ -794,6 +833,8 @@ export async function generatePt4AndEmail(form: FormData) {
   let districtId: string | null = null;
   let districtEmail = "";
   let districtName = "";
+  let districtForLetter: { name: string; street?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null =
+    null;
   let contractor = "";
   let schoolYear = await getSetting("schoolYear");
   let multi = "";
@@ -808,6 +849,7 @@ export async function generatePt4AndEmail(form: FormData) {
     districtId = contract.districtId;
     districtEmail = contract.district.email || "";
     districtName = contract.district.name;
+    districtForLetter = contract.district;
     contractor = contract.contractor.legalName;
     schoolYear = contract.schoolYear;
     multi = contract.multiContractNumber;
@@ -837,7 +879,7 @@ export async function generatePt4AndEmail(form: FormData) {
 
   const fields = {
     letterDate: new Date().toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: districtName,
+    ...districtMergeFields(districtForLetter ?? { name: districtName }),
     contractor,
     vendorCode: "",
     schoolYear,

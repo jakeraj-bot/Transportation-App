@@ -60,6 +60,11 @@ export function buildSimpleDocx(lines: Array<{ text: string; bold?: boolean; siz
 export type LetterFields = {
   letterDate: string;
   district: string;
+  districtAddress: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
   contractor: string;
   vendorCode: string;
   schoolYear: string;
@@ -71,7 +76,86 @@ export type LetterFields = {
   missingItems: string;
 };
 
-export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
+export type DistrictAddressInput = {
+  name: string;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+};
+
+export function formatDistrictAddress(district: DistrictAddressInput) {
+  const street = district.street?.trim() || "";
+  const cityLine = [district.city?.trim(), [district.state?.trim(), district.zip?.trim()].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  return [street, cityLine].filter(Boolean).join("\n");
+}
+
+export function districtMergeFields(district?: DistrictAddressInput | null): Pick<
+  LetterFields,
+  "district" | "districtAddress" | "street" | "city" | "state" | "zip"
+> {
+  return {
+    district: district?.name ?? "",
+    districtAddress: district ? formatDistrictAddress(district) : "",
+    street: district?.street?.trim() || "",
+    city: district?.city?.trim() || "",
+    state: district?.state?.trim() || "",
+    zip: district?.zip?.trim() || "",
+  };
+}
+
+const LETTER_NOUN: Record<string, string> = {
+  original: "original transportation contract",
+  renewal: "contract renewal",
+  quote: "quoted transportation",
+  parental: "parental transportation contract",
+  addendum: "contract addendum",
+  joint: "joint transportation agreement",
+};
+
+const LETTER_TITLES: Record<string, { approved: string; disapproved: string }> = {
+  original: {
+    approved: "Approval of original student transportation contract",
+    disapproved: "Disapproval of original student transportation contract",
+  },
+  renewal: {
+    approved: "Approval of student transportation contract renewal",
+    disapproved: "Disapproval of student transportation contract renewal",
+  },
+  quote: {
+    approved: "Approval of quoted student transportation",
+    disapproved: "Disapproval of quoted student transportation",
+  },
+  parental: {
+    approved: "Approval of parental transportation contract",
+    disapproved: "Disapproval of parental transportation contract",
+  },
+  addendum: {
+    approved: "Approval of student transportation contract addendum",
+    disapproved: "Disapproval of student transportation contract addendum",
+  },
+  joint: {
+    approved: "Approval of joint transportation agreement",
+    disapproved: "Disapproval of joint transportation agreement",
+  },
+};
+
+function letterTitle(kind: "approved" | "disapproved", contractType?: string) {
+  const pair = LETTER_TITLES[contractType || ""];
+  if (pair) return pair[kind];
+  return kind === "approved" ? "Approval of student transportation" : "Disapproval of student transportation";
+}
+
+function letterDecisionSentence(kind: "approved" | "disapproved", contractType?: string) {
+  const noun = LETTER_NOUN[contractType || ""] ?? "transportation";
+  return kind === "approved"
+    ? `This office has reviewed the documents submitted and the ${noun} described above is {decision}.`
+    : `This office has reviewed the documents submitted and cannot approve the ${noun} described above.`;
+}
+
+export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", contractType?: string) {
   if (kind === "pt4") {
     return buildSimpleDocx([
       { text: "PASSAIC COUNTY OFFICE OF EDUCATION", bold: true, size: 28, center: true },
@@ -80,6 +164,7 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
       { text: "" },
       { text: "Date: {letterDate}" },
       { text: "District: {district}" },
+      { text: "{districtAddress}" },
       { text: "Contractor: {contractor}" },
       { text: "School year: {schoolYear}" },
       { text: "Multi-contract #: {multiContractNumber}" },
@@ -97,31 +182,22 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
     ]);
   }
 
-  const title =
-    kind === "approved"
-      ? "Approval of student transportation"
-      : "Disapproval of student transportation";
-
   return buildSimpleDocx([
     { text: "PASSAIC COUNTY OFFICE OF EDUCATION", bold: true, size: 28, center: true },
     { text: "Office of the Executive County Superintendent", size: 22, center: true },
-    { text: title, bold: true, size: 32, center: true },
+    { text: letterTitle(kind, contractType), bold: true, size: 32, center: true },
     { text: "" },
     { text: "Date: {letterDate}" },
     { text: "" },
     { text: "To: {district}" },
+    { text: "{districtAddress}" },
     { text: "Re: {contractor}  ({vendorCode})" },
     { text: "School year: {schoolYear}" },
     { text: "Multi-contract #: {multiContractNumber}" },
     { text: "Type: {type}" },
     { text: "Routes: {routes}" },
     { text: "" },
-    {
-      text:
-        kind === "approved"
-          ? "This office has reviewed the documents submitted and the transportation described above is {decision}."
-          : "This office has reviewed the documents submitted and cannot approve the transportation described above.",
-    },
+    { text: letterDecisionSentence(kind, contractType) },
     { text: "" },
     { text: "{notes}" },
     { text: "" },

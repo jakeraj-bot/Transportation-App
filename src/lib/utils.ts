@@ -57,6 +57,11 @@ export function contractTypeLabel(type: string) {
   return CONTRACT_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
+export function contractLetterTemplateKey(kind: "approved" | "disapproved", contractType?: string | null) {
+  const type = CONTRACT_TYPES.find((t) => t.value === contractType)?.value;
+  return type ? `contract_${kind}_${type}` : `contract_${kind}`;
+}
+
 export function brcSearchUrl() {
   return "https://www1.state.nj.us/TYTR_BRC/jsp/BRCLoginJsp.jsp";
 }

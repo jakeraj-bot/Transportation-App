@@ -17,7 +17,10 @@ export default async function DistrictsPage() {
           {rows.map((d) => (
             <Link key={d.id} href={`/districts/${d.id}`} className="block px-5 py-3 hover:bg-teal-soft/40">
               <p className="font-medium">{d.name}</p>
-              <p className="text-sm text-muted">{d.email || "Add a transportation email so PT-4s can send"}</p>
+              <p className="text-sm text-muted">
+                {d.email || "Add a transportation email so PT-4s can send"}
+                {d.street || d.city ? ` · ${[d.street, [d.city, d.state, d.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}` : " · Add a letter address"}
+              </p>
             </Link>
           ))}
         </Card>

@@ -1,35 +1,65 @@
 import Link from "next/link";
-import { saveSettings, uploadTemplate } from "@/app/actions";
+import { saveDistrictAddresses, saveSettings, uploadTemplate } from "@/app/actions";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { contractLetterTemplateKey } from "@/lib/utils";
 import { getSetting } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { CONTRACT_TYPES } from "@/lib/utils";
 
-const TEMPLATES = [
-  ["contract_approved", "Contract approval letter"],
-  ["contract_disapproved", "Contract disapproval letter"],
+const SHARED_TEMPLATES = [
+  ["contract_approved", "Default contract approval letter"],
+  ["contract_disapproved", "Default contract disapproval letter"],
   ["cert_approved", "Annual cert approval letter"],
   ["cert_disapproved", "Annual cert disapproval letter"],
   ["pt4", "PT-4 form"],
-];
+] as const;
+
+function TemplateRow({
+  templateKey,
+  label,
+  hint,
+  originalName,
+}: {
+  templateKey: string;
+  label: string;
+  hint: string;
+  originalName?: string;
+}) {
+  return (
+    <form action={uploadTemplate} className="grid gap-2 rounded-xl border border-line p-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+      <input type="hidden" name="key" value={templateKey} />
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="text-sm text-muted">{originalName ? `Current file: ${originalName}` : hint}</p>
+      </div>
+      <input className={inputClass} type="file" name="file" accept=".docx" required />
+      <Button type="submit">Upload</Button>
+    </form>
+  );
+}
 
 export default async function SettingsPage() {
-  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] = await Promise.all([
-    getSetting("schoolYear"),
-    getSetting("cpi"),
-    getSetting("bidThreshold"),
-    getSetting("officeName"),
-    getSetting("officeEmail"),
-    getSetting("secondReviewAlertOn", "off"),
-    getSetting("secondReviewAlertHours", "48"),
-    prisma.templateFile.findMany(),
-  ]);
+  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates, districts] =
+    await Promise.all([
+      getSetting("schoolYear"),
+      getSetting("cpi"),
+      getSetting("bidThreshold"),
+      getSetting("officeName"),
+      getSetting("officeEmail"),
+      getSetting("secondReviewAlertOn", "off"),
+      getSetting("secondReviewAlertHours", "48"),
+      prisma.templateFile.findMany(),
+      prisma.district.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
+    ]);
+  const byKey = Object.fromEntries(templates.map((t) => [t.key, t.originalName]));
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" hint="School year, CPI, letters, people, and statuses." />
       <div className="flex flex-wrap gap-3">
         <Button href="/settings/users" variant="secondary">Users and permissions</Button>
         <Button href="/settings/statuses" variant="secondary">Statuses</Button>
+        <Button href="/districts" variant="secondary">Districts</Button>
       </div>
       <Card>
         <h2 className="serif mb-4 text-2xl">Office settings</h2>
@@ -55,23 +85,76 @@ export default async function SettingsPage() {
         </p>
       </Card>
       <Card>
-        <h2 className="serif mb-2 text-2xl">Word templates</h2>
-        <p className="mb-4 text-muted">Upload your letterhead documents. Use merge fields like {"{district}"}, {"{contractor}"}, {"{letterDate}"}, {"{multiContractNumber}"}, {"{routes}"}, {"{schoolYear}"}, {"{missingItems}"}.</p>
-        <div className="space-y-4">
-          {TEMPLATES.map(([key, label]) => {
-            const existing = templates.find((t) => t.key === key);
-            return (
-              <form key={key} action={uploadTemplate} className="grid gap-2 rounded-xl border border-line p-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-                <input type="hidden" name="key" value={key} />
-                <div>
-                  <p className="font-medium">{label}</p>
-                  <p className="text-sm text-muted">{existing ? `Current file: ${existing.originalName}` : "Using the built-in letter until you upload one."}</p>
+        <h2 className="serif mb-2 text-2xl">District letter addresses</h2>
+        <p className="mb-4 text-muted">
+          Each district has its own mailing address. Letters use the address on the contract’s district — not a shared county address. You can also edit one district at a time under Districts.
+        </p>
+        {districts.length === 0 ? (
+          <p className="text-muted">Add districts first, then come back here to enter their addresses.</p>
+        ) : (
+          <form action={saveDistrictAddresses} className="space-y-4">
+            {districts.map((district) => (
+              <div key={district.id} className="rounded-xl border border-line p-4">
+                <p className="mb-3 font-medium">{district.name}</p>
+                <div className="grid gap-3 md:grid-cols-6">
+                  <Field label="Street" className="md:col-span-3">
+                    <input className={inputClass} name={`street_${district.id}`} defaultValue={district.street ?? ""} />
+                  </Field>
+                  <Field label="City" className="md:col-span-1">
+                    <input className={inputClass} name={`city_${district.id}`} defaultValue={district.city ?? ""} />
+                  </Field>
+                  <Field label="State">
+                    <input className={inputClass} name={`state_${district.id}`} defaultValue={district.state ?? ""} placeholder="NJ" />
+                  </Field>
+                  <Field label="ZIP">
+                    <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
+                  </Field>
                 </div>
-                <input className={inputClass} type="file" name="file" accept=".docx" required />
-                <Button type="submit">Upload</Button>
-              </form>
-            );
-          })}
+              </div>
+            ))}
+            <Button type="submit">Save district addresses</Button>
+          </form>
+        )}
+      </Card>
+      <Card>
+        <h2 className="serif mb-2 text-2xl">Word templates</h2>
+        <p className="mb-4 text-muted">
+          Upload your letterhead documents. Approval and disapproval letters can be different for each contract type — a parental contract uses the parental letters, a renewal uses the renewal letters, and so on. If a type has no file yet, we use the default letter or the built-in one. Merge fields: {"{district}"}, {"{districtAddress}"}, {"{street}"}, {"{city}"}, {"{state}"}, {"{zip}"}, {"{contractor}"}, {"{letterDate}"}, {"{multiContractNumber}"}, {"{routes}"}, {"{schoolYear}"}, {"{type}"}, {"{missingItems}"}.
+        </p>
+        <h3 className="serif mb-3 text-xl">By contract type</h3>
+        <div className="space-y-6">
+          {CONTRACT_TYPES.map((type) => (
+            <div key={type.value} className="space-y-3 rounded-xl border border-line p-4">
+              <p className="font-medium">{type.label}</p>
+              <TemplateRow
+                templateKey={contractLetterTemplateKey("approved", type.value)}
+                label="Approval letter"
+                hint="Using the default or built-in approval letter until you upload one."
+                originalName={byKey[contractLetterTemplateKey("approved", type.value)]}
+              />
+              <TemplateRow
+                templateKey={contractLetterTemplateKey("disapproved", type.value)}
+                label="Disapproval letter"
+                hint="Using the default or built-in disapproval letter until you upload one."
+                originalName={byKey[contractLetterTemplateKey("disapproved", type.value)]}
+              />
+            </div>
+          ))}
+        </div>
+        <h3 className="serif mb-3 mt-8 text-xl">Default letters, annual certs, and PT-4</h3>
+        <p className="mb-4 text-sm text-muted">
+          The default contract letters are used only when that contract type does not have its own file.
+        </p>
+        <div className="space-y-4">
+          {SHARED_TEMPLATES.map(([key, label]) => (
+            <TemplateRow
+              key={key}
+              templateKey={key}
+              label={label}
+              hint="Using the built-in letter until you upload one."
+              originalName={byKey[key]}
+            />
+          ))}
         </div>
       </Card>
       <p className="text-sm text-muted">

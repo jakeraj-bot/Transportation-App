@@ -31,9 +31,11 @@ export function LabelButton({ contractId }: { contractId: string }) {
 export function LetterButtons({
   kind,
   id,
+  contractTypeLabel,
 }: {
   kind: "contract" | "cert";
   id: string;
+  contractTypeLabel?: string;
 }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
@@ -54,6 +56,11 @@ export function LetterButtons({
 
   return (
     <div className="space-y-3">
+      {kind === "contract" && contractTypeLabel ? (
+        <p className="text-sm text-muted">
+          This uses the {contractTypeLabel.toLowerCase()} approval or disapproval letter from Settings, and fills in this district’s mailing address.
+        </p>
+      ) : null}
       <Field label="Letter date" hint="Today is fine. Use a future date if the letter should show that date.">
         <input className={inputClass} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
