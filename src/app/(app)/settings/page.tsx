@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { saveSettings, uploadTemplate } from "@/app/actions";
 import { CollapsibleBlock, CollapsibleSection } from "@/components/collapsible";
-import { Button, Field, PageHeader, inputClass } from "@/components/ui";
+import { Button, Field, Flag, PageHeader, inputClass } from "@/components/ui";
 import { getSetting } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -48,17 +48,23 @@ function letterHint(byKey: Record<string, string>, type: string) {
   return "Using the default or built-in letters until you upload";
 }
 
-export default async function SettingsPage() {
-  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] = await Promise.all([
-    getSetting("schoolYear"),
-    getSetting("cpi"),
-    getSetting("bidThreshold"),
-    getSetting("officeName"),
-    getSetting("officeEmail"),
-    getSetting("secondReviewAlertOn", "off"),
-    getSetting("secondReviewAlertHours", "48"),
-    prisma.templateFile.findMany(),
-  ]);
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ uploaded?: string; uploadError?: string }>;
+}) {
+  const [{ uploaded, uploadError }, schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] =
+    await Promise.all([
+      searchParams,
+      getSetting("schoolYear"),
+      getSetting("cpi"),
+      getSetting("bidThreshold"),
+      getSetting("officeName"),
+      getSetting("officeEmail"),
+      getSetting("secondReviewAlertOn", "off"),
+      getSetting("secondReviewAlertHours", "48"),
+      prisma.templateFile.findMany(),
+    ]);
   const byKey = Object.fromEntries(templates.map((t) => [t.key, t.originalName]));
   return (
     <div className="space-y-6">
@@ -71,6 +77,8 @@ export default async function SettingsPage() {
         <Button href="/settings/statuses" variant="secondary">Statuses</Button>
         <Button href="/districts" variant="secondary">Districts</Button>
       </div>
+      {uploaded ? <Flag tone="sage">The Word letter was saved. It will be used the next time you print that type of approval or disapproval letter.</Flag> : null}
+      {uploadError ? <Flag tone="rose">{uploadError}</Flag> : null}
       <CollapsibleSection title="Office settings" hint="School year, CPI, bid threshold, office contact, and 2nd-review alerts">
         <form action={saveSettings} className="grid gap-4 md:grid-cols-2">
           <Field label="Current school year"><input className={inputClass} name="schoolYear" defaultValue={schoolYear} /></Field>

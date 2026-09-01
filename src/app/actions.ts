@@ -1,7 +1,5 @@
 "use server";
 
-import fs from "fs";
-import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -24,10 +22,9 @@ import { buildLabelPdf } from "@/lib/labels";
 import {
   contractLetterFields,
   defaultLetterDocx,
-  ensureUploadDir,
   fillDocx,
-  uploadPath,
 } from "@/lib/docx";
+import { readStoredFile, saveStoredFile } from "@/lib/storage";
 import { sendOutlookMail } from "@/lib/email";
 import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
 
@@ -38,6 +35,18 @@ function formString(form: FormData, key: string) {
 function revalidateAll() {
   revalidatePath("/", "layout");
 }
+
+function isRedirectError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+  );
+}
+
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function saveDistrict(form: FormData) {
   const user = await requireSession();
@@ -260,10 +269,9 @@ export async function saveInsurance(form: FormData) {
   const file = form.get("file") as File | null;
   let filePath: string | undefined;
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("insurance");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
     filePath = `insurance/${name}`;
+    await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
   }
   const data = {
     contractorId: formString(form, "contractorId"),
@@ -302,11 +310,10 @@ export async function saveRouteDescription(form: FormData) {
   let filePath: string | undefined;
   let extractedText: string | undefined;
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("route-descriptions");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(dir, name), buf);
     filePath = `route-descriptions/${name}`;
+    await saveStoredFile(filePath, buf);
     extractedText = fileToText(buf, file.name);
   }
   const content = formString(form, "content") || extractedText || null;
@@ -401,11 +408,10 @@ export async function saveBidSpec(form: FormData) {
   let highlightsJson: string | undefined;
 
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("bid-specs");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(dir, name), buf);
     filePath = `bid-specs/${name}`;
+    await saveStoredFile(filePath, buf);
     const text = fileToText(buf, file.name);
     const extracted = await extractBidSpec(text);
     extractedText = extracted.extractedText;
@@ -607,34 +613,55 @@ export async function saveUser(form: FormData) {
 }
 
 export async function uploadTemplate(form: FormData) {
-  const user = await requireSession();
-  if (!can(user, "manage_templates")) throw new Error("You do not have permission.");
-  const key = formString(form, "key");
-  const file = form.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("Please choose a Word document.");
-  const dir = ensureUploadDir("templates");
-  const name = `${key}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
-  await prisma.templateFile.upsert({
-    where: { key },
-    update: { filePath: `templates/${name}`, originalName: file.name },
-    create: { key, filePath: `templates/${name}`, originalName: file.name },
-  });
-  await writeAudit({
-    userId: user.id,
-    action: "update",
-    entityType: "template",
-    summary: `Uploaded template ${key}`,
-  });
-  revalidateAll();
+  try {
+    const user = await requireSession();
+    if (!can(user, "manage_templates")) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Your login cannot change letter templates. Ask Super Admin."));
+    }
+    const key = formString(form, "key");
+    const file = form.get("file") as File | null;
+    if (!file || file.size === 0) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Please choose a Word document."));
+    }
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Please upload a Word .docx file, not a PDF or older .doc file."));
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      redirect(
+        "/settings?uploadError=" +
+          encodeURIComponent("That Word file is too large for the live site (about 4 MB). In Word use File → Compress Pictures, then try again.")
+      );
+    }
+    const name = `${key}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const filePath = `templates/${name}`;
+    await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
+    await prisma.templateFile.upsert({
+      where: { key },
+      update: { filePath, originalName: file.name },
+      create: { key, filePath, originalName: file.name },
+    });
+    await writeAudit({
+      userId: user.id,
+      action: "update",
+      entityType: "template",
+      summary: `Uploaded template ${key}`,
+    });
+    revalidateAll();
+    redirect("/settings?uploaded=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    console.error("uploadTemplate failed", error);
+    redirect(
+      "/settings?uploadError=" +
+        encodeURIComponent("The live site could not save that letter. Try a smaller .docx, or wait a moment and upload again.")
+    );
+  }
 }
 
 async function readTemplateFile(key: string) {
   const row = await prisma.templateFile.findUnique({ where: { key } });
-  if (row && fs.existsSync(uploadPath(row.filePath))) {
-    return fs.readFileSync(uploadPath(row.filePath));
-  }
-  return null;
+  if (!row) return null;
+  return readStoredFile(row.filePath);
 }
 
 async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractType?: string) {
@@ -653,11 +680,7 @@ async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractT
 
 async function certTemplateBuffer(kind: "approved" | "disapproved") {
   const key = kind === "approved" ? "cert_approved" : "cert_disapproved";
-  const row = await prisma.templateFile.findUnique({ where: { key } });
-  if (row && fs.existsSync(uploadPath(row.filePath))) {
-    return fs.readFileSync(uploadPath(row.filePath));
-  }
-  return defaultLetterDocx(kind);
+  return (await readTemplateFile(key)) ?? defaultLetterDocx(kind);
 }
 
 export async function generateContractLetter(form: FormData) {
@@ -716,9 +739,8 @@ export async function generateContractLetter(form: FormData) {
     })),
   });
   const buf = fillDocx(await templateBuffer(kind, first.type), fields);
-  const dir = ensureUploadDir("letters");
   const fileName = `${kind}-${first.district.name}-${first.type}-${ordered.length}-${Date.now()}.docx`.replace(/\s+/g, "_");
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`letters/${fileName}`, buf);
   const statusName = kind === "approved" ? "Approved" : "Disapproved";
   for (const row of ordered) {
     await prisma.letter.create({
@@ -774,9 +796,8 @@ export async function generateCertLetter(form: FormData) {
     ],
   });
   const buf = fillDocx(await certTemplateBuffer(kind), fields);
-  const dir = ensureUploadDir("letters");
   const fileName = `cert-${kind}-${cert.contractor.vendorCode || cert.id}-${Date.now()}.docx`;
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`letters/${fileName}`, buf);
   await prisma.letter.create({
     data: {
       entityType: "cert",
@@ -818,9 +839,8 @@ export async function generateLabels(contractId: string) {
     multiContractNumber: contract.multiContractNumber,
     routes: contract.routes.map((r) => r.number),
   });
-  const dir = ensureUploadDir("labels");
   const fileName = `labels-${contract.multiContractNumber}-${Date.now()}.pdf`.replace(/\s+/g, "_");
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`labels/${fileName}`, buf);
   await writeAudit({
     userId: user.id,
     action: "print",
@@ -908,9 +928,8 @@ export async function generatePt4AndEmail(form: FormData) {
     ],
   });
   const buf = fillDocx(await templateBuffer("pt4"), fields);
-  const dir = ensureUploadDir("letters");
   const fileName = `PT4-${Date.now()}.docx`;
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`letters/${fileName}`, buf);
 
   let status = "drafted";
   let error: string | null = null;

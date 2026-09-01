@@ -378,6 +378,12 @@ model Setting {
   value String
 }
 
+model StoredFile {
+  path      String   @id
+  contents  Bytes
+  updatedAt DateTime @updatedAt
+}
+
 model TemplateFile {
   key          String @id
   filePath     String
