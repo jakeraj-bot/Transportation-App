@@ -47,7 +47,7 @@ export function MobileNav({
                 Close
               </button>
             </div>
-            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
+            <nav className="nav-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
               {items.map((item) => (
                 <Link
                   key={item.href}

@@ -38,7 +38,7 @@ export function AppShell({
           <p className="serif mt-1 text-2xl leading-tight text-white">Transportation</p>
           <p className="mt-1 text-sm text-white/55">School year {schoolYear}</p>
         </div>
-        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3">
+        <nav className="nav-scroll min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3">
           {nav.map((item) => (
             <Link
               key={item.href}
