@@ -1,6 +1,8 @@
 import { inputClass } from "@/components/ui";
 import { getSetting } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function LoginPage({
   searchParams,
 }: {

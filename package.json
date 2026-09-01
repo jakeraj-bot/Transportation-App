@@ -2,11 +2,14 @@
   "name": "passaic-transport",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/prisma-postinstall.cjs",
     "build": "prisma generate && next build",
-    "vercel-build": "tsx scripts/vercel-db-setup.ts && next build",
+    "vercel-build": "node scripts/vercel-db-setup.cjs && next build",
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",

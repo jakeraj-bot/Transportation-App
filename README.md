@@ -59,7 +59,7 @@ Office sign-in after empty seed: `jjacobs@doe.nj.gov` / `Passaic2026!` — chang
    - Use the database connection URI, **not** the `anon` / `service_role` API keys.
 3. [Vercel](https://vercel.com) → **Add New… → Project** → import this app (or `npx vercel login` then `npx vercel --prod`).
 4. Vercel project **Settings → Environment Variables** (Production): paste `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SEED_DEMO=0`.
-5. Deploy. `vercel-build` runs `prisma generate`, `prisma db push` to Supabase, then the empty seed.
+5. Deploy. `vercel-build` runs `node scripts/vercel-db-setup.cjs` (`prisma generate`, `prisma db push`, empty seed), then `next build`. If that script exits 1, the log line starting with `Error:` lists which env vars to fix.
 
 `npm run build` locally still uses SQLite generate only. It does not write to Supabase.
 
