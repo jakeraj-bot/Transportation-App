@@ -272,7 +272,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         heading: "Statuses and letters",
         bullets: [
           "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct.",
-          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {districtAddress}, {city}, {state}, {zipCode}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
+          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
           "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
       },

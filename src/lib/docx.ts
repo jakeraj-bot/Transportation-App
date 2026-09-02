@@ -62,6 +62,7 @@ export type LetterFields = {
   district: string;
   districtName: string;
   districtAddress: string;
+  addressBlock: string;
   street: string;
   city: string;
   state: string;
@@ -96,29 +97,54 @@ export type DistrictAddressInput = {
   contactPosition?: string | null;
 };
 
+const CITY_STATE_ZIP = /^(.*),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/;
+
+function formatCityLine(city: string, state: string, zip: string) {
+  return [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+}
+
+/** Split street / city / state / ZIP so the city line is not baked into the street field. */
+export function normalizeDistrictAddress(district: DistrictAddressInput) {
+  let street = district.street?.trim() || "";
+  let city = district.city?.trim() || "";
+  let state = district.state?.trim() || "";
+  let zip = district.zip?.trim() || "";
+
+  const packedCity = city.match(CITY_STATE_ZIP);
+  if (packedCity) {
+    city = packedCity[1].trim();
+    state = state || packedCity[2].toUpperCase();
+    zip = zip || packedCity[3];
+  }
+
+  const cityLine = formatCityLine(city, state, zip);
+  if (cityLine) {
+    const escaped = cityLine.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    street = street.replace(new RegExp(`(?:\\s*[\\n,]\\s*)?${escaped}\\s*$`, "i"), "").trim();
+  }
+
+  return { street, city, state, zip, cityLine: formatCityLine(city, state, zip) };
+}
+
 export function formatDistrictAddress(district: DistrictAddressInput) {
-  const street = district.street?.trim() || "";
-  const cityLine = [district.city?.trim(), [district.state?.trim(), district.zip?.trim()].filter(Boolean).join(" ")]
-    .filter(Boolean)
-    .join(", ");
-  return [street, cityLine].filter(Boolean).join("\n");
+  const parts = normalizeDistrictAddress(district);
+  return [parts.street, parts.cityLine].filter(Boolean).join("\n");
 }
 
 export function districtMergeFields(district?: DistrictAddressInput | null) {
-  const street = district?.street?.trim() || "";
-  const city = district?.city?.trim() || "";
-  const state = district?.state?.trim() || "";
-  const zip = district?.zip?.trim() || "";
+  const parts = district ? normalizeDistrictAddress(district) : { street: "", city: "", state: "", zip: "", cityLine: "" };
   const name = district?.name ?? "";
   return {
     district: name,
     districtName: name,
-    districtAddress: district ? formatDistrictAddress(district) : "",
-    street,
-    city,
-    state,
-    zip,
-    zipCode: zip,
+    // Street only. Templates also have {city}, {state}, {zipCode} on the next line.
+    districtAddress: parts.street,
+    street: parts.street,
+    city: parts.city,
+    state: parts.state,
+    zip: parts.zip,
+    zipCode: parts.zip,
+    addressBlock: district ? formatDistrictAddress(district) : "",
     districtContact: district?.contactName?.trim() || "",
     districtContactPosition: district?.contactPosition?.trim() || "",
   };
@@ -253,7 +279,7 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", cont
       { text: "" },
       { text: "Date: {letterDate}" },
       { text: "District: {district}" },
-      { text: "{districtAddress}" },
+      { text: "{addressBlock}" },
       { text: "Contractor: {contractor}" },
       { text: "School year: {schoolYear}" },
       { text: "Multi-contract #: {multiContractNumber}" },

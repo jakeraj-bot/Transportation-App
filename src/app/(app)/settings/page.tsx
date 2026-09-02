@@ -144,7 +144,7 @@ export default async function SettingsPage({
                   {"{#contracts}{multiContractNumber}"} &nbsp;|&nbsp; {"{contractor}{/contracts}"}
                 </p>
                 <p className="mt-2 text-muted">
-                  Header fields: {"{letterDate}"}, {"{districtContact}"}, {"{districtContactPosition}"}, {"{districtName}"}, {"{districtAddress}"}, {"{city}"}, {"{state}"}, {"{zipCode}"}, {"{schoolYear}"}. Parental also uses {"{parentName}"}. Joint also uses {"{hostDistrict}"}, {"{jointDistrict}"}, {"{dateReceived}"}. Addendum also uses {"{routeNumber}"}, {"{addendumNumber}"}.
+                  Header fields: {"{letterDate}"}, {"{districtContact}"}, {"{districtContactPosition}"}, {"{districtName}"}, {"{schoolYear}"}. Address on two lines: {"{districtAddress}"} (street) then {"{city}, {state} {zipCode}"}. Do not put city, state, or ZIP inside {"{districtAddress}"} — those have their own fields. If you want the whole mailing address in one field, use {"{addressBlock}"} instead of those two lines. Parental also uses {"{parentName}"}. Joint also uses {"{hostDistrict}"}, {"{jointDistrict}"}, {"{dateReceived}"}. Addendum also uses {"{routeNumber}"}, {"{addendumNumber}"}.
                 </p>
               </div>
             </div>
