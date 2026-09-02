@@ -39,11 +39,11 @@ export function MobileNav({
       </button>
       {open ? (
         <div className="fixed inset-0 z-40">
-          <button className="absolute inset-0 bg-navy/40" type="button" onClick={() => setOpen(false)} aria-label="Close menu" />
-          <div className="absolute inset-y-0 left-0 flex w-72 flex-col overflow-hidden bg-navy text-white shadow-2xl">
+          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setOpen(false)} aria-label="Close menu" />
+          <div className="app-nav absolute inset-y-0 left-0 flex w-72 flex-col overflow-hidden shadow-2xl">
             <div className="flex shrink-0 items-center justify-between px-5 py-4">
               <p className="serif text-xl">Transportation</p>
-              <button type="button" onClick={() => setOpen(false)} className="text-white/70">
+              <button type="button" onClick={() => setOpen(false)} className="app-nav-muted">
                 Close
               </button>
             </div>
@@ -53,15 +53,15 @@ export function MobileNav({
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-xl px-3 py-2.5 text-white/85 hover:bg-white/10"
+                  className="app-nav-link block rounded-xl px-3 py-2.5 hover:bg-white/10"
                 >
                   {item.label}
                 </Link>
               ))}
             </nav>
             <form action="/api/auth/logout" method="post" className="shrink-0 p-4">
-              <p className="mb-2 text-sm text-white/60">{userName}</p>
-              <button className="w-full rounded-xl bg-white/10 px-3 py-2 text-sm" type="submit">
+              <p className="app-nav-muted mb-2 text-sm">{userName}</p>
+              <button className="btn-signout w-full rounded-xl px-3 py-2 text-sm" type="submit">
                 Sign out
               </button>
             </form>

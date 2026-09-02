@@ -837,6 +837,22 @@ export async function saveHomePrefs(form: FormData) {
       showSecondReview: form.get("showSecondReview") === "on",
       showRecent: form.get("showRecent") === "on",
       hiddenTiles,
+      font: formString(form, "font") || "sans",
+      headingFont: formString(form, "headingFont") || "serif",
+      fontSize: formString(form, "fontSize") || "md",
+      background: formString(form, "background"),
+      text: formString(form, "text"),
+      muted: formString(form, "muted"),
+      nav: formString(form, "nav"),
+      navText: formString(form, "navText"),
+      btnPrimary: formString(form, "btnPrimary"),
+      btnSecondary: formString(form, "btnSecondary"),
+      btnDanger: formString(form, "btnDanger"),
+      btnHelp: formString(form, "btnHelp"),
+      btnSignOut: formString(form, "btnSignOut"),
+      btnNewContract: formString(form, "btnNewContract"),
+      btnNewCert: formString(form, "btnNewCert"),
+      btnViewAll: formString(form, "btnViewAll"),
     })
   );
   await prisma.user.update({

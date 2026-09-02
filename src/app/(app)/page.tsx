@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSchoolYear, getSetting } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
-import { homeThemeStyle, parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
+import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
 import { formatDate } from "@/lib/utils";
 
 const HOME_STATUSES = [
@@ -93,7 +93,7 @@ export default async function HomePage({
   const visibleTiles = tiles.filter((tile) => !prefs.hiddenTiles.includes(tile.key));
 
   return (
-    <div className={compact ? "home-compact" : undefined} style={homeThemeStyle(prefs.accent)}>
+    <div className={`home-screen ${compact ? "home-compact" : ""}`}>
       <PageHeader
         title="What needs attention today"
         hint={showMine
@@ -102,12 +102,12 @@ export default async function HomePage({
         actions={
           <>
             {assigned.length ? (
-              <Button href={showMine ? "/?view=all" : "/"} variant="secondary">
+              <Button href={showMine ? "/?view=all" : "/"} variant="secondary" className="btn-view-all">
                 {showMine ? "View all contracts" : "View my districts"}
               </Button>
             ) : null}
-            <Button href="/contracts/new">New contract</Button>
-            <Button href="/certs/new" variant="secondary">New annual cert</Button>
+            <Button href="/contracts/new" className="btn-new-contract">New contract</Button>
+            <Button href="/certs/new" variant="secondary" className="btn-new-cert">New annual cert</Button>
           </>
         }
       />

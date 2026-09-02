@@ -51,13 +51,69 @@ html, body {
 }
 
 body {
-  font-family: var(--font-sans), "Segoe UI", sans-serif;
-  font-size: 16.5px;
+  font-family: var(--app-font, var(--font-sans)), "Segoe UI", sans-serif;
+  font-size: var(--app-font-size, 16.5px);
   line-height: 1.5;
 }
 
 h1, h2, h3, .serif {
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--app-heading-font, var(--font-serif)), Georgia, serif;
+}
+
+.btn-primary {
+  background: var(--btn-primary, var(--teal));
+  color: var(--btn-primary-text, #fff);
+}
+.btn-primary:hover {
+  background: var(--btn-primary-dark, var(--teal-dark));
+}
+.btn-secondary {
+  background: var(--btn-secondary, #fff);
+  color: var(--btn-secondary-text, var(--ink));
+}
+.btn-secondary:hover {
+  filter: brightness(0.97);
+}
+.btn-danger {
+  background: var(--btn-danger, #991b1b);
+  color: var(--btn-danger-text, #fff);
+}
+.btn-help {
+  background: var(--btn-help, var(--teal));
+  color: var(--btn-help-text, #fff);
+}
+.btn-signout {
+  background: var(--btn-signout, #fff);
+  color: var(--btn-signout-text, var(--navy));
+}
+.btn-new-contract {
+  background: var(--btn-new-contract, var(--teal)) !important;
+  color: var(--btn-new-contract-text, #fff) !important;
+  border-color: transparent !important;
+}
+.btn-new-cert {
+  background: var(--btn-new-cert, var(--navy)) !important;
+  color: var(--btn-new-cert-text, #fff) !important;
+  border-color: transparent !important;
+}
+.btn-view-all {
+  background: var(--btn-view-all, var(--navy)) !important;
+  color: var(--btn-view-all-text, #fff) !important;
+  border-color: transparent !important;
+}
+
+.app-nav {
+  background: var(--navy);
+  color: var(--nav-text, #fff);
+}
+.app-nav-link {
+  color: color-mix(in srgb, var(--nav-text, #fff) 82%, transparent);
+}
+.app-nav-link:hover {
+  color: var(--nav-text, #fff);
+}
+.app-nav-muted {
+  color: color-mix(in srgb, var(--nav-text, #fff) 58%, transparent);
 }
 
 a { color: inherit; }
@@ -136,20 +192,47 @@ details[open] > summary .collapse-chevron {
 }
 
 .home-compact h1 {
-  font-size: 1.75rem;
+  font-size: 1.35rem !important;
 }
 
 .home-compact .home-stat {
-  padding-top: 0.4rem;
-  padding-bottom: 0.4rem;
+  padding: 0.28rem 0.35rem !important;
+}
+
+.home-compact .home-stat span:first-child {
+  font-size: 1.05rem !important;
+}
+
+.home-compact .home-stat span:last-child {
+  font-size: 9px !important;
 }
 
 .home-compact .home-tile {
-  padding: 0.9rem 1rem;
+  padding: 0.65rem 0.85rem !important;
 }
 
 .home-compact .home-tile .serif {
-  font-size: 1.85rem;
+  font-size: 1.55rem !important;
+}
+
+.home-compact h2.serif,
+.home-compact h2 {
+  font-size: 1.15rem !important;
+  margin-bottom: 0.45rem !important;
+}
+
+.home-compact .mt-8 {
+  margin-top: 1rem !important;
+}
+
+.home-compact .mb-6 {
+  margin-bottom: 0.7rem !important;
+}
+
+.home-compact table th,
+.home-compact table td {
+  padding-top: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
 }
 
 .incomplete-row {
