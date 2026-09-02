@@ -56,12 +56,16 @@ export function Button({
   variant = "primary",
   type = "button",
   className,
+  onClick,
+  disabled,
 }: {
   children: React.ReactNode;
   href?: string;
   variant?: "primary" | "secondary" | "danger" | "ghost";
   type?: "button" | "submit";
   className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   const styles = {
     primary: "btn-primary",
@@ -69,9 +73,13 @@ export function Button({
     danger: "btn-danger",
     ghost: "bg-transparent text-teal hover:bg-teal-soft",
   }[variant];
-  const cls = cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-[15px] font-medium transition", styles, className);
+  const cls = cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-[15px] font-medium transition disabled:opacity-60", styles, className);
   if (href) return <Link href={href} className={cls}>{children}</Link>;
-  return <button type={type} className={cls}>{children}</button>;
+  return (
+    <button type={type} className={cls} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
 }
 
 export function Field({

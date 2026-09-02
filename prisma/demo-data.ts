@@ -151,7 +151,6 @@ export async function seedDemo(
 
   const paterson = await districtByName(prisma, "Paterson");
   const clifton = await districtByName(prisma, "Clifton");
-  const nresc = await districtByName(prisma, "Passaic County Educational Services Commission");
   const wayne = await districtByName(prisma, "Wayne");
   const hawthorne = await districtByName(prisma, "Hawthorne");
   const totowa = await districtByName(prisma, "Totowa");
@@ -296,12 +295,6 @@ export async function seedDemo(
     { districtId: littleFalls.id, contractorId: omar.id, type: "original", multi: "26-27-LF-012", status: "Final Disapproval", routes: ["LF5"], firstReviewerId: adminId, sentToDistrictAt: new Date("2026-08-15") },
     { districtId: woodland.id, contractorId: first.id, type: "original", multi: "26-27-WP-055", status: "Trenton Log", routes: ["WP1", "WP2"], firstReviewerId: tanisha.id },
     { districtId: passaic.id, contractorId: garden.id, type: "joint", multi: "26-27-PA-901", status: "Sent Back to District", routes: ["PA6"], hostDistrictId: passaic.id, joinerDistricts: "Haledon" },
-    { districtId: nresc.id, contractorId: garden.id, type: "joint", multi: "26-27-JA-101", status: "Need Review", routes: ["JA1"], hostDistrictId: nresc.id, joinerDistricts: "Paterson", receivedDate: new Date("2026-06-25") },
-    { districtId: nresc.id, contractorId: omar.id, type: "joint", multi: "26-27-JA-102", status: "Need Review", routes: ["JA2"], hostDistrictId: nresc.id, joinerDistricts: "Paterson", receivedDate: new Date("2026-06-25") },
-    { districtId: nresc.id, contractorId: first.id, type: "joint", multi: "26-27-JA-201", status: "Need Review", routes: ["JA3"], hostDistrictId: nresc.id, joinerDistricts: "Clifton", receivedDate: new Date("2026-06-25") },
-    { districtId: nresc.id, contractorId: garden.id, type: "joint", multi: "26-27-JA-202", status: "Need Review", routes: ["JA4"], hostDistrictId: nresc.id, joinerDistricts: "Clifton", receivedDate: new Date("2026-06-25") },
-    { districtId: nresc.id, contractorId: omar.id, type: "joint", multi: "26-27-JA-203", status: "Need Review", routes: ["JA5"], hostDistrictId: nresc.id, joinerDistricts: "Clifton", receivedDate: new Date("2026-06-25") },
-    { districtId: nresc.id, contractorId: first.id, type: "joint", multi: "26-27-JA-301", status: "Need Review", routes: ["JA6"], hostDistrictId: nresc.id, joinerDistricts: "Paterson", receivedDate: new Date("2026-06-24") },
     { districtId: paterson.id, contractorId: first.id, type: "original", multi: "26-27-P-077", status: "Cancelled", routes: ["P22"], addendumRoute: "P22" },
   ];
 

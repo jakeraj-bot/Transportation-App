@@ -120,7 +120,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         heading: "Checklist, PT-4, and letters",
         steps: [
           "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
-          "Send a PT-4. The comments become the missing-items list and the status moves to 1st review missing items.",
+          "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
           "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
         ],
@@ -132,6 +132,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Folder tab and labels",
         body: "Use Print folder tab and labels. The tab is the contractor name. Labels use district, school year, multi-contract number, and the route numbers.",
+      },
+      {
+        heading: "Emails to districts",
+        body: "This app cannot send from a county mailbox until the state gives mailbox access. Prepare the message here, use Copy message or Open in your email app, then send from your work Outlook. Rewrite with AI polishes the wording if an OpenAI key is set. Keep the district transportation email on the district record so To is already filled.",
       },
     ],
   },
@@ -275,7 +279,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         bullets: [
           "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct. Pick a color square or type a hex code, the same way as My home screen. That color shows on the status chip and the Home status bar.",
           "Under My home screen you can also pick a scrollbar hex. That color is used in the navigation menu and on the page.",
-          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
+          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). After you upload, you stay on Settings in the same open section. If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
           "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
       },

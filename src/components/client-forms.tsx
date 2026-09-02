@@ -6,10 +6,10 @@ import {
   generateContractLetter,
   generatePrintPacket,
   generatePt4AndEmail,
-  sendDistrictEmail,
   updateChecklistItem,
 } from "@/app/actions";
 import { groupByLetter, type LetterGroupInput } from "@/lib/letter-groups";
+import { EmailDraftForm } from "@/components/email-draft";
 import { Button, Field, inputClass } from "./ui";
 
 export function LabelButton({ contractId }: { contractId: string }) {
@@ -225,53 +225,71 @@ export function Pt4Form({
   entityId,
   defaultTo,
   districtName,
+  canSend,
 }: {
   entityType: string;
   entityId: string;
   defaultTo?: string;
   districtName?: string;
+  canSend?: boolean;
 }) {
-  const [to, setTo] = useState(defaultTo || "");
-  const [subject, setSubject] = useState(
-    districtName ? `PT-4 additional information needed — ${districtName}` : "PT-4 additional information needed"
-  );
-  const [body, setBody] = useState(
-    "Hello,\n\nThe Passaic County transportation office reviewed this submission and still needs the items on the attached PT-4.\n\nPlease send the missing information so we can finish the review.\n\nThank you,\nPassaic County Transportation"
-  );
+  const subject = districtName
+    ? `PT-4 additional information needed — ${districtName}`
+    : "PT-4 additional information needed";
+  const body =
+    "Hello,\n\nThe Passaic County transportation office reviewed this submission and still needs the items on the attached PT-4.\n\nPlease send the missing information so we can finish the review.\n\nThank you,\nPassaic County Transportation";
   const [result, setResult] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
+  const [busy, setBusy] = useState(false);
 
   return (
-    <form
-      className="space-y-3"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const form = new FormData();
-        form.set("entityType", entityType);
-        form.set("entityId", entityId);
-        form.set("to", to);
-        form.set("subject", subject);
-        form.set("body", body);
-        const res = await generatePt4AndEmail(form);
-        setResult(
-          res.status === "sent"
-            ? "PT-4 emailed to the district."
-            : res.error || "PT-4 was saved. Connect Outlook in Settings if you want it to send from the app."
-        );
-        if (res.fileUrl) window.open(res.fileUrl, "_blank");
-      }}
-    >
-      <Field label="Send to" hint="This goes out from the county Outlook mailbox when it is connected.">
-        <input className={inputClass} value={to} onChange={(e) => setTo(e.target.value)} required />
-      </Field>
-      <Field label="Subject">
-        <input className={inputClass} value={subject} onChange={(e) => setSubject(e.target.value)} />
-      </Field>
-      <Field label="Message">
-        <textarea className={inputClass} rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
-      </Field>
-      <Button type="submit">Create PT-4 and email the district</Button>
-      {result ? <p className="text-sm text-muted">{result}</p> : null}
-    </form>
+    <div className="space-y-5">
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setResult("");
+          const form = new FormData();
+          form.set("entityType", entityType);
+          form.set("entityId", entityId);
+          form.set("to", defaultTo || "");
+          form.set("subject", subject);
+          form.set("body", body);
+          try {
+            const res = await generatePt4AndEmail(form);
+            setFileUrl(res.fileUrl || "");
+            setResult("PT-4 Word file is ready. Copy the email below and attach that file in your work Outlook.");
+            if (res.fileUrl) window.open(res.fileUrl, "_blank");
+          } catch (err) {
+            setResult(err instanceof Error ? err.message : "Could not make the PT-4.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="text-sm text-muted">
+          Create the PT-4 first. Then copy the email into your work Outlook and attach the Word file. The app cannot send from a county mailbox until the state gives us that access.
+        </p>
+        <Button type="submit">{busy ? "Making PT-4…" : "Create PT-4"}</Button>
+        {fileUrl ? (
+          <p className="text-sm">
+            <a className="text-teal" href={fileUrl}>
+              Open PT-4
+            </a>
+          </p>
+        ) : null}
+        {result ? <p className="text-sm text-muted">{result}</p> : null}
+      </form>
+      <EmailDraftForm
+        defaultTo={defaultTo}
+        subject={subject}
+        body={body}
+        kind="pt4"
+        canSend={canSend}
+        hint="Copy this into your work email and attach the PT-4. Rewrite with AI only polishes the wording — you still send it from Outlook."
+      />
+    </div>
   );
 }
 
@@ -281,47 +299,24 @@ export function SimpleEmailForm({
   subject,
   body,
   kind,
+  canSend,
 }: {
   districtId?: string;
   defaultTo?: string;
   subject: string;
   body: string;
   kind: string;
+  canSend?: boolean;
 }) {
-  const [to, setTo] = useState(defaultTo || "");
-  const [subj, setSubj] = useState(subject);
-  const [text, setText] = useState(body);
-  const [result, setResult] = useState("");
-
   return (
-    <form
-      className="space-y-3"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const form = new FormData();
-        if (districtId) form.set("districtId", districtId);
-        form.set("to", to);
-        form.set("subject", subj);
-        form.set("body", text);
-        form.set("kind", kind);
-        const res = await sendDistrictEmail(form);
-        setResult(
-          res.status === "sent" ? "Email sent." : res.error || "Saved as a draft until Outlook is connected."
-        );
-      }}
-    >
-      <Field label="Send to">
-        <input className={inputClass} value={to} onChange={(e) => setTo(e.target.value)} required />
-      </Field>
-      <Field label="Subject">
-        <input className={inputClass} value={subj} onChange={(e) => setSubj(e.target.value)} />
-      </Field>
-      <Field label="Message">
-        <textarea className={inputClass} rows={6} value={text} onChange={(e) => setText(e.target.value)} />
-      </Field>
-      <Button type="submit">Send email</Button>
-      {result ? <p className="text-sm text-muted">{result}</p> : null}
-    </form>
+    <EmailDraftForm
+      districtId={districtId}
+      defaultTo={defaultTo}
+      subject={subject}
+      body={body}
+      kind={kind}
+      canSend={canSend}
+    />
   );
 }
 

@@ -3,6 +3,7 @@ import { saveCert, softDelete } from "@/app/actions";
 import { ChecklistRow, LetterButtons, Pt4Form } from "@/components/client-forms";
 import { Button, Card, Field, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, ensureChecklist, getStatuses } from "@/lib/data";
+import { outlookConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export default async function CertDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,7 +40,7 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">PT-4 if something is missing</h2>
-        <Pt4Form entityType="cert" entityId={cert.id} />
+        <Pt4Form entityType="cert" entityId={cert.id} canSend={outlookConfigured()} />
       </Card>
       <Card>
         <form action={saveCert} className="grid gap-4 md:grid-cols-2">

@@ -13,6 +13,7 @@ import { ContractForm } from "@/components/contract-form";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { getSession } from "@/lib/auth";
+import { outlookConfigured } from "@/lib/email";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
@@ -338,6 +339,7 @@ export default async function ContractDetailPage({
                 kind="rationale"
                 subject={`Rationale letter needed — ${contract.multiContractNumber}`}
                 body={`Hello,\n\nThis contract was received by the county office 30 or more days after the board meeting that awarded it. Please send a rationale letter so we can continue the review.\n\nMulti-contract: ${contract.multiContractNumber}\nBoard meeting: ${formatDate(contract.boardMeetingDate)}\nDate received: ${formatDate(contract.receivedDate)}\n\nThank you,\nPassaic County Transportation`}
+                canSend={outlookConfigured()}
               />
             </div>
           ) : null}
@@ -419,12 +421,13 @@ export default async function ContractDetailPage({
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Send PT-4" hint="Sends the missing checklist items to the district">
+      <CollapsibleSection title="Send PT-4" hint="Create the PT-4, then copy the email into your work Outlook">
         <Pt4Form
           entityType="contract"
           entityId={contract.id}
           defaultTo={contract.district.email || ""}
           districtName={contract.district.name}
+          canSend={outlookConfigured()}
         />
       </CollapsibleSection>
 
@@ -455,6 +458,7 @@ export default async function ContractDetailPage({
               kind="insurance"
               subject={`Updated insurance needed — ${contract.district.name}`}
               body={`Hello,\n\nPlease send an updated certificate of insurance for ${contract.contractor.legalName} that names ${contract.district.name} as an additional insured${ins.gapStart && ins.gapEnd ? ` and covers ${formatDate(ins.gapStart)} through ${formatDate(ins.gapEnd)}` : ""}.\n\nThank you,\nPassaic County Transportation`}
+              canSend={outlookConfigured()}
             />
           </div>
         )}

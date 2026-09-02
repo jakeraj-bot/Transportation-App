@@ -40,16 +40,6 @@ function revalidateAll() {
   revalidatePath("/", "layout");
 }
 
-function isRedirectError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "digest" in error &&
-    typeof (error as { digest?: unknown }).digest === "string" &&
-    String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT")
-  );
-}
-
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function canEditDistricts(user: { role: string; permissions: string[] }) {
@@ -864,29 +854,28 @@ export async function saveHomePrefs(form: FormData) {
     data: { homePrefs: JSON.stringify(prefs) },
   });
   revalidateAll();
-  redirect("/settings?homeSaved=1");
 }
 
 export async function uploadTemplate(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "manage_templates") || !isSuperAdmin(user.role)) {
+    return { ok: false as const, error: "Your login cannot change letter templates. Ask Super Admin." };
+  }
+  const key = formString(form, "key");
+  const file = form.get("file") as File | null;
+  if (!file || file.size === 0) {
+    return { ok: false as const, error: "Please choose a Word document." };
+  }
+  if (!file.name.toLowerCase().endsWith(".docx")) {
+    return { ok: false as const, error: "Please upload a Word .docx file, not a PDF or older .doc file." };
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return {
+      ok: false as const,
+      error: "That Word file is too large for the live site (about 4 MB). In Word use File → Compress Pictures, then try again.",
+    };
+  }
   try {
-    const user = await requireSession();
-    if (!can(user, "manage_templates") || !isSuperAdmin(user.role)) {
-      redirect("/settings?uploadError=" + encodeURIComponent("Your login cannot change letter templates. Ask Super Admin."));
-    }
-    const key = formString(form, "key");
-    const file = form.get("file") as File | null;
-    if (!file || file.size === 0) {
-      redirect("/settings?uploadError=" + encodeURIComponent("Please choose a Word document."));
-    }
-    if (!file.name.toLowerCase().endsWith(".docx")) {
-      redirect("/settings?uploadError=" + encodeURIComponent("Please upload a Word .docx file, not a PDF or older .doc file."));
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      redirect(
-        "/settings?uploadError=" +
-          encodeURIComponent("That Word file is too large for the live site (about 4 MB). In Word use File → Compress Pictures, then try again.")
-      );
-    }
     const name = `${key}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const filePath = `templates/${name}`;
     await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
@@ -902,14 +891,13 @@ export async function uploadTemplate(form: FormData) {
       summary: `Uploaded template ${key}`,
     });
     revalidateAll();
-    redirect("/settings?uploaded=1");
+    return { ok: true as const, originalName: file.name };
   } catch (error) {
-    if (isRedirectError(error)) throw error;
     console.error("uploadTemplate failed", error);
-    redirect(
-      "/settings?uploadError=" +
-        encodeURIComponent("The live site could not save that letter. Try a smaller .docx, or wait a moment and upload again.")
-    );
+    return {
+      ok: false as const,
+      error: "The live site could not save that letter. Try a smaller .docx, or wait a moment and upload again.",
+    };
   }
 }
 
@@ -1186,9 +1174,7 @@ export async function saveSignedApprovalLetter(form: FormData) {
   if (!can(user, "upload_files") && !can(user, "edit")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
   const file = form.get("file") as File | null;
-  if (!file || file.size === 0) {
-    redirect(`/contracts/${id}`);
-  }
+  if (!file || file.size === 0) return;
   const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const filePath = `signed-letters/${name}`;
   await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
@@ -1204,7 +1190,6 @@ export async function saveSignedApprovalLetter(form: FormData) {
     summary: "Uploaded a signed approval letter",
   });
   revalidateAll();
-  redirect(`/contracts/${id}`);
 }
 
 export async function addContractComment(form: FormData) {
@@ -1212,7 +1197,7 @@ export async function addContractComment(form: FormData) {
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const contractId = formString(form, "contractId");
   const body = formString(form, "body");
-  if (!body) redirect(`/contracts/${contractId}`);
+  if (!body) return;
   await prisma.contractComment.create({
     data: { contractId, userId: user.id, body },
   });
@@ -1224,7 +1209,6 @@ export async function addContractComment(form: FormData) {
     summary: "Added a contract comment",
   });
   revalidateAll();
-  redirect(`/contracts/${contractId}`);
 }
 
 export async function deleteContractComment(form: FormData) {
@@ -1241,12 +1225,13 @@ export async function deleteContractComment(form: FormData) {
     summary: "Deleted a contract comment",
   });
   revalidateAll();
-  redirect(`/contracts/${comment.contractId}`);
 }
 
 export async function generatePt4AndEmail(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "send_email")) throw new Error("You do not have permission.");
+  if (!can(user, "send_email") && !can(user, "edit") && !can(user, "create")) {
+    throw new Error("You do not have permission.");
+  }
   const entityType = formString(form, "entityType");
   const entityId = formString(form, "entityId");
   const items = await prisma.checklistResponse.findMany({
@@ -1476,6 +1461,59 @@ export async function askNjAi(question: string) {
   return `From the New Jersey transportation materials we keep in this office:\n\n${best.map((b) => b.chunk.trim()).join("\n\n")}`;
 }
 
+export async function polishDistrictEmail(form: FormData) {
+  await requireSession();
+  const subject = formString(form, "subject");
+  const body = formString(form, "body");
+  const kind = formString(form, "kind") || "followup";
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    return {
+      subject,
+      body,
+      note: "AI rewrite is not turned on (no OpenAI key). Copy this draft into your work email as-is.",
+    };
+  }
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write short emails for the Passaic County Superintendent transportation office. Keep the facts. Plain language. No legal advice. Do not invent missing documents or dates. Return JSON only: {\"subject\":\"...\",\"body\":\"...\"}. Body is plain text, signed Passaic County Transportation.",
+        },
+        {
+          role: "user",
+          content: `Kind: ${kind}\nSubject: ${subject}\n\n${body}`,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    return { subject, body, note: "Could not rewrite the email just now. Copy the draft you already have." };
+  }
+  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = json.choices?.[0]?.message?.content || "";
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return { subject, body, note: "Could not rewrite the email just now. Copy the draft you already have." };
+  try {
+    const parsed = JSON.parse(match[0]) as { subject?: string; body?: string };
+    return {
+      subject: parsed.subject?.trim() || subject,
+      body: parsed.body?.trim() || body,
+    };
+  } catch {
+    return { subject, body, note: "Could not rewrite the email just now. Copy the draft you already have." };
+  }
+}
+
 export async function importContractors(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
@@ -1601,5 +1639,4 @@ export async function markLetterSent(form: FormData) {
     summary: `Marked ${finalStatus.toLowerCase()} letter sent to the district`,
   });
   revalidateAll();
-  redirect(`/contracts/${id}`);
 }

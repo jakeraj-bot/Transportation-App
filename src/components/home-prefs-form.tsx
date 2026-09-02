@@ -67,6 +67,8 @@ const BUTTON_FIELDS: { key: ColorKey; label: string }[] = [
 export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
   const [draft, setDraft] = useState<HomePrefs>(prefs);
   const [hidden, setHidden] = useState<HomeTileKey[]>(prefs.hiddenTiles);
+  const [saved, setSaved] = useState("");
+  const [busy, setBusy] = useState(false);
   const previewPrefs = useMemo(() => parseHomePrefs(JSON.stringify({ ...draft, hiddenTiles: hidden })), [draft, hidden]);
   const previewCss = useMemo(() => userThemeCss(previewPrefs), [previewPrefs]);
 
@@ -105,7 +107,22 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
   }
 
   return (
-    <form action={saveHomePrefs} className="grid gap-6">
+    <form
+      className="grid gap-6"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setSaved("");
+        try {
+          await saveHomePrefs(new FormData(e.currentTarget));
+          setSaved("Saved. You are still on this page.");
+        } catch (err) {
+          setSaved(err instanceof Error ? err.message : "Could not save.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
       {hidden.map((key) => (
         <input key={key} type="hidden" name="hiddenTiles" value={key} />
       ))}
@@ -297,7 +314,8 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
         </div>
       </div>
       <div>
-        <Button type="submit">Save my home screen</Button>
+        <Button type="submit">{busy ? "Saving…" : "Save my home screen"}</Button>
+        {saved ? <p className="mt-2 text-sm text-muted">{saved}</p> : null}
       </div>
     </form>
   );

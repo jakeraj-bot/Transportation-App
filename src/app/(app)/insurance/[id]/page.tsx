@@ -3,6 +3,7 @@ import { saveInsurance, softDelete } from "@/app/actions";
 import { SimpleEmailForm } from "@/components/client-forms";
 import { Button, Card, Field, Flag, PageHeader, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts } from "@/lib/data";
+import { outlookConfigured } from "@/lib/email";
 import { insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { formatDate, toInputDate } from "@/lib/utils";
@@ -56,13 +57,14 @@ export default async function InsuranceDetailPage({ params }: { params: Promise<
       {row.filePath ? <a className="text-teal" href={`/api/files?path=${encodeURIComponent(row.filePath)}`}>Open uploaded certificate</a> : null}
       {gaps.length ? (
         <Card>
-          <h2 className="serif mb-3 text-2xl">Email the district for an update</h2>
+          <h2 className="serif mb-3 text-2xl">Prepare an email for the district</h2>
           <SimpleEmailForm
             districtId={row.districtId}
             defaultTo={row.district.email || ""}
             kind="insurance"
             subject={`Updated insurance needed — ${row.district.name}`}
             body={`Hello,\n\nPlease send an updated certificate of insurance for ${row.contractor.legalName} that names ${row.district.name} as an additional insured and covers the rest of the contract period.\n\nThank you,\nPassaic County Transportation`}
+            canSend={outlookConfigured()}
           />
         </Card>
       ) : null}
