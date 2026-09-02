@@ -13,6 +13,7 @@
     "vercel-build": "node scripts/vercel-db-setup.cjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test src/lib/letters.test.ts",
     "db:push": "prisma db push",
     "db:push:prod": "prisma db push --schema prisma/schema.postgres.prisma",
     "db:seed": "tsx prisma/seed.ts",

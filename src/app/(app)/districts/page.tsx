@@ -4,12 +4,20 @@ import { CollapsibleBlock } from "@/components/collapsible";
 import { DistrictForm } from "@/components/district-form";
 import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { getSession } from "@/lib/auth";
+import { formatDistrictAddress } from "@/lib/docx";
 import { prisma } from "@/lib/prisma";
 import { canEditDistricts } from "@/lib/roles";
 
-function addressPreview(district: { street: string | null; city: string | null; state: string | null; zip: string | null }) {
-  const parts = [district.street, district.city, district.state, district.zip].filter(Boolean);
-  return parts.length ? parts.join(", ") : "No letter address yet";
+function addressPreview(district: {
+  name: string;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  addressBlock: string | null;
+}) {
+  const formatted = formatDistrictAddress(district).split("\n").join(" · ");
+  return formatted || "No letter address yet";
 }
 
 export default async function DistrictsPage() {

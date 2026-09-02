@@ -93,6 +93,7 @@ export type DistrictAddressInput = {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
+  addressBlock?: string | null;
   contactName?: string | null;
   contactPosition?: string | null;
 };
@@ -127,6 +128,8 @@ export function normalizeDistrictAddress(district: DistrictAddressInput) {
 }
 
 export function formatDistrictAddress(district: DistrictAddressInput) {
+  const block = district.addressBlock?.trim();
+  if (block) return block;
   const parts = normalizeDistrictAddress(district);
   return [parts.street, parts.cityLine].filter(Boolean).join("\n");
 }
@@ -306,8 +309,7 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", cont
     { text: "" },
     { text: "{districtContact}, {districtContactPosition}" },
     { text: "To: {districtName}" },
-    { text: "{districtAddress}" },
-    { text: "{city}, {state} {zipCode}" },
+    { text: "{addressBlock}" },
     { text: "Re: {contractor}  ({vendorCode})" },
     { text: "School year: {schoolYear}" },
     { text: "Type: {type}" },
