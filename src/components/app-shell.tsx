@@ -58,7 +58,7 @@ export function AppShell({
           </button>
         </form>
       </aside>
-      <div className="flex min-h-screen flex-col lg:pl-64">
+      <div className="app-frame flex min-h-screen flex-col lg:pl-64">
         <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-line bg-cream/90 px-4 py-3 backdrop-blur md:px-8">
           <MobileNav items={nav} userName={user.name} />
           <Link href="/" className="serif text-lg text-ink lg:hidden">
