@@ -360,23 +360,32 @@ details[open] > summary .collapse-chevron {
     min-height: 0;
     flex: 1;
     grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "tiles lists";
     align-items: stretch;
     gap: 0.65rem;
     overflow: hidden;
   }
 
+  .home-compact-tiles {
+    grid-area: tiles;
+  }
+
+  .home-compact-lists {
+    grid-area: lists;
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .home-compact-board-single {
     grid-template-columns: 1fr;
+    grid-template-areas: "tiles" "lists";
   }
 
   .home-compact-board-single .home-compact-tiles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .home-compact-lists {
-    display: flex;
-    min-height: 0;
-    overflow: hidden;
   }
 
   .home-compact-panel:first-child {
