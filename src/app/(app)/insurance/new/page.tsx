@@ -18,7 +18,7 @@ export default async function NewInsurancePage({
       <PageHeader
         title="Add insurance certificate"
         backHref="/insurance"
-        hint="We do not approve insurance. We file it so every contract between this contractor and this district stays covered for the full run."
+        hint="We do not approve insurance. File the policy dates so every contract between this contractor and this district stays covered. Uploading the certificate is optional."
       />
       <Card>
         <form action={saveInsurance} className="grid gap-4 md:grid-cols-2">
@@ -42,7 +42,9 @@ export default async function NewInsurancePage({
           <Field label="District name as it appears on the certificate" className="md:col-span-2">
             <input className={inputClass} name="namedDistrict" />
           </Field>
-          <Field label="Upload the certificate" className="md:col-span-2"><input className={inputClass} type="file" name="file" /></Field>
+          <Field label="Upload the certificate (optional)" hint="Dates and the named district are enough. Skip the file if scanning it would take too long." className="md:col-span-2">
+            <input className={inputClass} type="file" name="file" />
+          </Field>
           <div><Button type="submit">Save insurance</Button></div>
         </form>
       </Card>

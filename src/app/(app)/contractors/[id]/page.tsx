@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { softDelete } from "@/app/actions";
 import { ContractorForm } from "@/components/contractor-form";
-import { Card, PageHeader, StatusChip } from "@/components/ui";
+import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { insuranceCoverage } from "@/lib/flags";
@@ -30,6 +30,9 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
         hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}`}
         actions={<form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>}
       />
+      {contractor.incomplete ? (
+        <Flag tone="rose">This contractor was added by name only. Fill in the details below so contracts stop highlighting it in red.</Flag>
+      ) : null}
       <Card>
         <ContractorForm
           id={contractor.id}

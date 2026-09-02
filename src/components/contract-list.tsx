@@ -11,6 +11,7 @@ export type ContractListRow = {
   districtId: string;
   districtName: string;
   contractorName: string;
+  contractorIncomplete?: boolean;
   type: string;
   typeLabel: string;
   statusName: string;
@@ -120,7 +121,10 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                   ) : null}
                 </td>
                 <td className="px-5 py-3">{c.districtName}</td>
-                <td className="px-5 py-3">{c.contractorName}</td>
+                <td className={`px-5 py-3 ${c.contractorIncomplete ? "text-rose" : ""}`}>
+                  {c.contractorName}
+                  {c.contractorIncomplete ? <div className="text-xs">Needs contractor details</div> : null}
+                </td>
                 <td className="px-5 py-3">{c.typeLabel}</td>
                 <td className="px-5 py-3">
                   {c.routes.map((r, index) => (

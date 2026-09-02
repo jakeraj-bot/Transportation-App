@@ -31,7 +31,7 @@ export default async function ContractsPage({
     <div>
       <PageHeader
         title="Contracts"
-        hint="Every packet that comes in for approval. Check boxes on the same district and type to print one approval letter with a row for each multi-contract number."
+        hint="Every packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches."
         actions={
           <>
             {assigned.length ? (
@@ -39,6 +39,9 @@ export default async function ContractsPage({
                 {showMine ? "View all" : "My districts"}
               </Button>
             ) : null}
+            <Button href="/contracts/approve" variant="secondary">Approve contracts</Button>
+            <Button href="/contracts/print-tabs" variant="secondary">Print folder tabs</Button>
+            <Button href="/contracts/print-labels" variant="secondary">Print labels</Button>
             <Button href="/contracts/new">New contract</Button>
           </>
         }
@@ -58,6 +61,7 @@ export default async function ContractsPage({
             districtId: c.districtId,
             districtName: c.district.name,
             contractorName: c.contractor.legalName,
+            contractorIncomplete: c.contractor.incomplete,
             type: c.type,
             typeLabel: contractTypeLabel(c.type),
             statusName: c.statusName,

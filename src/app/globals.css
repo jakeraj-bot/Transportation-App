@@ -134,3 +134,24 @@ details[open] > summary .collapse-chevron {
   background: var(--teal-soft);
   color: var(--teal-dark);
 }
+
+.home-compact h1 {
+  font-size: 1.75rem;
+}
+
+.home-compact .home-stat {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.home-compact .home-tile {
+  padding: 0.9rem 1rem;
+}
+
+.home-compact .home-tile .serif {
+  font-size: 1.85rem;
+}
+
+.incomplete-row {
+  background: var(--rose-soft);
+}

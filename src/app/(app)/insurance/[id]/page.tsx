@@ -85,7 +85,9 @@ export default async function InsuranceDetailPage({ params }: { params: Promise<
           <Field label="Coverage start date"><input className={inputClass} type="date" name="startsOn" defaultValue={toInputDate(row.startsOn)} /></Field>
           <Field label="Coverage end date"><input className={inputClass} type="date" name="expiresAt" defaultValue={toInputDate(row.expiresAt)} /></Field>
           <Field label="Name on the certificate" className="md:col-span-2"><input className={inputClass} name="namedDistrict" defaultValue={row.namedDistrict ?? ""} /></Field>
-          <Field label="Replace file"><input className={inputClass} type="file" name="file" /></Field>
+          <Field label="Replace file (optional)" hint="You can keep dates on file without uploading a scan.">
+            <input className={inputClass} type="file" name="file" />
+          </Field>
           <div><Button type="submit">Save insurance</Button></div>
         </form>
       </Card>

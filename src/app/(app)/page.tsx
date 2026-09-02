@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSchoolYear, getSetting } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
+import { homeThemeStyle, parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
 import { formatDate } from "@/lib/utils";
 
 const HOME_STATUSES = [
@@ -33,6 +34,9 @@ export default async function HomePage({
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
   const districtFilter = showMine ? { districtId: { in: assigned } } : {};
+  const me = session ? await prisma.user.findUnique({ where: { id: session.id } }) : null;
+  const prefs = parseHomePrefs(me?.homePrefs);
+  const compact = prefs.layout === "compact";
 
   const now = new Date();
   const soon = new Date();
@@ -69,7 +73,7 @@ export default async function HomePage({
         where: whereYear,
         include: { district: true, contractor: true },
         orderBy: { updatedAt: "desc" },
-        take: 8,
+        take: compact ? 5 : 8,
       }),
     ]);
 
@@ -78,22 +82,23 @@ export default async function HomePage({
     (c) => hoursInSecondReview(c.secondReviewStartedAt) >= alertHours
   );
 
-  const tiles = [
-    { href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "First review is done. These need the other reviewer." },
-    { href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting" },
-    { href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
-    { href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
-    { href: "/certs", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },
-    { href: "/contracts?status=1st%20review%20missing%20items", label: "1st review missing items", value: missing, hint: "PT-4 sent or packet still needs fixing" },
+  const tiles: Array<{ key: HomeTileKey; href: string; label: string; value: number; hint: string }> = [
+    { key: "secondReview", href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "First review is done. These need the other reviewer." },
+    { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting" },
+    { key: "quotes", href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
+    { key: "insurance", href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
+    { key: "certs", href: "/certs", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },
+    { key: "missing", href: "/contracts?status=1st%20review%20missing%20items", label: "1st review missing items", value: missing, hint: "PT-4 sent or packet still needs fixing" },
   ];
+  const visibleTiles = tiles.filter((tile) => !prefs.hiddenTiles.includes(tile.key));
 
   return (
-    <div>
+    <div className={compact ? "home-compact" : undefined} style={homeThemeStyle(prefs.accent)}>
       <PageHeader
         title="What needs attention today"
         hint={showMine
           ? "Showing contracts for your assigned districts. Use View all to see the rest of the office."
-          : "These counts are for the current school year unless noted."}
+          : "These counts are for the current school year unless noted. Change layout and colors under Settings."}
         actions={
           <>
             {assigned.length ? (
@@ -107,22 +112,24 @@ export default async function HomePage({
         }
       />
 
-      <div className="mb-6 flex w-full gap-2 overflow-x-auto lg:overflow-visible">
-        {statusCounts.map((status) => (
-          <Link
-            key={status.name}
-            href={`/contracts?status=${encodeURIComponent(status.name)}`}
-            className={`flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center lg:w-auto lg:min-w-0 lg:flex-1 stat-${status.color}`}
-          >
-            <span className="text-xl font-semibold leading-none">{status.count}</span>
-            <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">{status.label}</span>
+      {prefs.showStatusBar ? (
+        <div className="mb-6 flex w-full gap-2 overflow-x-auto lg:overflow-visible">
+          {statusCounts.map((status) => (
+            <Link
+              key={status.name}
+              href={`/contracts?status=${encodeURIComponent(status.name)}`}
+              className={`home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center lg:w-auto lg:min-w-0 lg:flex-1 stat-${status.color}`}
+            >
+              <span className="text-xl font-semibold leading-none">{status.count}</span>
+              <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">{status.label}</span>
+            </Link>
+          ))}
+          <Link href="/contracts" className="home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center stat-navy lg:w-auto lg:min-w-0 lg:flex-1">
+            <span className="text-xl font-semibold leading-none">{total}</span>
+            <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">Total contracts</span>
           </Link>
-        ))}
-        <Link href="/contracts" className="flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center stat-navy lg:w-auto lg:min-w-0 lg:flex-1">
-          <span className="text-xl font-semibold leading-none">{total}</span>
-          <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">Total contracts</span>
-        </Link>
-      </div>
+        </div>
+      ) : null}
 
       {alertOn === "on" && overdueSecond.length ? (
         <Card className="mb-6 bg-amber-soft">
@@ -133,40 +140,83 @@ export default async function HomePage({
         </Card>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {tiles.map((tile) => (
-          <Link key={tile.label} href={tile.href}>
-            <Card className="h-full hover:ring-2 hover:ring-teal/20">
-              <p className="text-sm text-muted">{tile.label}</p>
-              <p className="serif mt-1 text-4xl">{tile.value}</p>
-              <p className="mt-2 text-sm text-muted">{tile.hint}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {prefs.showAttentionTiles ? (
+        <div className={`grid gap-4 md:grid-cols-2 xl:grid-cols-3 ${compact ? "gap-3" : ""}`}>
+          {visibleTiles.map((tile) => (
+            <Link key={tile.label} href={tile.href}>
+              <Card className={`home-tile h-full hover:ring-2 hover:ring-teal/20 ${compact ? "p-4" : ""}`}>
+                <p className="text-sm text-muted">{tile.label}</p>
+                <p className={`serif mt-1 ${compact ? "text-3xl" : "text-4xl"}`}>{tile.value}</p>
+                {compact ? null : <p className="mt-2 text-sm text-muted">{tile.hint}</p>}
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
-      <div className="mt-8">
-        <h2 className="serif mb-3 text-2xl">Contracts in 2nd review</h2>
-        {secondReview.length === 0 ? (
-          <Card>
-            <p className="text-muted">Nothing is waiting on a second review right now.</p>
-          </Card>
-        ) : (
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full text-left">
-              <thead className="border-b border-line text-sm text-muted">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Multi-contract</th>
-                  <th className="px-5 py-3 font-medium">District</th>
-                  <th className="px-5 py-3 font-medium">First reviewer</th>
-                  <th className="px-5 py-3 font-medium">Waiting</th>
-                </tr>
-              </thead>
-              <tbody>
-                {secondReview.map((c) => {
-                  const hours = hoursInSecondReview(c.secondReviewStartedAt);
-                  const waiting = hours >= 24 ? `${Math.floor(hours / 24)}d ${Math.floor(hours % 24)}h` : `${Math.max(1, Math.round(hours))}h`;
-                  return (
+      {prefs.showSecondReview ? (
+        <div className="mt-8">
+          <h2 className="serif mb-3 text-2xl">Contracts in 2nd review</h2>
+          {secondReview.length === 0 ? (
+            <Card>
+              <p className="text-muted">Nothing is waiting on a second review right now.</p>
+            </Card>
+          ) : (
+            <Card className="overflow-x-auto p-0">
+              <table className="w-full text-left">
+                <thead className="border-b border-line text-sm text-muted">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Multi-contract</th>
+                    <th className="px-5 py-3 font-medium">District</th>
+                    <th className="px-5 py-3 font-medium">First reviewer</th>
+                    <th className="px-5 py-3 font-medium">Waiting</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {secondReview.map((c) => {
+                    const hours = hoursInSecondReview(c.secondReviewStartedAt);
+                    const waiting = hours >= 24 ? `${Math.floor(hours / 24)}d ${Math.floor(hours % 24)}h` : `${Math.max(1, Math.round(hours))}h`;
+                    return (
+                      <tr key={c.id} className="border-b border-line/70 last:border-0">
+                        <td className="px-5 py-3">
+                          <Link className="text-teal hover:underline" href={`/contracts/${c.id}`}>
+                            {c.multiContractNumber}
+                          </Link>
+                        </td>
+                        <td className="px-5 py-3">{c.district.name}</td>
+                        <td className="px-5 py-3">{c.firstReviewer?.name ?? "—"}</td>
+                        <td className="px-5 py-3">{waiting}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      ) : null}
+
+      {prefs.showRecent ? (
+        <div className="mt-8">
+          <h2 className="serif mb-3 text-2xl">Recently updated contracts</h2>
+          {recent.length === 0 ? (
+            <Card>
+              <p className="text-muted">No contracts yet. Click New contract to enter the first one.</p>
+            </Card>
+          ) : (
+            <Card className="overflow-x-auto p-0">
+              <table className="w-full text-left">
+                <thead className="border-b border-line text-sm text-muted">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Multi-contract</th>
+                    <th className="px-5 py-3 font-medium">District</th>
+                    <th className="px-5 py-3 font-medium">Contractor</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recent.map((c) => (
                     <tr key={c.id} className="border-b border-line/70 last:border-0">
                       <td className="px-5 py-3">
                         <Link className="text-teal hover:underline" href={`/contracts/${c.id}`}>
@@ -174,54 +224,17 @@ export default async function HomePage({
                         </Link>
                       </td>
                       <td className="px-5 py-3">{c.district.name}</td>
-                      <td className="px-5 py-3">{c.firstReviewer?.name ?? "—"}</td>
-                      <td className="px-5 py-3">{waiting}</td>
+                      <td className="px-5 py-3">{c.contractor.legalName}</td>
+                      <td className="px-5 py-3"><StatusChip name={c.statusName} /></td>
+                      <td className="px-5 py-3 text-muted">{formatDate(c.updatedAt)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
-        )}
-      </div>
-
-      <div className="mt-8">
-        <h2 className="serif mb-3 text-2xl">Recently updated contracts</h2>
-        {recent.length === 0 ? (
-          <Card>
-            <p className="text-muted">No contracts yet. Click New contract to enter the first one.</p>
-          </Card>
-        ) : (
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full text-left">
-              <thead className="border-b border-line text-sm text-muted">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Multi-contract</th>
-                  <th className="px-5 py-3 font-medium">District</th>
-                  <th className="px-5 py-3 font-medium">Contractor</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((c) => (
-                  <tr key={c.id} className="border-b border-line/70 last:border-0">
-                    <td className="px-5 py-3">
-                      <Link className="text-teal hover:underline" href={`/contracts/${c.id}`}>
-                        {c.multiContractNumber}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3">{c.district.name}</td>
-                    <td className="px-5 py-3">{c.contractor.legalName}</td>
-                    <td className="px-5 py-3"><StatusChip name={c.statusName} /></td>
-                    <td className="px-5 py-3 text-muted">{formatDate(c.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
-      </div>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

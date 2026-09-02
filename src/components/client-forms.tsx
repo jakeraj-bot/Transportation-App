@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   generateCertLetter,
   generateContractLetter,
-  generateLabels,
+  generatePrintPacket,
   generatePt4AndEmail,
   sendDistrictEmail,
   updateChecklistItem,
@@ -13,18 +13,38 @@ import { Button, Field, inputClass } from "./ui";
 
 export function LabelButton({ contractId }: { contractId: string }) {
   const [msg, setMsg] = useState("");
+  async function print(kind: "tab" | "label" | "both") {
+    const form = new FormData();
+    form.append("ids", contractId);
+    form.set("kind", kind);
+    const url = await generatePrintPacket(form);
+    window.open(url, "_blank");
+    setMsg(kind === "tab" ? "Opened the folder tab." : kind === "label" ? "Opened the label." : "Opened the folder tab and labels.");
+  }
   return (
-    <button
-      type="button"
-      className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
-      onClick={async () => {
-        const url = await generateLabels(contractId);
-        window.open(url, "_blank");
-        setMsg("Opened the folder tab and labels.");
-      }}
-    >
-      {msg || "Print folder tab and labels"}
-    </button>
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("tab")}
+      >
+        Print folder tab
+      </button>
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("label")}
+      >
+        Print label
+      </button>
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("both")}
+      >
+        {msg || "Print both"}
+      </button>
+    </div>
   );
 }
 

@@ -35,6 +35,24 @@ export function parseMoney(value?: string | null) {
   return Number.isNaN(n) ? null : n;
 }
 
+export function parsePercent(value?: string | null) {
+  if (!value) return "";
+  const n = Number(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isNaN(n) ? "" : String(n);
+}
+
+export function formatCurrency(value?: string | number | null) {
+  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(/[^0-9.]/g, ""));
+  if (value === "" || value == null || Number.isNaN(n)) return "";
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function formatPercent(value?: string | number | null) {
+  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(/[^0-9.]/g, ""));
+  if (value === "" || value == null || Number.isNaN(n)) return "";
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function daysBetween(later: Date, earlier: Date) {
   const ms = later.getTime() - earlier.getTime();
   return Math.floor(ms / (1000 * 60 * 60 * 24));

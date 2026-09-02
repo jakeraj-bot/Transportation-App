@@ -44,9 +44,10 @@ export default async function ContractorsPage() {
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.id} className="border-b border-line/70">
+                <tr key={c.id} className={`border-b border-line/70 ${c.incomplete ? "incomplete-row" : ""}`}>
                   <td className="px-5 py-3">
-                    <Link className="text-teal hover:underline" href={`/contractors/${c.id}`}>{c.legalName}</Link>
+                    <Link className={c.incomplete ? "font-medium text-rose hover:underline" : "text-teal hover:underline"} href={`/contractors/${c.id}`}>{c.legalName}</Link>
+                    {c.incomplete ? <div className="text-xs text-rose">Needs details</div> : null}
                     {c.busLocation ? <div className="text-xs text-muted">{c.busLocation}</div> : null}
                   </td>
                   <td className="px-5 py-3">{c.vendorCode || "—"}{c.ospCode ? ` / ${c.ospCode}` : ""}</td>

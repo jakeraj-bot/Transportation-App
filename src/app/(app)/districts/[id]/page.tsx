@@ -1,12 +1,17 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { softDelete } from "@/app/actions";
 import { CollapsibleSection } from "@/components/collapsible";
 import { DistrictForm } from "@/components/district-form";
 import { PageHeader } from "@/components/ui";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canEditDistricts } from "@/lib/roles";
 
 export default async function DistrictPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const canEdit = canEditDistricts(session.role, session.permissions);
   const district = await prisma.district.findFirst({ where: { id, deletedAt: null } });
   if (!district) notFound();
   async function remove() {
@@ -20,23 +25,25 @@ export default async function DistrictPage({ params }: { params: Promise<{ id: s
       <PageHeader
         title={district.name}
         backHref="/districts"
-        hint="Click a heading to open it. Click it again to close it."
+        hint={canEdit ? "Click a heading to open it. Click it again to close it." : "You can view this district. Super Admin can give you permission to make changes."}
         actions={
-          <form action={remove}>
-            <button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">
-              Remove
-            </button>
-          </form>
+          canEdit ? (
+            <form action={remove}>
+              <button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">
+                Remove
+              </button>
+            </form>
+          ) : undefined
         }
       />
       <CollapsibleSection
         title="Name and contact"
         hint={district.contactName ? `${district.contactName}${district.contactPosition ? `, ${district.contactPosition}` : ""}` : "Add the person letters should be addressed to"}
       >
-        <DistrictForm district={district} fields="identity" />
+        <DistrictForm district={district} fields="identity" readOnly={!canEdit} />
       </CollapsibleSection>
       <CollapsibleSection title="Letter address" hint={address}>
-        <DistrictForm district={district} fields="address" />
+        <DistrictForm district={district} fields="address" readOnly={!canEdit} />
       </CollapsibleSection>
     </div>
   );
