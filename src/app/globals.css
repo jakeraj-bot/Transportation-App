@@ -216,47 +216,157 @@ details[open] > summary .collapse-chevron {
 }
 
 .home-compact h1 {
-  font-size: 1.35rem !important;
+  font-size: 1.2rem !important;
+}
+
+.home-compact .home-header {
+  margin-bottom: 0.45rem !important;
+}
+
+.home-compact .home-header .flex-wrap {
+  gap: 0.45rem;
+}
+
+.home-compact .home-header a,
+.home-compact .home-header button {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 .home-compact .home-stat {
-  padding: 0.28rem 0.35rem !important;
+  padding: 0.22rem 0.28rem !important;
 }
 
 .home-compact .home-stat span:first-child {
-  font-size: 1.05rem !important;
+  font-size: 0.95rem !important;
 }
 
 .home-compact .home-stat span:last-child {
-  font-size: 9px !important;
+  font-size: 8px !important;
+}
+
+.home-compact .home-status-row {
+  margin-bottom: 0.55rem !important;
+  gap: 0.35rem !important;
+}
+
+.home-compact .home-alert {
+  margin-bottom: 0.55rem !important;
+  padding: 0.55rem 0.75rem !important;
+}
+
+.home-compact-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-content: start;
 }
 
 .home-compact .home-tile {
-  padding: 0.65rem 0.85rem !important;
+  padding: 0.4rem 0.5rem !important;
+  border-radius: 0.85rem;
+  box-shadow: 0 1px 0 rgba(44, 58, 71, 0.04), 0 6px 16px rgba(44, 58, 71, 0.05);
 }
 
-.home-compact .home-tile .serif {
-  font-size: 1.55rem !important;
+.home-compact .home-tile-label {
+  font-size: 0.68rem !important;
+  line-height: 1.2 !important;
+}
+
+.home-compact .home-tile-value {
+  font-size: 1.2rem !important;
+  margin-top: 0.12rem !important;
+  line-height: 1.1;
 }
 
 .home-compact h2.serif,
 .home-compact h2 {
-  font-size: 1.15rem !important;
-  margin-bottom: 0.45rem !important;
+  font-size: 0.95rem !important;
+  margin-bottom: 0.3rem !important;
 }
 
-.home-compact .mt-8 {
-  margin-top: 1rem !important;
-}
-
-.home-compact .mb-6 {
-  margin-bottom: 0.7rem !important;
+.home-compact table {
+  font-size: 0.78rem;
 }
 
 .home-compact table th,
 .home-compact table td {
-  padding-top: 0.4rem !important;
-  padding-bottom: 0.4rem !important;
+  padding: 0.28rem 0.65rem !important;
+}
+
+.home-compact table .inline-flex.rounded-full {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.home-compact-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.home-compact-lists {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.home-compact-panel {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.home-compact-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+@media (min-width: 1024px) {
+  [data-home-layout="compact"] main:has(.home-compact) {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .home-compact.home-screen {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .home-compact-board {
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(16.5rem, 22.5rem) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+
+  .home-compact-board-single {
+    grid-template-columns: 1fr;
+  }
+
+  .home-compact-board-single .home-compact-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-compact-lists {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .home-compact-lists:has(> :only-child) {
+    grid-template-rows: minmax(0, 1fr);
+  }
 }
 
 .incomplete-row {

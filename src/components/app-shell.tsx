@@ -58,8 +58,8 @@ export function AppShell({
           </button>
         </form>
       </aside>
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-cream/90 px-4 py-3 backdrop-blur md:px-8">
+      <div className="flex min-h-screen flex-col lg:pl-64">
+        <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-line bg-cream/90 px-4 py-3 backdrop-blur md:px-8">
           <MobileNav items={nav} userName={user.name} />
           <Link href="/" className="serif text-lg text-ink lg:hidden">
             Transportation
@@ -70,11 +70,11 @@ export function AppShell({
           </Link>
         </header>
         {demo ? (
-          <div className="border-b border-amber/30 bg-amber-soft px-4 py-2 text-sm md:px-8">
+          <div className="shrink-0 border-b border-amber/30 bg-amber-soft px-4 py-2 text-sm md:px-8">
             This is the <strong>demo</strong> on your computer. Sample contracts and staff are here so you can click around. The live office site will start empty.
           </div>
         ) : null}
-        <main className="px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
       <AiPanel />
     </div>

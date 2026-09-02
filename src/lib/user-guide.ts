@@ -70,6 +70,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: "The larger cards under the row are flags: 2nd review waiting, late packets that need a rationale letter, quote timing, insurance that does not cover the full run, annual certs still open, and missing items.",
       },
       {
+        heading: "Compact Home",
+        body: "Under Settings → My home screen, Compact makes those flag tiles smaller in both height and width and lines them up in rows on the left. Contracts in 2nd review sit on the right, with recently updated contracts under that, so the whole Home screen can fit without scrolling down. Regular keeps the full-size tiles stacked above the lists.",
+      },
+      {
         heading: "Second review list",
         body: "This table shows every contract in 2nd review and how long it has been waiting. Super Admin can turn on an alert in Settings if a contract sits there too long.",
       },
@@ -267,6 +271,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Open Settings → My home screen. Body font is the main letters. Heading font is titles. Click a sample to try it; Save to keep it.",
           "Sans-serif and serif lists include extra typefaces such as Inter, Nunito Sans, Atkinson Hyperlegible, Libre Baskerville, Lora, Fraunces, and Playfair Display. System fonts such as Georgia and Segoe UI use what is already on the computer.",
           "You can mix fonts (for example Source Serif headings with Source Sans body). Letter size changes how large the type is.",
+          "Compact Home makes the attention tiles smaller (height and width), keeps them in rows on the left, and puts 2nd review and recently updated contracts on the right so the page fits on one screen.",
         ],
       },
       {

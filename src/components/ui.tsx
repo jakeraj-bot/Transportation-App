@@ -30,14 +30,16 @@ export function PageHeader({
   hint,
   actions,
   backHref,
+  className,
 }: {
   title: string;
   hint?: string;
   actions?: React.ReactNode;
   backHref?: string;
+  className?: string;
 }) {
   return (
-    <div className="mb-6">
+    <div className={cn("mb-6", className)}>
       <BackLink href={backHref} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

@@ -140,7 +140,23 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             <p className="serif text-lg" style={{ fontFamily: "var(--app-heading-font)" }}>
               What needs attention today
             </p>
-            <p style={{ color: draft.muted }}>Sample letters in your chosen size and font.</p>
+            {draft.layout === "compact" ? (
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-1.5">
+                <div className="grid grid-cols-2 gap-1">
+                  {["2nd", "Letter", "Quote", "Ins.", "Certs", "1st"].map((label) => (
+                    <span key={label} className="rounded-md border border-line bg-white px-1 py-1 text-center text-[9px] leading-tight">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid gap-1">
+                  <span className="rounded-md border border-line bg-white px-1.5 py-1 text-[9px]">2nd review list</span>
+                  <span className="rounded-md border border-line bg-white px-1.5 py-1 text-[9px]">Recently updated</span>
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: draft.muted }}>Sample letters in your chosen size and font.</p>
+            )}
             <div className="flex flex-wrap gap-2 pt-1">
               <span className="rounded-lg px-3 py-1.5 text-sm" style={{ background: draft.btnNewContract, color: "var(--btn-new-contract-text)" }}>
                 New contract
@@ -155,13 +171,17 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
                 Save
               </span>
             </div>
-            <p className="text-xs text-muted">{draft.layout === "compact" ? "Compact Home: shorter counts and tighter tiles." : "Regular Home: full-size counts and tile hints."}</p>
+            <p className="text-xs text-muted">
+              {draft.layout === "compact"
+                ? "Compact Home: smaller tiles on the left, 2nd review and recent contracts on the right."
+                : "Regular Home: full-size counts and tile hints."}
+            </p>
           </div>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Home layout" hint="Compact shortens the Home title, counts, and tiles. Regular is the full layout.">
+        <Field label="Home layout" hint="Compact makes the attention tiles smaller in height and width, puts them in rows on the left, and puts 2nd review and recently updated contracts on the right so Home fits on one screen.">
           <select
             className={inputClass}
             name="layout"
