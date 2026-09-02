@@ -18,6 +18,8 @@
   --rose-soft: #fde6e8;
   --blue: #4a93c4;
   --blue-soft: #dff1fb;
+  --scroll-thumb: #4c818c;
+  --scroll-thumb-hover: #5a909b;
 }
 
 @theme inline {
@@ -139,10 +141,32 @@ input, select, textarea, button { font: inherit; }
 .stat-navy { background: var(--navy); color: #fff; }
 .stat-plum { background: #8a6fad; color: #fff; }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb, #4c818c) var(--cream);
+}
+
+html::-webkit-scrollbar {
+  width: 10px;
+}
+
+html::-webkit-scrollbar-track {
+  background: var(--cream);
+}
+
+html::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-thumb, #4c818c);
+  border-radius: 999px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scroll-thumb-hover, #5a909b);
+}
+
 /* Only the overflowing sidebar / drawer links — not the page. Track matches the green nav. */
 .nav-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #4c818c var(--navy);
+  scrollbar-color: var(--scroll-thumb, #4c818c) var(--navy);
 }
 
 .nav-scroll::-webkit-scrollbar {
@@ -154,13 +178,13 @@ input, select, textarea, button { font: inherit; }
 }
 
 .nav-scroll::-webkit-scrollbar-thumb {
-  background-color: #4c818c;
+  background-color: var(--scroll-thumb, #4c818c);
   border-radius: 999px;
   border: 2px solid var(--navy);
 }
 
 .nav-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: #5a909b;
+  background-color: var(--scroll-thumb-hover, #5a909b);
 }
 
 .nav-scroll::-webkit-scrollbar-corner {

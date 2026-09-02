@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { generateContractLetter, generatePrintPacket } from "@/app/actions";
 import { inputClass } from "@/components/ui";
+import { groupByLetter } from "@/lib/letter-groups";
 import { contractTypeLabel } from "@/lib/utils";
 
 export type BatchContractRow = {
@@ -15,6 +16,12 @@ export type BatchContractRow = {
   typeLabel: string;
   statusName: string;
   routeSummary?: string;
+  hostDistrictId?: string | null;
+  hostName?: string | null;
+  joinerDistricts?: string | null;
+  receivedDate?: string | null;
+  receivedDateLabel?: string | null;
+  schoolYear?: string;
 };
 
 export function BatchContractPicker({
@@ -30,6 +37,21 @@ export function BatchContractPicker({
   const [error, setError] = useState("");
 
   const picked = rows.filter((row) => selected.includes(row.id));
+  const letterCount =
+    picked.length && picked.every((row) => row.type === picked[0].type)
+      ? groupByLetter(picked, (row) => ({
+          type: row.type,
+          districtId: row.districtId,
+          schoolYear: row.schoolYear || "",
+          hostDistrictId: row.hostDistrictId,
+          joinerDistricts: row.joinerDistricts,
+          receivedDate: row.receivedDate,
+        })).length
+      : 0;
+  const sameType =
+    picked.length > 0 &&
+    picked.every((row) => row.type === picked[0].type) &&
+    (picked[0].type === "joint" || picked.every((row) => row.districtId === picked[0].districtId));
   const grouped = useMemo(() => {
     const map = new Map<string, BatchContractRow[]>();
     for (const row of rows) {
@@ -40,10 +62,6 @@ export function BatchContractPicker({
     return Array.from(map.entries());
   }, [rows]);
 
-  const sameType =
-    picked.length > 0 &&
-    picked.every((row) => row.type === picked[0].type && row.districtId === picked[0].districtId);
-
   function toggle(id: string) {
     setSelected((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
     setError("");
@@ -52,7 +70,11 @@ export function BatchContractPicker({
   async function run() {
     if (!picked.length) return;
     if (mode === "approve" && !sameType) {
-      setError("Pick contracts from the same district and the same type for one approval letter.");
+      setError(
+        picked[0]?.type === "joint"
+          ? "Pick joint agreements from the same school year. Different host, joiner, or date received will print as separate letters."
+          : "Pick contracts from the same district and the same type for one approval letter."
+      );
       return;
     }
     setBusy(true);
@@ -81,7 +103,9 @@ export function BatchContractPicker({
   const button =
     mode === "approve"
       ? picked.length
-        ? `Create approval letter for ${picked.length}`
+        ? letterCount > 1
+          ? `Create ${letterCount} approval letters for ${picked.length}`
+          : `Create approval letter for ${picked.length}`
         : "Create approval letter"
       : mode === "tabs"
         ? picked.length
@@ -96,7 +120,9 @@ export function BatchContractPicker({
       <div className="rounded-2xl border border-line bg-card px-5 py-4">
         <p className="text-sm text-muted">
           {mode === "approve"
-            ? "Click the contracts to include. They must be the same type and the same district so they can share one letter."
+            ? picked[0]?.type === "joint"
+              ? "Click the joint agreements to include. Matching host, joiner, and date received share a letter; anything else prints separately."
+              : "Click the contracts to include. They must be the same type and the same district so they can share one letter."
             : "Click the contracts that still need this printed. You can print several at once."}
         </p>
         {mode === "approve" ? (
@@ -138,6 +164,11 @@ export function BatchContractPicker({
                       · {row.districtName} · {row.contractorName} · {row.typeLabel} · {row.statusName}
                     </span>
                     {row.routeSummary ? <span className="block text-sm text-muted">Routes: {row.routeSummary}</span> : null}
+                    {row.type === "joint" ? (
+                      <span className="block text-sm text-muted">
+                        Host {row.hostName || "—"} · Joiner {row.joinerDistricts || "—"} · Received {row.receivedDateLabel || row.receivedDate || "—"}
+                      </span>
+                    ) : null}
                   </span>
                 </label>
               </li>

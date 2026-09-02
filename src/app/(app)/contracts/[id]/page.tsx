@@ -16,6 +16,8 @@ import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
+import { checklistDefinition } from "@/lib/checklists";
+import { sameLetterGroup } from "@/lib/letter-groups";
 import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
 
 export default async function ContractDetailPage({
@@ -57,14 +59,22 @@ export default async function ContractDetailPage({
       getSetting("cpi", "2.50"),
       getSetting("bidThreshold", "7500"),
       prisma.contract.findMany({
-        where: {
-          id: { not: contract.id },
-          districtId: contract.districtId,
-          type: contract.type,
-          schoolYear: contract.schoolYear,
-          deletedAt: null,
-        },
-        include: { contractor: true },
+        where:
+          contract.type === "joint"
+            ? {
+                id: { not: contract.id },
+                type: "joint",
+                schoolYear: contract.schoolYear,
+                deletedAt: null,
+              }
+            : {
+                id: { not: contract.id },
+                districtId: contract.districtId,
+                type: contract.type,
+                schoolYear: contract.schoolYear,
+                deletedAt: null,
+              },
+        include: { contractor: true, hostDistrict: true },
         orderBy: { multiContractNumber: "asc" },
       }),
     ]);
@@ -93,6 +103,15 @@ export default async function ContractDetailPage({
   const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
   const addendumTotal = contract.routes.reduce((sum, route) => sum + route.addenda.length, 0);
   const superAdmin = isSuperAdmin(session?.role);
+  const checklistDef = checklistDefinition("contract", contract.type);
+  const currentLetterGroup = {
+    type: contract.type,
+    districtId: contract.districtId,
+    schoolYear: contract.schoolYear,
+    hostDistrictId: contract.hostDistrictId,
+    joinerDistricts: contract.joinerDistricts,
+    receivedDate: contract.receivedDate,
+  };
 
   async function remove() {
     "use server";
@@ -130,7 +149,7 @@ export default async function ContractDetailPage({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm text-muted">Status</p>
-          <div className="mt-2"><StatusChip name={contract.statusName} /></div>
+          <div className="mt-2"><StatusChip name={contract.statusName} color={statuses.find((s) => s.name === contract.statusName)?.color} /></div>
           {contract.statusName === "2nd review" ? (
             <p className="mt-2 text-sm text-muted">
               Waiting {Math.max(1, Math.round(secondHours))} hours
@@ -270,12 +289,12 @@ export default async function ContractDetailPage({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Review process" hint="Review details, then the checklist, then review and decide">
+      <CollapsibleSection title="Review process" hint={`${checklistDef?.name ?? "Review details"}, then the checklist, then review and decide`}>
         <div className="space-y-8">
           <div>
             <h3 className="serif mb-2 text-xl">Review details</h3>
             <p className="mb-4 text-muted">
-              These fields depend on the type of contract. Enter the actual start and end dates here so insurance can be checked against the run of this packet.
+              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow this type of packet.
             </p>
             <ContractForm
               mode="review"
@@ -323,9 +342,12 @@ export default async function ContractDetailPage({
             </div>
           ) : null}
           <div>
-            <h3 className="serif mb-2 text-xl">Checklist</h3>
-            <p className="mb-4 text-muted">Use this when the review starts. Comment on anything missing — those comments become the PT-4.</p>
+            <h3 className="serif mb-2 text-xl">{checklistDef?.name ?? "Checklist"}</h3>
+            <p className="mb-4 text-muted">
+              Only the items this type of contract needs. Comment on anything missing — those comments become the PT-4.
+            </p>
             <div className="space-y-3">
+              {checklist.length === 0 ? <p className="text-muted">No checklist items for this type.</p> : null}
               {checklist.map((item) => (
                 <ChecklistRow key={item.id} item={item} />
               ))}
@@ -340,10 +362,31 @@ export default async function ContractDetailPage({
               kind="contract"
               id={contract.id}
               contractTypeLabel={contractTypeLabel(contract.type)}
+              contractType={contract.type}
+              letterGroup={currentLetterGroup}
               sameTypeContracts={sameTypeContracts.map((row) => ({
                 id: row.id,
                 multiContractNumber: row.multiContractNumber,
                 contractorName: row.contractor.legalName,
+                hostName: row.hostDistrict?.name,
+                joinerDistricts: row.joinerDistricts,
+                receivedDateLabel: formatDate(row.receivedDate),
+                letterGroup: {
+                  type: row.type,
+                  districtId: row.districtId,
+                  schoolYear: row.schoolYear,
+                  hostDistrictId: row.hostDistrictId,
+                  joinerDistricts: row.joinerDistricts,
+                  receivedDate: row.receivedDate,
+                },
+                sameLetterGroup: sameLetterGroup(currentLetterGroup, {
+                  type: row.type,
+                  districtId: row.districtId,
+                  schoolYear: row.schoolYear,
+                  hostDistrictId: row.hostDistrictId,
+                  joinerDistricts: row.joinerDistricts,
+                  receivedDate: row.receivedDate,
+                }),
               }))}
             />
             {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (

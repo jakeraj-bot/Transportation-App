@@ -93,12 +93,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "When you review",
-        body: "Open the contract. The review form shows extra questions based on the type:",
+        body: "Open the contract. Every type asks for status, contract start date, contract end date, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow the checklist for that type:",
         bullets: [
-          "Renewal: prior-year cost (used to check the CPI increase).",
-          "Joint agreement: host district and joiner district(s).",
           "Original / bid: link the approved route descriptions and the bid spec.",
+          "Renewal: prior-year cost (used to check the CPI increase) and any extra multi-contract numbers.",
           "Quote: link the emergency quote packet.",
+          "Joint agreement: host district and joiner district(s).",
+          "Addendum: if the cost increased, the bond amount has to increase too.",
+          "Parental: the shared review fields only, plus the parental checklist.",
         ],
       },
       {
@@ -117,9 +119,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Checklist, PT-4, and letters",
         steps: [
-          "Work the checklist while you review. Comment on anything missing.",
+          "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
           "Send a PT-4. The comments become the missing-items list and the status moves to 1st review missing items.",
-          "When the packet is ready, generate the approval or disapproval letter. You can check other contracts of the same type for that district so they print on one letter, with each multi-contract number and contractor on its own row. The Word template for that contract type fills the district’s name, contact, and mailing address.",
+          "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
         ],
       },
@@ -271,7 +273,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Statuses and letters",
         bullets: [
-          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct.",
+          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct. Pick a color square or type a hex code, the same way as My home screen. That color shows on the status chip and the Home status bar.",
+          "Under My home screen you can also pick a scrollbar hex. That color is used in the navigation menu and on the page.",
           "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
           "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
@@ -365,7 +368,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Joint agreements",
-        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it.",
+        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it. Approval and disapproval letters group joints only when the host, joiner, and date received all match. If you pick six joints and they fall into three of those combinations, you get three letters.",
       },
     ],
   },

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { saveHomePrefs } from "@/app/actions";
+import { ColorField } from "@/components/color-field";
 import { Button, Field, inputClass } from "@/components/ui";
 import {
   HOME_ACCENTS,
@@ -40,7 +41,8 @@ type ColorKey =
   | "btnSignOut"
   | "btnNewContract"
   | "btnNewCert"
-  | "btnViewAll";
+  | "btnViewAll"
+  | "scroll";
 
 const COLOR_FIELDS: { key: ColorKey; label: string; hint?: string }[] = [
   { key: "background", label: "Page background" },
@@ -48,6 +50,7 @@ const COLOR_FIELDS: { key: ColorKey; label: string; hint?: string }[] = [
   { key: "muted", label: "Letters (secondary text)" },
   { key: "nav", label: "Navigation background" },
   { key: "navText", label: "Navigation letters" },
+  { key: "scroll", label: "Scrollbar", hint: "The bar you drag in the navigation menu and on the page." },
 ];
 
 const BUTTON_FIELDS: { key: ColorKey; label: string }[] = [
@@ -60,44 +63,6 @@ const BUTTON_FIELDS: { key: ColorKey; label: string }[] = [
   { key: "btnNewCert", label: "New annual cert (Home)" },
   { key: "btnViewAll", label: "View all / my districts (Home)" },
 ];
-
-function ColorField({
-  label,
-  name,
-  value,
-  hint,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  hint?: string;
-  onChange: (hex: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
-      <div className="flex items-center gap-2">
-        <input
-          aria-label={`${label} color picker`}
-          className="h-11 w-14 cursor-pointer rounded-xl border border-line bg-white p-1"
-          type="color"
-          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <input
-          className={inputClass}
-          name={name}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="#2f9d90"
-          spellCheck={false}
-        />
-      </div>
-      {hint ? <span className="mt-1 block text-sm text-muted">{hint}</span> : null}
-    </label>
-  );
-}
 
 export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
   const [draft, setDraft] = useState<HomePrefs>(prefs);

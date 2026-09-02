@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Button, Card, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
-import { getSchoolYear, getSetting } from "@/lib/data";
+import { getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
+import { statusFillStyle } from "@/lib/status-color";
 import { formatDate } from "@/lib/utils";
 
 const HOME_STATUSES = [
@@ -24,12 +25,14 @@ export default async function HomePage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const { view } = await searchParams;
-  const [schoolYear, session, alertOn, alertHoursRaw] = await Promise.all([
+  const [schoolYear, session, alertOn, alertHoursRaw, dbStatuses] = await Promise.all([
     getSchoolYear(),
     getSession(),
     getSetting("secondReviewAlertOn", "off"),
     getSetting("secondReviewAlertHours", "48"),
+    getStatuses("contract"),
   ]);
+  const statusColor = Object.fromEntries(dbStatuses.map((row) => [row.name, row.color]));
   const alertHours = Number(alertHoursRaw) || 48;
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
@@ -49,6 +52,7 @@ export default async function HomePage({
       Promise.all(
         HOME_STATUSES.map(async (status) => ({
           ...status,
+          color: statusColor[status.name] || status.color,
           count: await prisma.contract.count({ where: { ...whereYear, statusName: status.name } }),
         }))
       ),
@@ -118,7 +122,8 @@ export default async function HomePage({
             <Link
               key={status.name}
               href={`/contracts?status=${encodeURIComponent(status.name)}`}
-              className={`home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center lg:w-auto lg:min-w-0 lg:flex-1 stat-${status.color}`}
+              className="home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center lg:w-auto lg:min-w-0 lg:flex-1"
+              style={statusFillStyle(status.color)}
             >
               <span className="text-xl font-semibold leading-none">{status.count}</span>
               <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">{status.label}</span>
@@ -225,7 +230,7 @@ export default async function HomePage({
                       </td>
                       <td className="px-5 py-3">{c.district.name}</td>
                       <td className="px-5 py-3">{c.contractor.legalName}</td>
-                      <td className="px-5 py-3"><StatusChip name={c.statusName} /></td>
+                      <td className="px-5 py-3"><StatusChip name={c.statusName} color={statusColor[c.statusName]} /></td>
                       <td className="px-5 py-3 text-muted">{formatDate(c.updatedAt)}</td>
                     </tr>
                   ))}

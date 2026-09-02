@@ -341,3 +341,9 @@ export function fillDocx(template: Buffer, fields: Record<string, unknown>) {
   doc.render(fields);
   return doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
 }
+
+export function zipFiles(files: Array<{ name: string; data: Buffer }>) {
+  const zip = new PizZip();
+  for (const file of files) zip.file(file.name, file.data);
+  return zip.generate({ type: "nodebuffer" }) as Buffer;
+}

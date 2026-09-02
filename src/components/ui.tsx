@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { statusChipStyle } from "@/lib/status-color";
 import { BackLink } from "./nav-controls";
 
 export function StatusChip({ name, color }: { name: string; color?: string }) {
-  const tone = color || "teal";
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-sm font-medium chip-teal", `chip-${tone}`)}>
+    <span className="inline-flex rounded-full px-2.5 py-1 text-sm font-medium" style={statusChipStyle(color)}>
       {name}
     </span>
   );

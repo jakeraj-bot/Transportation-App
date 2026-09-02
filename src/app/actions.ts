@@ -7,6 +7,7 @@ import { can, requireSession } from "@/lib/auth";
 import { isSuperAdmin, ROLE_PERMISSIONS } from "@/lib/roles";
 import { ALL_PERMISSION_KEYS, ensurePermissions } from "@/lib/permissions";
 import { parseHomePrefs } from "@/lib/home-prefs";
+import { sanitizeStatusColor } from "@/lib/status-color";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
 import { ensureChecklist, getSetting, refreshContractFlags } from "@/lib/data";
@@ -24,7 +25,9 @@ import {
   contractLetterFields,
   defaultLetterDocx,
   fillDocx,
+  zipFiles,
 } from "@/lib/docx";
+import { groupByLetter } from "@/lib/letter-groups";
 import { readStoredFile, saveStoredFile } from "@/lib/storage";
 import { sendOutlookMail } from "@/lib/email";
 import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
@@ -681,7 +684,7 @@ export async function saveStatus(form: FormData) {
   const data = {
     entityType: formString(form, "entityType"),
     name: formString(form, "name"),
-    color: formString(form, "color") || "teal",
+    color: sanitizeStatusColor(formString(form, "color")),
     sortOrder: Number(formString(form, "sortOrder") || 0),
   };
   if (id) await prisma.status.update({ where: { id }, data });
@@ -853,6 +856,7 @@ export async function saveHomePrefs(form: FormData) {
       btnNewContract: formString(form, "btnNewContract"),
       btnNewCert: formString(form, "btnNewCert"),
       btnViewAll: formString(form, "btnViewAll"),
+      scroll: formString(form, "scroll"),
     })
   );
   await prisma.user.update({
@@ -962,75 +966,100 @@ export async function generateContractLetter(form: FormData) {
   if (contracts.some((row) => row.type !== first.type)) {
     throw new Error("All contracts on one letter must be the same type.");
   }
-  if (contracts.some((row) => row.districtId !== first.districtId)) {
+  if (first.type !== "joint" && contracts.some((row) => row.districtId !== first.districtId)) {
     throw new Error("All contracts on one letter must be for the same district.");
   }
   if (contracts.some((row) => row.schoolYear !== first.schoolYear)) {
     throw new Error("All contracts on one letter must be for the same school year.");
   }
   const ordered = ids.map((id) => contracts.find((row) => row.id === id)!);
+  const groups = groupByLetter(ordered, (row) => ({
+    type: row.type,
+    districtId: row.districtId,
+    schoolYear: row.schoolYear,
+    hostDistrictId: row.hostDistrictId,
+    joinerDistricts: row.joinerDistricts,
+    receivedDate: row.receivedDate,
+  }));
   const notes = formString(form, "notes");
-  const fields = contractLetterFields({
-    letterDate,
-    district: first.district,
-    schoolYear: first.schoolYear,
-    type: contractTypeLabel(first.type),
-    decision: kind === "approved" ? "approved" : "disapproved",
-    notes,
-    rows: ordered.flatMap((row) => [
-      {
-        multiContractNumber: row.multiContractNumber,
-        contractorName: row.contractor.legalName,
-        vendorCode: row.contractor.vendorCode,
-        routes: row.routes.map((route) => route.number),
-        addendumNumbers: row.routes.flatMap((route) =>
-          route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
-        ),
-        hostDistrictName: row.hostDistrict?.name,
-        jointDistrict: row.joinerDistricts,
-        receivedDate: row.receivedDate,
-      },
-      ...row.extraPackets.map((packet) => ({
-        multiContractNumber: packet.multiContractNumber,
-        contractorName: row.contractor.legalName,
-        vendorCode: row.contractor.vendorCode,
-        routes: packet.routeNumber ? [packet.routeNumber] : [],
-        addendumNumbers: [] as string[],
-        hostDistrictName: row.hostDistrict?.name,
-        jointDistrict: row.joinerDistricts,
-        receivedDate: row.receivedDate,
-      })),
-    ]),
-  });
-  const buf = fillDocx(await templateBuffer(kind, first.type), fields);
-  const fileName = `${kind}-${first.district.name}-${first.type}-${ordered.length}-${Date.now()}.docx`.replace(/\s+/g, "_");
-  await saveStoredFile(`letters/${fileName}`, buf);
   const statusName = kind === "approved" ? "Approved" : "Disapproved";
-  for (const row of ordered) {
-    await prisma.letter.create({
-      data: {
+  const files: Array<{ name: string; data: Buffer }> = [];
+
+  for (const group of groups) {
+    const lead = group[0];
+    const addressDistrict = lead.type === "joint" && lead.hostDistrict ? lead.hostDistrict : lead.district;
+    const fields = contractLetterFields({
+      letterDate,
+      district: addressDistrict,
+      schoolYear: lead.schoolYear,
+      type: contractTypeLabel(lead.type),
+      decision: kind === "approved" ? "approved" : "disapproved",
+      notes,
+      rows: group.flatMap((row) => [
+        {
+          multiContractNumber: row.multiContractNumber,
+          contractorName: row.contractor.legalName,
+          vendorCode: row.contractor.vendorCode,
+          routes: row.routes.map((route) => route.number),
+          addendumNumbers: row.routes.flatMap((route) =>
+            route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
+          ),
+          hostDistrictName: row.hostDistrict?.name,
+          jointDistrict: row.joinerDistricts,
+          receivedDate: row.receivedDate,
+        },
+        ...row.extraPackets.map((packet) => ({
+          multiContractNumber: packet.multiContractNumber,
+          contractorName: row.contractor.legalName,
+          vendorCode: row.contractor.vendorCode,
+          routes: packet.routeNumber ? [packet.routeNumber] : [],
+          addendumNumbers: [] as string[],
+          hostDistrictName: row.hostDistrict?.name,
+          jointDistrict: row.joinerDistricts,
+          receivedDate: row.receivedDate,
+        })),
+      ]),
+    });
+    const buf = fillDocx(await templateBuffer(kind, lead.type), fields);
+    const hostBit =
+      lead.type === "joint" ? `${lead.hostDistrict?.name || "host"}-${lead.joinerDistricts || "joiner"}` : lead.district.name;
+    const fileName = `${kind}-${hostBit}-${lead.type}-${group.length}-${Date.now()}-${files.length}.docx`.replace(/\s+/g, "_");
+    await saveStoredFile(`letters/${fileName}`, buf);
+    files.push({ name: fileName, data: buf });
+    for (const row of group) {
+      await prisma.letter.create({
+        data: {
+          entityType: "contract",
+          entityId: row.id,
+          kind,
+          letterDate,
+          filePath: `letters/${fileName}`,
+          createdById: user.id,
+        },
+      });
+      await prisma.contract.update({
+        where: { id: row.id },
+        data: { statusName, letterDate },
+      });
+      await writeAudit({
+        userId: user.id,
+        action: kind,
         entityType: "contract",
         entityId: row.id,
-        kind,
-        letterDate,
-        filePath: `letters/${fileName}`,
-        createdById: user.id,
-      },
-    });
-    await prisma.contract.update({
-      where: { id: row.id },
-      data: { statusName, letterDate },
-    });
-    await writeAudit({
-      userId: user.id,
-      action: kind,
-      entityType: "contract",
-      entityId: row.id,
-      summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${row.multiContractNumber}${ordered.length > 1 ? ` on a ${ordered.length}-contract letter` : ""}`,
-    });
+        summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${row.multiContractNumber}${
+          groups.length > 1 ? ` on 1 of ${groups.length} letters` : group.length > 1 ? ` on a ${group.length}-contract letter` : ""
+        }`,
+      });
+    }
   }
+
   revalidateAll();
-  return `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}`;
+  if (files.length === 1) {
+    return `/api/files?path=${encodeURIComponent(`letters/${files[0].name}`)}`;
+  }
+  const zipName = `${kind}-letters-${files.length}-${Date.now()}.zip`;
+  await saveStoredFile(`letters/${zipName}`, zipFiles(files));
+  return `/api/files?path=${encodeURIComponent(`letters/${zipName}`)}`;
 }
 
 export async function generateCertLetter(form: FormData) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   generateCertLetter,
   generateContractLetter,
@@ -9,6 +9,7 @@ import {
   sendDistrictEmail,
   updateChecklistItem,
 } from "@/app/actions";
+import { groupByLetter, type LetterGroupInput } from "@/lib/letter-groups";
 import { Button, Field, inputClass } from "./ui";
 
 export function LabelButton({ contractId }: { contractId: string }) {
@@ -52,18 +53,36 @@ export function LetterButtons({
   kind,
   id,
   contractTypeLabel,
+  contractType,
+  letterGroup,
   sameTypeContracts,
 }: {
   kind: "contract" | "cert";
   id: string;
   contractTypeLabel?: string;
-  sameTypeContracts?: Array<{ id: string; multiContractNumber: string; contractorName: string }>;
+  contractType?: string;
+  letterGroup?: LetterGroupInput;
+  sameTypeContracts?: Array<{
+    id: string;
+    multiContractNumber: string;
+    contractorName: string;
+    hostName?: string | null;
+    joinerDistricts?: string | null;
+    receivedDateLabel?: string | null;
+    letterGroup?: LetterGroupInput;
+    sameLetterGroup?: boolean;
+  }>;
 }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const extras = sameTypeContracts?.filter((row) => row.id !== id) ?? [];
-  const [included, setIncluded] = useState<string[]>([]);
+  const [included, setIncluded] = useState<string[]>(extras.filter((row) => row.sameLetterGroup).map((row) => row.id));
+  const letterCount = useMemo(() => {
+    if (kind !== "contract" || !letterGroup) return 1;
+    const selected = extras.filter((row) => included.includes(row.id));
+    return groupByLetter([letterGroup, ...selected.map((row) => row.letterGroup ?? letterGroup)], (row) => row).length;
+  }, [kind, letterGroup, extras, included]);
 
   async function run(decision: "approved" | "disapproved") {
     setBusy(true);
@@ -84,15 +103,19 @@ export function LetterButtons({
     <div className="space-y-3">
       {kind === "contract" && contractTypeLabel ? (
         <p className="text-sm text-muted">
-          This uses the {contractTypeLabel.toLowerCase()} approval or disapproval letter from Settings, and fills in this district’s mailing address.
-          {extras.length
+          {contractType === "joint"
+            ? "Joint agreements go on the same letter only when the host, joiner, and date received all match. Different combinations print as separate letters."
+            : `This uses the ${contractTypeLabel.toLowerCase()} approval or disapproval letter from Settings, and fills in this district’s mailing address.`}
+          {extras.length && contractType !== "joint"
             ? ` Check other ${contractTypeLabel.toLowerCase()} contracts for this district to put them on the same letter, one row each.`
-            : ""}
+            : extras.length
+              ? " Check others below. Matching host/joiner/date stay on this letter; the rest get their own."
+              : ""}
         </p>
       ) : null}
       {extras.length ? (
         <div className="space-y-2 rounded-xl border border-line bg-cream px-4 py-3">
-          <p className="text-sm font-medium">Also include on this letter</p>
+          <p className="text-sm font-medium">{contractType === "joint" ? "Other joint agreements" : "Also include on this letter"}</p>
           {extras.map((row) => (
             <label key={row.id} className="flex items-start gap-2 text-sm">
               <input
@@ -108,6 +131,12 @@ export function LetterButtons({
               <span>
                 <span className="font-medium">{row.multiContractNumber}</span>
                 <span className="text-muted"> · {row.contractorName}</span>
+                {contractType === "joint" ? (
+                  <span className="block text-muted">
+                    Host {row.hostName || "—"} · Joiner {row.joinerDistricts || "—"} · Received {row.receivedDateLabel || "—"}
+                    {row.sameLetterGroup ? " · same letter" : " · separate letter"}
+                  </span>
+                ) : null}
               </span>
             </label>
           ))}
@@ -127,7 +156,9 @@ export function LetterButtons({
           className="rounded-xl bg-sage px-4 py-2.5 font-medium text-white"
         >
           {included.length
-            ? `Approve ${included.length + 1} contracts and print letter`
+            ? letterCount > 1
+              ? `Approve ${included.length + 1} contracts and print ${letterCount} letters`
+              : `Approve ${included.length + 1} contracts and print letter`
             : "Approve and print letter"}
         </button>
         <button
@@ -137,7 +168,9 @@ export function LetterButtons({
           className="rounded-xl bg-rose px-4 py-2.5 font-medium text-white"
         >
           {included.length
-            ? `Disapprove ${included.length + 1} contracts and print letter`
+            ? letterCount > 1
+              ? `Disapprove ${included.length + 1} contracts and print ${letterCount} letters`
+              : `Disapprove ${included.length + 1} contracts and print letter`
             : "Disapprove and print letter"}
         </button>
       </div>

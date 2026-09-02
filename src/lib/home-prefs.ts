@@ -222,6 +222,7 @@ export type HomePrefs = {
   btnNewContract: string;
   btnNewCert: string;
   btnViewAll: string;
+  scroll: string;
 };
 
 export function colorsFromAccent(accent: HomeAccent) {
@@ -240,6 +241,7 @@ export function colorsFromAccent(accent: HomeAccent) {
     btnNewContract: t.teal,
     btnNewCert: t.navy,
     btnViewAll: t.navy,
+    scroll: mixHex(t.navy, 0.45, "#ffffff"),
   };
 }
 
@@ -302,6 +304,7 @@ export function parseHomePrefs(raw?: string | null): HomePrefs {
       btnNewContract: sanitizeHex(parsed.btnNewContract, fromAccent.btnNewContract),
       btnNewCert: sanitizeHex(parsed.btnNewCert, fromAccent.btnNewCert),
       btnViewAll: sanitizeHex(parsed.btnViewAll, fromAccent.btnViewAll),
+      scroll: sanitizeHex(parsed.scroll, fromAccent.scroll),
     };
   } catch {
     return { ...DEFAULT_HOME_PREFS };
@@ -374,6 +377,8 @@ export function userThemeCss(prefs: HomePrefs): string {
   --btn-new-cert-text: ${newCert.text};
   --btn-view-all: ${viewAll.bg};
   --btn-view-all-text: ${viewAll.text};
+  --scroll-thumb: ${prefs.scroll};
+  --scroll-thumb-hover: ${mixHex(prefs.scroll, 0.85, "#ffffff")};
   --app-font: ${fontStack(prefs.font)};
   --app-heading-font: ${fontStack(prefs.headingFont)};
   --app-font-size: ${size.px};

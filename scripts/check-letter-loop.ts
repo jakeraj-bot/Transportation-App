@@ -1,4 +1,5 @@
 import { contractLetterFields, defaultLetterDocx, fillDocx, districtMergeFields } from "../src/lib/docx";
+import { groupByLetter } from "../src/lib/letter-groups";
 import PizZip from "pizzip";
 
 const paterson = {
@@ -86,5 +87,26 @@ if (packed.city !== "Paterson" || packed.state !== "NJ" || packed.zipCode !== "0
   process.exit(1);
 }
 
+const nresc = "nresc-host";
+const joints = [
+  { id: "1", type: "joint", districtId: "a", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "Paterson", receivedDate: "2026-06-25" },
+  { id: "2", type: "joint", districtId: "b", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "Paterson", receivedDate: "2026-06-25" },
+  { id: "3", type: "joint", districtId: "c", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "Clifton", receivedDate: "2026-06-25" },
+  { id: "4", type: "joint", districtId: "d", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "Clifton", receivedDate: "2026-06-25" },
+  { id: "5", type: "joint", districtId: "e", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "Clifton", receivedDate: "2026-06-25" },
+  { id: "6", type: "joint", districtId: "f", schoolYear: "2026-2027", hostDistrictId: nresc, joinerDistricts: "PAterson", receivedDate: "2026-06-24" },
+];
+const groups = groupByLetter(joints, (row) => row);
+if (groups.length !== 3) {
+  console.error("Expected 3 joint letters, got", groups.length);
+  process.exit(1);
+}
+const sizes = groups.map((group) => group.length).sort((a, b) => a - b);
+if (sizes.join(",") !== "1,2,3") {
+  console.error("Expected letter sizes 1, 2, and 3, got", sizes);
+  process.exit(1);
+}
+
 console.log("Loop letter filled three contract rows.");
 console.log("Paterson city, state, and ZIP print once.");
+console.log("Six joints split into three letters by host, joiner, and date received.");
