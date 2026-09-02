@@ -64,7 +64,7 @@ export default async function SettingsPage({
         }
       />
       {homeSaved ? <Flag tone="sage">Your Home screen settings were saved.</Flag> : null}
-      <CollapsibleSection title="My home screen" hint="Colors (including your own hex), fonts, letter size, buttons, compact layout, and which Home cards you want to see">
+      <CollapsibleSection title="My home screen" hint="Colors (including your own hex), more fonts to click as samples, letter size, buttons, compact layout, and which Home cards you want to see">
         <HomePrefsForm prefs={prefs} />
       </CollapsibleSection>
       {admin ? (

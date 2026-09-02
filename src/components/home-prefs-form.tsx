@@ -3,17 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { saveHomePrefs } from "@/app/actions";
 import { ColorField } from "@/components/color-field";
+import { FontPicker } from "@/components/font-picker";
 import { Button, Field, inputClass } from "@/components/ui";
 import {
   HOME_ACCENTS,
-  HOME_FONTS,
   HOME_FONT_SIZES,
   HOME_TILE_KEYS,
   colorsFromAccent,
   parseHomePrefs,
   userThemeCss,
   type HomeAccent,
-  type HomeFont,
   type HomeFontSize,
   type HomePrefs,
   type HomeTileKey,
@@ -187,34 +186,6 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             ))}
           </select>
         </Field>
-        <Field label="Body font">
-          <select
-            className={inputClass}
-            name="font"
-            value={draft.font}
-            onChange={(e) => setDraft((current) => ({ ...current, font: e.target.value as HomeFont }))}
-          >
-            {HOME_FONTS.map((font) => (
-              <option key={font.id} value={font.id}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Heading font" hint="Titles such as page names and Home headings.">
-          <select
-            className={inputClass}
-            name="headingFont"
-            value={draft.headingFont}
-            onChange={(e) => setDraft((current) => ({ ...current, headingFont: e.target.value as HomeFont }))}
-          >
-            {HOME_FONTS.map((font) => (
-              <option key={font.id} value={font.id}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Letter size" className="md:col-span-2">
           <select
             className={inputClass}
@@ -229,6 +200,21 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             ))}
           </select>
         </Field>
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink">Body font</p>
+        <p className="mb-3 text-sm text-muted">Click a sample. The live preview at the top changes right away. Save to keep it.</p>
+        <FontPicker name="font" value={draft.font} onChange={(font) => setDraft((current) => ({ ...current, font }))} />
+      </div>
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink">Heading font</p>
+        <p className="mb-3 text-sm text-muted">Titles such as page names and Home headings. You can mix a serif heading with a sans body.</p>
+        <FontPicker
+          name="headingFont"
+          value={draft.headingFont}
+          onChange={(headingFont) => setDraft((current) => ({ ...current, headingFont }))}
+        />
       </div>
 
       <div>

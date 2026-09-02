@@ -262,6 +262,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
+        heading: "My home screen",
+        bullets: [
+          "Open Settings → My home screen. Body font is the main letters. Heading font is titles. Click a sample to try it; Save to keep it.",
+          "Sans-serif and serif lists include extra typefaces such as Inter, Nunito Sans, Atkinson Hyperlegible, Libre Baskerville, Lora, Fraunces, and Playfair Display. System fonts such as Georgia and Segoe UI use what is already on the computer.",
+          "You can mix fonts (for example Source Serif headings with Source Sans body). Letter size changes how large the type is.",
+        ],
+      },
+      {
         heading: "Office settings",
         bullets: [
           "Click a heading on Settings to open that section. Click it again to close it, so you do not have to scroll the whole page.",

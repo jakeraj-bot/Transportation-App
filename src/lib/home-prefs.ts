@@ -154,16 +154,42 @@ export const HOME_ACCENTS = {
 
 export type HomeAccent = keyof typeof HOME_ACCENTS;
 
-export type HomeFont = "sans" | "serif" | "georgia" | "palatino" | "mono";
-export type HomeFontSize = "sm" | "md" | "lg" | "xl";
+export const FONT_GROUPS = [
+  { id: "sans", label: "Sans-serif" },
+  { id: "serif", label: "Serif" },
+  { id: "display", label: "Display (headings)" },
+  { id: "system", label: "Already on this computer" },
+] as const;
 
-export const HOME_FONTS: { id: HomeFont; label: string; stack: string }[] = [
-  { id: "sans", label: "Source Sans (default)", stack: 'var(--font-sans), "Segoe UI", system-ui, sans-serif' },
-  { id: "serif", label: "Source Serif", stack: 'var(--font-serif), Georgia, "Times New Roman", serif' },
-  { id: "georgia", label: "Georgia", stack: 'Georgia, "Times New Roman", serif' },
-  { id: "palatino", label: "Palatino", stack: 'Palatino, "Palatino Linotype", "Book Antiqua", serif' },
-  { id: "mono", label: "Monospace", stack: 'ui-monospace, "Source Code Pro", Menlo, monospace' },
-];
+export type FontGroup = (typeof FONT_GROUPS)[number]["id"];
+
+/** Add a Google font in src/app/layout.tsx, then add a row here so it appears in Settings. */
+export const HOME_FONTS = [
+  { id: "sans", label: "Source Sans (default)", group: "sans", stack: 'var(--font-sans), "Segoe UI", system-ui, sans-serif' },
+  { id: "inter", label: "Inter", group: "sans", stack: 'var(--font-inter), "Segoe UI", sans-serif' },
+  { id: "nunito", label: "Nunito Sans", group: "sans", stack: 'var(--font-nunito), "Segoe UI", sans-serif' },
+  { id: "atkinson", label: "Atkinson Hyperlegible", group: "sans", stack: 'var(--font-atkinson), "Segoe UI", sans-serif' },
+  { id: "plex", label: "IBM Plex Sans", group: "sans", stack: 'var(--font-plex), "Segoe UI", sans-serif' },
+  { id: "outfit", label: "Outfit", group: "sans", stack: 'var(--font-outfit), "Segoe UI", sans-serif' },
+  { id: "serif", label: "Source Serif", group: "serif", stack: 'var(--font-serif), Georgia, "Times New Roman", serif' },
+  { id: "baskerville", label: "Libre Baskerville", group: "serif", stack: 'var(--font-baskerville), Georgia, serif' },
+  { id: "merriweather", label: "Merriweather", group: "serif", stack: 'var(--font-merriweather), Georgia, serif' },
+  { id: "lora", label: "Lora", group: "serif", stack: 'var(--font-lora), Georgia, serif' },
+  { id: "newsreader", label: "Newsreader", group: "serif", stack: 'var(--font-newsreader), Georgia, serif' },
+  { id: "fraunces", label: "Fraunces", group: "display", stack: 'var(--font-fraunces), Georgia, serif' },
+  { id: "playfair", label: "Playfair Display", group: "display", stack: 'var(--font-playfair), Georgia, serif' },
+  { id: "georgia", label: "Georgia", group: "system", stack: 'Georgia, "Times New Roman", serif' },
+  { id: "palatino", label: "Palatino", group: "system", stack: 'Palatino, "Palatino Linotype", "Book Antiqua", serif' },
+  { id: "times", label: "Times New Roman", group: "system", stack: '"Times New Roman", Times, serif' },
+  { id: "garamond", label: "Garamond", group: "system", stack: 'Garamond, "Palatino Linotype", Georgia, serif' },
+  { id: "segoe", label: "Segoe UI", group: "system", stack: '"Segoe UI", system-ui, sans-serif' },
+  { id: "arial", label: "Arial", group: "system", stack: 'Arial, Helvetica, sans-serif' },
+  { id: "trebuchet", label: "Trebuchet", group: "system", stack: '"Trebuchet MS", "Segoe UI", sans-serif' },
+  { id: "mono", label: "Monospace", group: "system", stack: 'ui-monospace, "Source Code Pro", Menlo, monospace' },
+] as const;
+
+export type HomeFont = (typeof HOME_FONTS)[number]["id"];
+export type HomeFontSize = "sm" | "md" | "lg" | "xl";
 
 export const HOME_FONT_SIZES: { id: HomeFontSize; label: string; px: string; h1: string }[] = [
   { id: "sm", label: "Small", px: "14px", h1: "1.6rem" },
