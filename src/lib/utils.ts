@@ -62,6 +62,13 @@ export function contractLetterTemplateKey(kind: "approved" | "disapproved", cont
   return type ? `contract_${kind}_${type}` : `contract_${kind}`;
 }
 
+/** Typed letter first, then the shared default. Generating a letter walks this list. */
+export function letterTemplateLookups(kind: "approved" | "disapproved", contractType?: string | null) {
+  const typed = contractLetterTemplateKey(kind, contractType);
+  const fallback = `contract_${kind}`;
+  return typed === fallback ? [fallback] : [typed, fallback];
+}
+
 export function brcSearchUrl() {
   return "https://www1.state.nj.us/TYTR_BRC/jsp/BRCLoginJsp.jsp";
 }

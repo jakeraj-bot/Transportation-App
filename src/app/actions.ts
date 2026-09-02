@@ -12,8 +12,8 @@ import { writeAudit } from "@/lib/audit";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { ensureChecklist, getSetting, refreshContractFlags } from "@/lib/data";
 import {
-  contractLetterTemplateKey,
   contractTypeLabel,
+  letterTemplateLookups,
   nameControlFrom,
   parseDate,
   parseMoney,
@@ -26,6 +26,7 @@ import {
   districtMergeFields,
   ensureUploadDir,
   fillDocx,
+  type DistrictAddressInput,
   uploadPath,
 } from "@/lib/docx";
 import { sendOutlookMail } from "@/lib/email";
@@ -52,6 +53,7 @@ export async function saveDistrict(form: FormData) {
     city: formString(form, "city") || null,
     state: formString(form, "state") || null,
     zip: formString(form, "zip") || null,
+    addressBlock: formString(form, "addressBlock") || null,
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -77,9 +79,10 @@ export async function saveDistrictAddresses(form: FormData) {
     const city = formString(form, `city_${district.id}`) || null;
     const state = formString(form, `state_${district.id}`) || null;
     const zip = formString(form, `zip_${district.id}`) || null;
+    const addressBlock = formString(form, `addressBlock_${district.id}`) || null;
     await prisma.district.update({
       where: { id: district.id },
-      data: { street, city, state, zip },
+      data: { street, city, state, zip, addressBlock },
     });
   }
   await writeAudit({
@@ -661,9 +664,7 @@ async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractT
   if (key === "pt4") {
     return (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4");
   }
-  const typed = contractLetterTemplateKey(key, contractType);
-  const generic = `contract_${key}`;
-  const lookups = typed === generic ? [generic] : [typed, generic];
+  const lookups = letterTemplateLookups(key, contractType);
   for (const lookup of lookups) {
     const buf = await readTemplateFile(lookup);
     if (buf) return buf;
@@ -833,8 +834,7 @@ export async function generatePt4AndEmail(form: FormData) {
   let districtId: string | null = null;
   let districtEmail = "";
   let districtName = "";
-  let districtForLetter: { name: string; street?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null =
-    null;
+  let districtForLetter: DistrictAddressInput | null = null;
   let contractor = "";
   let schoolYear = await getSetting("schoolYear");
   let multi = "";

@@ -67,11 +67,12 @@ model District {
   code      String?
   email     String?
   phone     String?
-  street    String?
-  city      String?
-  state     String?
-  zip       String?
-  notes     String?
+  street       String?
+  city         String?
+  state        String?
+  zip          String?
+  addressBlock String?
+  notes        String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

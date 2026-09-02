@@ -233,7 +233,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Every Passaic County district we review packets for lives here. Add the transportation email so PT-4s and insurance follow-up can send to the right person. Add each district’s street, city, state, and ZIP so approval, disapproval, and PT-4 letters print that district’s mailing address — not a shared county address.",
+        body: "Every Passaic County district we review packets for lives here. Add the transportation email so PT-4s and insurance follow-up can send to the right person. Add each district’s street, city, state, and ZIP — or paste one letter-ready block — so approval, disapproval, and PT-4 letters print that district’s mailing address — not a shared county address.",
       },
       {
         note: "To assign which districts you review, do not edit the district. Go to Settings → Users and permissions, open your name, check Your districts, save, then sign out and sign back in.",
@@ -272,7 +272,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         bullets: [
           "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct.",
           "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. Merge fields include {district}, {districtAddress}, {street}, {city}, {state}, {zip}, {contractor}, {letterDate}, {multiContractNumber}, {routes}, {schoolYear}, {type}, and {missingItems}.",
-          "Enter every district’s mailing address in Settings → District letter addresses (or on the district page). Letters pull the address from the contract’s district.",
+          "Enter every district’s mailing address in Settings → District letter addresses (or on the district page): street, city, state, and ZIP, or one letter-ready block. Letters pull the address from the contract’s district.",
         ],
       },
     ],

@@ -21,12 +21,19 @@ export default async function DistrictPage({ params }: { params: Promise<{ id: s
           <Field label="Transportation email"><input className={inputClass} name="email" type="email" defaultValue={district.email ?? ""} /></Field>
           <Field label="Phone"><input className={inputClass} name="phone" defaultValue={district.phone ?? ""} /></Field>
           <Field label="Code"><input className={inputClass} name="code" defaultValue={district.code ?? ""} /></Field>
-          <Field label="Street for letters" className="md:col-span-2" hint="This address is printed on approval, disapproval, and PT-4 letters for this district.">
+          <Field label="Street for letters" className="md:col-span-2" hint="Used with city, state, and ZIP unless you paste a letter-ready block below.">
             <input className={inputClass} name="street" defaultValue={district.street ?? ""} />
           </Field>
           <Field label="City"><input className={inputClass} name="city" defaultValue={district.city ?? ""} /></Field>
           <Field label="State"><input className={inputClass} name="state" defaultValue={district.state ?? ""} placeholder="NJ" /></Field>
           <Field label="ZIP"><input className={inputClass} name="zip" defaultValue={district.zip ?? ""} /></Field>
+          <Field
+            label="Letter-ready block (optional)"
+            className="md:col-span-2"
+            hint="Paste a full mailing block if the letter should show more than street, city, state, and ZIP. When this is filled, letters use it as {districtAddress}."
+          >
+            <textarea className={inputClass} name="addressBlock" rows={3} defaultValue={district.addressBlock ?? ""} />
+          </Field>
           <Field label="Notes" className="md:col-span-2"><textarea className={inputClass} name="notes" rows={3} defaultValue={district.notes ?? ""} /></Field>
           <div><Button type="submit">Save district</Button></div>
         </form>

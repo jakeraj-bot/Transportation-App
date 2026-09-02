@@ -87,7 +87,7 @@ export default async function SettingsPage() {
       <Card>
         <h2 className="serif mb-2 text-2xl">District letter addresses</h2>
         <p className="mb-4 text-muted">
-          Each district has its own mailing address. Letters use the address on the contract’s district — not a shared county address. You can also edit one district at a time under Districts.
+          Each district has its own mailing address. Letters use the address on the contract’s district — not a shared county address. Fill street, city, state, and ZIP, or paste one letter-ready block. You can also edit one district at a time under Districts.
         </p>
         {districts.length === 0 ? (
           <p className="text-muted">Add districts first, then come back here to enter their addresses.</p>
@@ -108,6 +108,18 @@ export default async function SettingsPage() {
                   </Field>
                   <Field label="ZIP">
                     <input className={inputClass} name={`zip_${district.id}`} defaultValue={district.zip ?? ""} />
+                  </Field>
+                  <Field
+                    label="Letter-ready block (optional)"
+                    className="md:col-span-6"
+                    hint="Paste the full mailing block if the letter needs a suite, attention line, or anything beyond street, city, state, and ZIP. When this is filled, {districtAddress} uses it as-is."
+                  >
+                    <textarea
+                      className={inputClass}
+                      name={`addressBlock_${district.id}`}
+                      rows={3}
+                      defaultValue={district.addressBlock ?? ""}
+                    />
                   </Field>
                 </div>
               </div>

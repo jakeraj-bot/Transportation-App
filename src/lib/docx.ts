@@ -82,9 +82,12 @@ export type DistrictAddressInput = {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
+  addressBlock?: string | null;
 };
 
 export function formatDistrictAddress(district: DistrictAddressInput) {
+  const block = district.addressBlock?.trim();
+  if (block) return block;
   const street = district.street?.trim() || "";
   const cityLine = [district.city?.trim(), [district.state?.trim(), district.zip?.trim()].filter(Boolean).join(" ")]
     .filter(Boolean)
