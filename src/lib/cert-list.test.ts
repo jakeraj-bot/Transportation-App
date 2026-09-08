@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filterCerts, sortCerts, type CertListRow } from "./cert-list";
+import { filterCerts, sortCerts, adjacentCerts, type CertListRow } from "./cert-list";
 import { NJ_COUNTIES, certCountyOptions, resolveCertCounty } from "./nj-counties";
 
 function row(partial: Partial<CertListRow> & { id: string; contractorName: string }): CertListRow {
@@ -101,5 +101,12 @@ describe("annual cert list filters", () => {
     assert.equal(resolveCertCounty("", "Passaic"), "Passaic");
     assert.equal(resolveCertCounty("Bergen", "Passaic"), "Bergen");
     assert.equal(resolveCertCounty("ocean county", null), "Ocean");
+  });
+
+  it("moves to the next cert in A–Z order and wraps from the last back to the first", () => {
+    const ordered = sortCerts(rows);
+    assert.equal(adjacentCerts(ordered, "1").next?.id, "2");
+    assert.equal(adjacentCerts(ordered, "3").next?.id, "1");
+    assert.equal(adjacentCerts(ordered, "2").prev?.id, "1");
   });
 });

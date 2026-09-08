@@ -60,3 +60,16 @@ export function sortCerts<T extends { contractorName: string; county: string | n
     return (a.county || "").localeCompare(b.county || "", "en", { sensitivity: "base" });
   });
 }
+
+export function adjacentCerts<T extends { id: string }>(rows: T[], currentId: string) {
+  const index = rows.findIndex((row) => row.id === currentId);
+  if (index < 0 || rows.length < 2) {
+    return { prev: null as T | null, next: null as T | null, position: Math.max(index, 0) + 1, total: rows.length };
+  }
+  return {
+    prev: rows[(index - 1 + rows.length) % rows.length],
+    next: rows[(index + 1) % rows.length],
+    position: index + 1,
+    total: rows.length,
+  };
+}

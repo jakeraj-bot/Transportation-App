@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { softDelete } from "@/app/actions";
 import { CertForm } from "@/components/cert-form";
+import { CertReviewNav } from "@/components/cert-review-nav";
 import { ChecklistRow, LetterButtons } from "@/components/client-forms";
 import { CollapsibleSection } from "@/components/collapsible";
-import { PageHeader, StatusChip } from "@/components/ui";
+import { Button, PageHeader, StatusChip } from "@/components/ui";
+import { adjacentCerts, sortCerts, type CertListRow } from "@/lib/cert-list";
 import { activeContractors, ensureChecklist, getStatuses } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { formatDate, toInputDate } from "@/lib/utils";
@@ -16,10 +18,15 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
     include: { contractor: true },
   });
   if (!cert) notFound();
-  const [contractors, statuses, checklist] = await Promise.all([
+  const [contractors, statuses, checklist, yearCerts] = await Promise.all([
     activeContractors(),
     getStatuses("cert"),
     ensureChecklist("cert", cert.id),
+    prisma.annualCert.findMany({
+      where: { deletedAt: null, schoolYear: cert.schoolYear },
+      include: { contractor: true },
+      orderBy: [{ contractor: { legalName: "asc" } }, { county: "asc" }],
+    }),
   ]);
   async function remove() {
     "use server";
@@ -35,6 +42,20 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
     .filter(Boolean)
     .join(" · ");
   const checked = checklist.filter((item) => item.checked).length;
+  const yearRows: CertListRow[] = sortCerts(
+    yearCerts.map((row) => ({
+      id: row.id,
+      statusName: row.statusName,
+      notes: row.notes,
+      receivedDateLabel: formatDate(row.receivedDate),
+      contractorName: row.contractor.legalName,
+      dba: row.contractor.dba,
+      ospCode: row.contractor.ospCode,
+      vendorCode: row.contractor.vendorCode,
+      county: row.county || row.contractor.county,
+    }))
+  );
+  const { next } = adjacentCerts(yearRows, cert.id);
   return (
     <div className="space-y-4">
       <PageHeader
@@ -49,6 +70,7 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
           </form>
         }
       />
+      <CertReviewNav currentId={cert.id} rows={yearRows} />
       <CollapsibleSection title="Contractor" hint={contractorHint} defaultOpen>
         <div className="mb-5 rounded-xl bg-cream px-4 py-3 text-sm">
           <p className="font-medium">{contractor.legalName}</p>
@@ -116,6 +138,11 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
           ))}
         </div>
       </CollapsibleSection>
+      {next ? (
+        <div className="flex justify-end">
+          <Button href={`/certs/${next.id}`}>Next: {next.contractorName}</Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -197,6 +197,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "The list is A–Z by bus company. Saving a cert does not move it to the top.",
           "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. County lists every New Jersey county. Not approved yet hides ones already marked Approved.",
           "If status is Approved, every checklist box is checked because that packet was already accepted.",
+          "On an open cert, use Search to find another bus company without going back to the list, and Next to go to the next cert in A–Z order.",
           "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
           "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
