@@ -39,7 +39,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Contract reviewers (Jakera and Tanisha): review packets, send PT-4s, do first and second review, and generate letters.",
           "Office manager (Debby): watches status and progress, and can review a contract when needed.",
           "Route and bid spec reviewer: works route descriptions (including emergency quotes) and bid specs.",
-          "Super Admin: sees Activity, adds users, assigns districts, and can do everything else.",
+          "Super Admin: sees Activity, brings in records from the current system, adds users, assigns districts, and can do everything else.",
         ],
       },
       {
@@ -70,6 +70,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: "The larger cards under the row are flags: 2nd review waiting, late packets that need a rationale letter, quote timing, insurance that does not cover the full run, annual certs still open, and missing items.",
       },
       {
+        heading: "Compact Home",
+        body: "Under Settings → My home screen, Compact makes those flag tiles smaller in both height and width and lines them up in rows on the left. Contracts in 2nd review sit on the right, with recently updated contracts under that, so the whole Home screen can fit without scrolling down. Regular keeps the full-size tiles stacked above the lists.",
+      },
+      {
         heading: "Second review list",
         body: "This table shows every contract in 2nd review and how long it has been waiting. Super Admin can turn on an alert in Settings if a contract sits there too long.",
       },
@@ -93,12 +97,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "When you review",
-        body: "Open the contract. The review form shows extra questions based on the type:",
+        body: "Open the contract. Every type asks for status, contract start date, contract end date, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow the checklist for that type:",
         bullets: [
-          "Renewal: prior-year cost (used to check the CPI increase).",
-          "Joint agreement: host district and joiner district(s).",
           "Original / bid: link the approved route descriptions and the bid spec.",
+          "Renewal: prior-year cost (used to check the CPI increase) and any extra multi-contract numbers.",
           "Quote: link the emergency quote packet.",
+          "Joint agreement: host district and joiner district(s).",
+          "Addendum: if the cost increased, the bond amount has to increase too.",
+          "Parental: the shared review fields only, plus the parental checklist.",
         ],
       },
       {
@@ -117,9 +123,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Checklist, PT-4, and letters",
         steps: [
-          "Work the checklist while you review. Comment on anything missing.",
-          "Send a PT-4. The comments become the missing-items list and the status moves to 1st review missing items.",
-          "When the packet is ready, generate the approval or disapproval letter. You can change the letter date.",
+          "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
+          "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
+          "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
         ],
       },
@@ -130,6 +136,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Folder tab and labels",
         body: "Use Print folder tab and labels. The tab is the contractor name. Labels use district, school year, multi-contract number, and the route numbers.",
+      },
+      {
+        heading: "Emails to districts",
+        body: "This app cannot send from a county mailbox until the state gives mailbox access. Prepare the message here, use Copy message or Open in your email app, then send from your work Outlook. Rewrite with AI polishes the wording if an OpenAI key is set. Keep the district transportation email on the district record so To is already filled.",
       },
     ],
   },
@@ -181,8 +191,15 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         bullets: [
-          "Enter the contractor, school year, status, and notes.",
-          "You can generate an approval or disapproval letter from the cert page.",
+          "Click a heading to open that section; click it again to close it, so you do not have to scroll the whole page.",
+          "Contractor information is at the top: company name, OSP and vendor codes, home county, and contact, with a link to the contractor file. Then enter this year’s county, status, dates, and notes.",
+          "County on the cert is usually the same as the contractor. If they have a terminal in another county, add a separate annual cert for that county — they need one packet per county.",
+          "The list is A–Z by bus company. Saving a cert does not move it to the top.",
+          "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. County lists every New Jersey county. Not approved yet hides ones already marked Approved.",
+          "If status is Approved, every checklist box is checked because that packet was already accepted.",
+          "On an open cert, use Search to find another bus company without going back to the list, and Next to go to the next cert in A–Z order.",
+          "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
+          "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
         ],
       },
@@ -214,16 +231,40 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Keep the company file here: vendor code, Office of Student Protection code, bus location, contact, and Business Registration Certificate.",
+        body: "Keep the company file here: vendor code, Office of Student Protection code, home county, bus location, contact, and Business Registration Certificate. If they run terminals in more than one county, keep one contractor file and add an annual cert for each county.",
       },
       {
         heading: "Add one or upload a list",
         bullets: [
-          "Add one contractor at a time, or upload a CSV list (legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber).",
+          "Add one contractor at a time, or upload a list / certification tracker (Excel or CSV). Tracker columns: Contractor code, Bus Company, County, Date Received, Date reviewed, Compliance Status, Status.",
           "The taxpayer name control fills from the first four letters of the contractor name. Change it only if the BRC uses a different taxpayer name.",
           "Open BRC search copies the name control and certificate number, then opens the NJ Treasury site. Paste those two values and submit. The Treasury site will not let this app type into their form for you.",
           "Check the debarment list before a contract is approved. Flag the contractor if they are debarred.",
         ],
+      },
+    ],
+  },
+  {
+    id: "current-records",
+    title: "Bring in current records",
+    group: "using",
+    blocks: [
+      {
+        body: "Super Admin only. This page is for copying contractors and contracts that already exist in the current office system. It does not change how New contract works for packets that arrive from now on.",
+      },
+      {
+        heading: "Certification tracker",
+        steps: [
+          "Open Bring in records (Super Admin menu or Settings).",
+          "Upload the tracker as Excel or CSV.",
+          "Contractor code becomes the Office of Student Protection code. Bus Company becomes the contractor name. County is stored on the contractor as their home county, and on that year’s annual cert.",
+          "If the same bus company appears again with a different county, that is another terminal: the contractor file stays one record, and a second annual cert is added for the other county.",
+          "Date Received, Date reviewed, Compliance Status, and Status (notes) become this year’s annual certification.",
+        ],
+      },
+      {
+        heading: "Current contracts",
+        body: "Use Enter a current contract for packets already on file. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },
@@ -233,7 +274,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Every Passaic County district we review packets for lives here. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
+        body: "Every Passaic County district we review packets for lives here. Click a district to open it, then click again to close it. You can rename a district (for example if Passaic County Educational Services Commission has a new name), add the letter contact, and enter the street, city, state, and ZIP — or paste one letter-ready block if the letter needs a suite or attention line. Letters use that district’s name and address — not a shared county address. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
       },
       {
         note: "To assign which districts you review, do not edit the district. Go to Settings → Users and permissions, open your name, check Your districts, save, then sign out and sign back in.",
@@ -256,8 +297,18 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
+        heading: "My home screen",
+        bullets: [
+          "Open Settings → My home screen. Body font is the main letters. Heading font is titles. Click a sample to try it; Save to keep it.",
+          "Sans-serif and serif lists include extra typefaces such as Inter, Nunito Sans, Atkinson Hyperlegible, Libre Baskerville, Lora, Fraunces, and Playfair Display. System fonts such as Georgia and Segoe UI use what is already on the computer.",
+          "You can mix fonts (for example Source Serif headings with Source Sans body). Letter size changes how large the type is.",
+          "Compact Home makes the attention tiles smaller (height and width), keeps them in rows on the left, and puts 2nd review and recently updated contracts on the right so the page fits on one screen.",
+        ],
+      },
+      {
         heading: "Office settings",
         bullets: [
+          "Click a heading on Settings to open that section. Click it again to close it, so you do not have to scroll the whole page.",
           "School year, CPI percent for renewals, and the bid threshold (used to flag quotes that look over the limit).",
           "Office name and email used on letters and follow-up.",
           "Second-review alert: turn on if you want Home to warn you when a contract sits in 2nd review longer than the hours you set.",
@@ -270,8 +321,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Statuses and letters",
         bullets: [
-          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct.",
-          "Upload Word templates for approval letters, disapproval letters, annual cert letters, and the PT-4. Merge fields include {district}, {contractor}, {letterDate}, {multiContractNumber}, {routes}, {schoolYear}, and {missingItems}.",
+          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct. Pick a color square or type a hex code, the same way as My home screen. That color shows on the status chip and the Home status bar.",
+          "Under My home screen you can also pick a scrollbar hex. That color is used in the navigation menu and on the page.",
+          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). After you upload, you stay on Settings in the same open section. If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address — including a pasted letter-ready block. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
+          "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
       },
     ],
@@ -282,7 +335,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "The teal button in the lower right answers questions from N.J.A.C. 6A:27 and N.J.S.A. 18A:39. Use it when you are unsure about a rule. If the answer is not in our materials, check the current 6A:27 PDF on nj.gov/education.",
+        body: "The teal button in the lower right looks up the current N.J.A.C. 6A:27 PDF from nj.gov and searches official NJ pages (nj.gov, njleg). Use it when you are unsure about a rule. It is not legal advice — confirm a compliance decision against the official PDF. Super Admin should set OPENAI_API_KEY on the server so answers can use live web search; without a key, the app still pulls the current code PDF and matches keywords.",
       },
     ],
   },
@@ -363,7 +416,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Joint agreements",
-        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it.",
+        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it. Approval and disapproval letters group joints only when the host, joiner, and date received all match. If you pick six joints and they fall into three of those combinations, you get three letters.",
       },
     ],
   },

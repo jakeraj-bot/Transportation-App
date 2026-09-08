@@ -3,6 +3,7 @@ import { PERMISSIONS } from "../src/lib/permissions";
 import { CONTRACT_STATUSES } from "../src/lib/roles";
 import { currentSchoolYear } from "../src/lib/utils";
 import { prisma } from "../src/lib/prisma";
+import { syncChecklistTemplates } from "../src/lib/data";
 import { seedDemo, shouldSeedDemo } from "./demo-data";
 
 const DISTRICTS = [
@@ -62,147 +63,6 @@ const ENTITY_STATUSES: Record<string, Array<[string, string]>> = {
   ],
 };
 
-const CHECKLISTS: Array<{
-  entityType: string;
-  contractType?: string;
-  name: string;
-  items: string[];
-}> = [
-  {
-    entityType: "contract",
-    contractType: "original",
-    name: "Original / bid contract",
-    items: [
-      "PT-1 form",
-      "Bid specifications",
-      "Approved route description on file and linked",
-      "Certified board minutes (contractor, routes, and costs)",
-      "Summary of all bids received",
-      "Newspaper bid advertisement",
-      "Insurance certificate naming this district",
-      "Consent of surety",
-      "Bidder's guarantee",
-      "Performance bond with multi-contract or route numbers",
-      "Affirmative action material",
-      "Stockholder / ownership disclosure",
-      "Non-collusion statement",
-      "Bid sheet of successful bidder",
-      "Business registration certificate",
-      "Investment activities in Iran disclosure",
-      "If not lowest bidder: board attorney statement",
-    ],
-  },
-  {
-    entityType: "contract",
-    contractType: "renewal",
-    name: "Renewal contract",
-    items: [
-      "PT-1 form",
-      "Certified board minutes",
-      "Insurance certificate naming this district",
-      "Performance bond",
-      "Affirmative action material",
-      "Original was competitively bid",
-      "Increase does not exceed CPI (unless bid-allowed aide, route change, or safety)",
-      "School destination is the same as the original",
-    ],
-  },
-  {
-    entityType: "contract",
-    contractType: "quote",
-    name: "Quoted / emergency contract",
-    items: [
-      "PT-1 form",
-      "Certified board minutes",
-      "Insurance certificate naming this district",
-      "Performance bond (if required)",
-      "Evidence of three quotes",
-      "Business registration certificate",
-      "Emergency quote approved and linked",
-      "Board acted at the next meeting after the quote",
-    ],
-  },
-  {
-    entityType: "contract",
-    contractType: "parental",
-    name: "Parental contract",
-    items: [
-      "PT-1 form",
-      "Certified board minutes",
-      "Parent automobile insurance",
-      "Copy of a valid driver's license",
-      "Copy of current vehicle registration",
-    ],
-  },
-  {
-    entityType: "contract",
-    contractType: "addendum",
-    name: "Contract addendum",
-    items: [
-      "PT-1 / addendum form",
-      "Certified board minutes authorizing the adjustment",
-      "Additional performance bond if the cost increased",
-      "Adjustment follows the original bid (per mile / per student / per vehicle)",
-    ],
-  },
-  {
-    entityType: "contract",
-    contractType: "joint",
-    name: "Joint transportation agreement",
-    items: [
-      "Commissioner joint agreement form",
-      "Host district certified minutes",
-      "Joiner district certified minutes",
-      "PT-1 form",
-      "Host insurance or host contract on file",
-    ],
-  },
-  {
-    entityType: "cert",
-    name: "Annual certification",
-    items: [
-      "Annual certification transmittal with contractor / vendor code",
-      "Packet received by August 15",
-      "Driver and aide packets complete (kept in paper file)",
-      "Contractor is not debarred",
-    ],
-  },
-  {
-    entityType: "bid_spec",
-    name: "Bid specification review",
-    items: [
-      "Submitted before advertisement",
-      "Insurance limits are stated",
-      "Bond type and amount are stated",
-      "Route descriptions are included",
-      "Adjustment / increase-decrease clause is included",
-      "Business registration certificate is required",
-    ],
-  },
-  {
-    entityType: "route_description",
-    name: "Route description review",
-    items: [
-      "Each route has a number (ROUTE NO.)",
-      "Destination is stated",
-      "Hours / start and end time are stated",
-      "THE STARTING DATE OF THIS ROUTE IS is filled in",
-      "Stops and schedule are described",
-      "Vehicle capacity is stated where required",
-    ],
-  },
-  {
-    entityType: "emergency_quote",
-    name: "Emergency quote review",
-    items: [
-      "Service was unanticipated",
-      "Three quotes were sought",
-      "Quoted on a per diem basis",
-      "Amount compared to the bid threshold",
-    ],
-  },
-];
-
 async function main() {
   for (const p of PERMISSIONS) {
     await prisma.permission.upsert({
@@ -242,7 +102,7 @@ async function main() {
     for (const [name, color] of rows) {
       await prisma.status.upsert({
         where: { entityType_name: { entityType, name } },
-        update: { color, sortOrder: order },
+        update: { sortOrder: order },
         create: { entityType, name, color, sortOrder: order },
       });
       order += 1;
@@ -274,20 +134,7 @@ async function main() {
     }
   }
 
-  if ((await prisma.checklistTemplate.count()) === 0) {
-    for (const list of CHECKLISTS) {
-      await prisma.checklistTemplate.create({
-        data: {
-          entityType: list.entityType,
-          contractType: list.contractType ?? null,
-          name: list.name,
-          items: {
-            create: list.items.map((label, sortOrder) => ({ label, sortOrder })),
-          },
-        },
-      });
-    }
-  }
+  await syncChecklistTemplates();
 
   const year = currentSchoolYear();
   const settings: Record<string, string> = {

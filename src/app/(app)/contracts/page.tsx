@@ -1,10 +1,10 @@
-import Link from "next/link";
-import { Button, Card, EmptyState, PageHeader, StatusChip } from "@/components/ui";
+import { Button, EmptyState, PageHeader } from "@/components/ui";
+import { ContractList } from "@/components/contract-list";
 import { prisma } from "@/lib/prisma";
-import { getSchoolYear } from "@/lib/data";
-import { getSession } from "@/lib/auth";
+import { getSchoolYear, getStatuses } from "@/lib/data";
+import { can, getSession } from "@/lib/auth";
 import { hoursInSecondReview } from "@/lib/flags";
-import { contractTypeLabel } from "@/lib/utils";
+import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 
 export default async function ContractsPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function ContractsPage({
   searchParams: Promise<{ flag?: string; status?: string; view?: string }>;
 }) {
   const { flag, status, view } = await searchParams;
-  const [schoolYear, session] = await Promise.all([getSchoolYear(), getSession()]);
+  const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
   const where: Record<string, unknown> = { deletedAt: null, schoolYear };
@@ -20,10 +20,11 @@ export default async function ContractsPage({
   if (flag === "late") where.rationaleNeeded = true;
   if (flag === "meeting") where.nextMeetingFlag = true;
   if (status) where.statusName = status;
+  const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));
 
   const rows = await prisma.contract.findMany({
     where,
-    include: { district: true, contractor: true, routes: { include: { addenda: true } } },
+    include: { district: true, contractor: true, routes: { include: { addenda: true } }, hostDistrict: true },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -31,7 +32,7 @@ export default async function ContractsPage({
     <div>
       <PageHeader
         title="Contracts"
-        hint="Every packet that comes in for approval."
+        hint="Every packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches."
         actions={
           <>
             {assigned.length ? (
@@ -39,6 +40,9 @@ export default async function ContractsPage({
                 {showMine ? "View all" : "My districts"}
               </Button>
             ) : null}
+            <Button href="/contracts/approve" variant="secondary">Approve contracts</Button>
+            <Button href="/contracts/print-tabs" variant="secondary">Print folder tabs</Button>
+            <Button href="/contracts/print-labels" variant="secondary">Print labels</Button>
             <Button href="/contracts/new">New contract</Button>
           </>
         }
@@ -50,53 +54,35 @@ export default async function ContractsPage({
           action={<Button href="/contracts/new">New contract</Button>}
         />
       ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full text-left">
-            <thead className="border-b border-line text-sm text-muted">
-              <tr>
-                <th className="px-5 py-3 font-medium">Multi-contract</th>
-                <th className="px-5 py-3 font-medium">District</th>
-                <th className="px-5 py-3 font-medium">Contractor</th>
-                <th className="px-5 py-3 font-medium">Type</th>
-                <th className="px-5 py-3 font-medium">Routes</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => (
-                <tr key={c.id} className="border-b border-line/70">
-                  <td className="px-5 py-3">
-                    <Link className="text-teal hover:underline" href={`/contracts/${c.id}`}>
-                      {c.multiContractNumber}
-                    </Link>
-                    {c.rationaleNeeded ? <div className="text-xs text-rose">Needs rationale letter</div> : null}
-                    {c.nextMeetingFlag ? <div className="text-xs text-amber">Next-meeting flag</div> : null}
-                    {c.statusName === "2nd review" ? (
-                      <div className="text-xs text-muted">
-                        In 2nd review {Math.max(1, Math.round(hoursInSecondReview(c.secondReviewStartedAt)))}h
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-5 py-3">{c.district.name}</td>
-                  <td className="px-5 py-3">{c.contractor.legalName}</td>
-                  <td className="px-5 py-3">{contractTypeLabel(c.type)}</td>
-                  <td className="px-5 py-3">
-                    {c.routes.map((r) => (
-                      <span key={r.id}>
-                        <Link className="text-teal hover:underline" href={`/contracts/${c.id}/routes/${r.id}`}>
-                          {r.number}
-                        </Link>
-                        {r.addenda.length ? " · addendum" : ""}
-                        {c.routes.at(-1)?.id !== r.id ? ", " : ""}
-                      </span>
-                    )) || "—"}
-                  </td>
-                  <td className="px-5 py-3"><StatusChip name={c.statusName} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+        <ContractList
+          canApprove={can(session, "approve")}
+          rows={rows.map((c) => ({
+            id: c.id,
+            multiContractNumber: c.multiContractNumber,
+            districtId: c.districtId,
+            districtName: c.district.name,
+            contractorName: c.contractor.legalName,
+            contractorIncomplete: c.contractor.incomplete,
+            type: c.type,
+            typeLabel: contractTypeLabel(c.type),
+            statusName: c.statusName,
+            statusColor: statusColor[c.statusName],
+            rationaleNeeded: c.rationaleNeeded,
+            nextMeetingFlag: c.nextMeetingFlag,
+            secondReviewHours: c.statusName === "2nd review" ? hoursInSecondReview(c.secondReviewStartedAt) : undefined,
+            hostDistrictId: c.hostDistrictId,
+            hostName: c.hostDistrict?.name,
+            joinerDistricts: c.joinerDistricts,
+            receivedDate: toInputDate(c.receivedDate),
+            receivedDateLabel: formatDate(c.receivedDate),
+            schoolYear: c.schoolYear,
+            routes: c.routes.map((r) => ({
+              id: r.id,
+              number: r.number,
+              hasAddendum: r.addenda.length > 0,
+            })),
+          }))}
+        />
       )}
     </div>
   );
