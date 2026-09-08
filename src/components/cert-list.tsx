@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { filterCerts, uniqueCertCounties, type CertListRow } from "@/lib/cert-list";
+import { filterCerts, sortCerts, type CertListRow } from "@/lib/cert-list";
 import { Button, Card, EmptyState, StatusChip, inputClass } from "@/components/ui";
+import { certCountyOptions } from "@/lib/nj-counties";
 
 export function CertList({
   rows,
@@ -27,15 +28,17 @@ export function CertList({
   const [status, setStatus] = useState(initialOpen && !initialStatus ? "open" : initialStatus);
   const [county, setCounty] = useState(initialCounty);
 
-  const counties = useMemo(() => uniqueCertCounties(rows), [rows]);
+  const counties = useMemo(() => certCountyOptions(rows.map((row) => row.county)), [rows]);
   const filtered = useMemo(
     () =>
-      filterCerts(rows, {
-        q,
-        status: status === "open" ? "" : status,
-        county,
-        open: status === "open",
-      }),
+      sortCerts(
+        filterCerts(rows, {
+          q,
+          status: status === "open" ? "" : status,
+          county,
+          open: status === "open",
+        })
+      ),
     [rows, q, status, county]
   );
   const active = Boolean(q.trim() || status || county);

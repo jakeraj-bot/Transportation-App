@@ -81,7 +81,11 @@ export default async function ContractDetailPage({
       }),
     ]);
 
-  const cert = contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
+  const cert =
+    contract.contractor.annualCerts.find(
+      (c) => c.schoolYear === contract.schoolYear && !c.deletedAt && (c.county === "Passaic" || !c.county)
+    ) ??
+    contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
   const insurance = await prisma.insuranceCertificate.findFirst({
     where: {
       contractorId: contract.contractorId,

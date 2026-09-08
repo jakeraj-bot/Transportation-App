@@ -91,10 +91,27 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">Annual certifications</h2>
-        {contractor.annualCerts.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/certs/${c.id}`}>{c.schoolYear}</Link> — {c.statusName}</p>
+        <p className="mb-3 text-sm text-muted">
+          One cert per county per school year. If this company has a terminal in another county, add another cert for that county.
+        </p>
+        {contractor.annualCerts
+          .slice()
+          .sort(
+            (a, b) =>
+              b.schoolYear.localeCompare(a.schoolYear) || (a.county || "").localeCompare(b.county || "")
+          )
+          .map((c) => (
+          <p key={c.id}>
+            <Link className="text-teal" href={`/certs/${c.id}`}>
+              {c.schoolYear}
+              {c.county || contractor.county ? ` · ${c.county || contractor.county}` : ""}
+            </Link>{" "}
+            — {c.statusName}
+          </p>
         ))}
-        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>Add annual cert</Link>
+        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>
+          Add annual cert
+        </Link>
       </Card>
     </div>
   );

@@ -53,8 +53,10 @@ export function filterCerts(rows: CertListRow[], filters: CertListFilters) {
   });
 }
 
-export function uniqueCertCounties(rows: Array<{ county: string | null }>) {
-  return Array.from(
-    new Set(rows.map((row) => row.county).filter((value): value is string => Boolean(value)))
-  ).sort((a, b) => a.localeCompare(b));
+export function sortCerts<T extends { contractorName: string; county: string | null }>(rows: T[]) {
+  return [...rows].sort((a, b) => {
+    const name = a.contractorName.localeCompare(b.contractorName, "en", { sensitivity: "base" });
+    if (name) return name;
+    return (a.county || "").localeCompare(b.county || "", "en", { sensitivity: "base" });
+  });
 }

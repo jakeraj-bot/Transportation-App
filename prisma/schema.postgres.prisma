@@ -127,6 +127,7 @@ model AnnualCert {
   id           String    @id @default(cuid())
   contractorId String
   schoolYear   String
+  county       String    @default("")
   statusName   String    @default("Not received")
   notes        String?
   letterDate   DateTime?
@@ -138,7 +139,7 @@ model AnnualCert {
 
   contractor Contractor @relation(fields: [contractorId], references: [id])
 
-  @@unique([contractorId, schoolYear])
+  @@unique([contractorId, schoolYear, county])
 }
 
 model Contract {

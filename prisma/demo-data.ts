@@ -178,9 +178,9 @@ export async function seedDemo(
     { contractorId: omar.id, statusName: "Not received", notes: "[Demo] Reminder needed." },
   ]) {
     await prisma.annualCert.upsert({
-      where: { contractorId_schoolYear: { contractorId: cert.contractorId, schoolYear: year } },
+      where: { contractorId_schoolYear_county: { contractorId: cert.contractorId, schoolYear: year, county: "Passaic" } },
       update: {},
-      create: { ...cert, schoolYear: year },
+      create: { ...cert, schoolYear: year, county: "Passaic" },
     });
   }
 

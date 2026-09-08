@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { saveCert, softDelete } from "@/app/actions";
+import { softDelete } from "@/app/actions";
+import { CertForm } from "@/components/cert-form";
 import { ChecklistRow, LetterButtons } from "@/components/client-forms";
 import { CollapsibleSection } from "@/components/collapsible";
-import { Button, Field, PageHeader, StatusChip, inputClass } from "@/components/ui";
+import { PageHeader, StatusChip } from "@/components/ui";
 import { activeContractors, ensureChecklist, getStatuses } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { formatDate, toInputDate } from "@/lib/utils";
@@ -25,9 +26,10 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
     await softDelete("cert", id, "/certs");
   }
   const contractor = cert.contractor;
+  const certCounty = cert.county || contractor.county;
   const contractorHint = [
     contractor.ospCode || contractor.vendorCode || "no code",
-    contractor.county ? `${contractor.county} County` : null,
+    certCounty ? `${certCounty} County` : null,
     contractor.contactName,
   ]
     .filter(Boolean)
@@ -53,8 +55,14 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
           {contractor.dba ? <p className="text-muted">DBA {contractor.dba}</p> : null}
           <p className="mt-1 text-muted">
             Vendor {contractor.vendorCode || "not on file"} · OSP {contractor.ospCode || "not on file"}
-            {contractor.county ? ` · ${contractor.county} County` : ""}
+            {contractor.county ? ` · based in ${contractor.county} County` : ""}
           </p>
+          {certCounty ? (
+            <p className="text-muted">
+              This certification is for {certCounty} County
+              {contractor.county && certCounty !== contractor.county ? " (another terminal)" : ""}.
+            </p>
+          ) : null}
           {contractor.contactName || contractor.email || contractor.phone ? (
             <p className="text-muted">
               {[contractor.contactName, contractor.email, contractor.phone].filter(Boolean).join(" · ")}
@@ -64,46 +72,26 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
             <Link className="text-teal" href={`/contractors/${contractor.id}`}>
               Open the contractor file
             </Link>
+            {" · "}
+            <Link className="text-teal" href={`/certs/new?contractorId=${contractor.id}`}>
+              Add a cert for another county
+            </Link>
           </p>
         </div>
-        <form action={saveCert} className="grid gap-4 md:grid-cols-2">
-          <input type="hidden" name="id" value={cert.id} />
-          <Field label="Contractor">
-            <select className={inputClass} name="contractorId" defaultValue={cert.contractorId}>
-              {contractors.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.legalName}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="School year">
-            <input className={inputClass} name="schoolYear" defaultValue={cert.schoolYear} />
-          </Field>
-          <Field label="Status">
-            <select className={inputClass} name="statusName" defaultValue={cert.statusName}>
-              {statuses.map((s) => (
-                <option key={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Date received" hint="The day the annual certification arrived.">
-            <input className={inputClass} type="date" name="receivedDate" defaultValue={toInputDate(cert.receivedDate)} />
-          </Field>
-          <Field label="Date reviewed">
-            <input className={inputClass} type="date" name="reviewedDate" defaultValue={toInputDate(cert.reviewedDate)} />
-          </Field>
-          <Field
-            label="Notes"
-            className="md:col-span-2"
-            hint="If approved, the date the compliance letter went out. If pending, why it is pending."
-          >
-            <textarea className={inputClass} name="notes" rows={3} defaultValue={cert.notes ?? ""} />
-          </Field>
-          <div>
-            <Button type="submit">Save cert</Button>
-          </div>
-        </form>
+        <CertForm
+          contractors={contractors.map((c) => ({ id: c.id, legalName: c.legalName, county: c.county }))}
+          statuses={statuses}
+          cert={{
+            id: cert.id,
+            contractorId: cert.contractorId,
+            schoolYear: cert.schoolYear,
+            county: certCounty,
+            statusName: cert.statusName,
+            notes: cert.notes,
+            receivedDate: toInputDate(cert.receivedDate),
+            reviewedDate: toInputDate(cert.reviewedDate),
+          }}
+        />
       </CollapsibleSection>
       <CollapsibleSection
         title="Letters"
@@ -115,6 +103,9 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
         <LetterButtons kind="cert" id={cert.id} />
       </CollapsibleSection>
       <CollapsibleSection title="Checklist" hint={`${checked} of ${checklist.length} checked`}>
+        <p className="mb-3 text-sm text-muted">
+          If this cert is Approved, every box is checked. That means the packet was already accepted.
+        </p>
         <div className="space-y-3">
           {checklist.map((item) => (
             <ChecklistRow

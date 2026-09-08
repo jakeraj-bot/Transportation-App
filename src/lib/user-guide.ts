@@ -192,8 +192,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         bullets: [
           "Click a heading to open that section; click it again to close it, so you do not have to scroll the whole page.",
-          "Contractor information is at the top: company name, OSP and vendor codes, county, and contact, with a link to the contractor file. Then enter this year’s status, dates, and notes.",
-          "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. Not approved yet hides ones already marked Approved.",
+          "Contractor information is at the top: company name, OSP and vendor codes, home county, and contact, with a link to the contractor file. Then enter this year’s county, status, dates, and notes.",
+          "County on the cert is usually the same as the contractor. If they have a terminal in another county, add a separate annual cert for that county — they need one packet per county.",
+          "The list is A–Z by bus company. Saving a cert does not move it to the top.",
+          "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. County lists every New Jersey county. Not approved yet hides ones already marked Approved.",
+          "If status is Approved, every checklist box is checked because that packet was already accepted.",
           "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
           "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
@@ -227,7 +230,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Keep the company file here: vendor code, Office of Student Protection code, county, bus location, contact, and Business Registration Certificate.",
+        body: "Keep the company file here: vendor code, Office of Student Protection code, home county, bus location, contact, and Business Registration Certificate. If they run terminals in more than one county, keep one contractor file and add an annual cert for each county.",
       },
       {
         heading: "Add one or upload a list",
@@ -253,7 +256,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         steps: [
           "Open Bring in records (Super Admin menu or Settings).",
           "Upload the tracker as Excel or CSV.",
-          "Contractor code becomes the Office of Student Protection code. Bus Company becomes the contractor name. County is stored on the contractor.",
+          "Contractor code becomes the Office of Student Protection code. Bus Company becomes the contractor name. County is stored on the contractor as their home county, and on that year’s annual cert.",
+          "If the same bus company appears again with a different county, that is another terminal: the contractor file stays one record, and a second annual cert is added for the other county.",
           "Date Received, Date reviewed, Compliance Status, and Status (notes) become this year’s annual certification.",
         ],
       },

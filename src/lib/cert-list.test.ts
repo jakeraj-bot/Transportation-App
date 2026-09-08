@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filterCerts, uniqueCertCounties, type CertListRow } from "./cert-list";
+import { filterCerts, sortCerts, type CertListRow } from "./cert-list";
+import { NJ_COUNTIES, certCountyOptions, resolveCertCounty } from "./nj-counties";
 
 function row(partial: Partial<CertListRow> & { id: string; contractorName: string }): CertListRow {
   return {
@@ -81,7 +82,24 @@ describe("annual cert list filters", () => {
     );
   });
 
-  it("lists counties that actually appear", () => {
-    assert.deepEqual(uniqueCertCounties(rows), ["Bergen", "Passaic"]);
+  it("lists every New Jersey county in the filter, even when none have certs yet", () => {
+    const options = certCountyOptions([]);
+    assert.equal(options.length, 21);
+    assert.deepEqual(options, [...NJ_COUNTIES]);
+    assert.ok(options.includes("Passaic"));
+    assert.ok(options.includes("Cape May"));
+  });
+
+  it("keeps the list A–Z by bus company so an edit does not jump to the top", () => {
+    assert.deepEqual(
+      sortCerts([rows[2], rows[0], rows[1]]).map((r) => r.contractorName),
+      ["Garden State Bus", "Omar Transport", "Wayne Coach"]
+    );
+  });
+
+  it("uses the contractor county on the cert unless a different terminal county is entered", () => {
+    assert.equal(resolveCertCounty("", "Passaic"), "Passaic");
+    assert.equal(resolveCertCounty("Bergen", "Passaic"), "Bergen");
+    assert.equal(resolveCertCounty("ocean county", null), "Ocean");
   });
 });

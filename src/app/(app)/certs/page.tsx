@@ -3,6 +3,7 @@ import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { getSchoolYear, getStatuses } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
+import { sortCerts } from "@/lib/cert-list";
 
 export default async function CertsPage({
   searchParams,
@@ -12,16 +13,30 @@ export default async function CertsPage({
   const { q = "", status = "", county = "", open } = await searchParams;
   const [schoolYear, statuses] = await Promise.all([getSchoolYear(), getStatuses("cert")]);
   const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));
-  const rows = await prisma.annualCert.findMany({
+  const found = await prisma.annualCert.findMany({
     where: { deletedAt: null, schoolYear },
     include: { contractor: true },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ contractor: { legalName: "asc" } }, { county: "asc" }],
   });
+  const rows = sortCerts(
+    found.map((c) => ({
+      id: c.id,
+      statusName: c.statusName,
+      statusColor: statusColor[c.statusName],
+      notes: c.notes,
+      receivedDateLabel: formatDate(c.receivedDate),
+      contractorName: c.contractor.legalName,
+      dba: c.contractor.dba,
+      ospCode: c.contractor.ospCode,
+      vendorCode: c.contractor.vendorCode,
+      county: c.county || c.contractor.county,
+    }))
+  );
   return (
     <div>
       <PageHeader
         title="Annual certifications"
-        hint={`Status only for ${schoolYear}. Search by bus company or OSP code, or filter by status and county. Driver packets stay in the paper file. Due August 15.`}
+        hint={`Status only for ${schoolYear}. Listed A–Z by bus company. Search by name or OSP code, or filter by status and county. Driver packets stay in the paper file. Due August 15.`}
         actions={<Button href="/certs/new">New annual cert</Button>}
       />
       {rows.length === 0 ? (
@@ -33,18 +48,7 @@ export default async function CertsPage({
           initialCounty={county}
           initialOpen={open === "1" || open === "true"}
           statuses={statuses.map((row) => ({ name: row.name, color: row.color }))}
-          rows={rows.map((c) => ({
-            id: c.id,
-            statusName: c.statusName,
-            statusColor: statusColor[c.statusName],
-            notes: c.notes,
-            receivedDateLabel: formatDate(c.receivedDate),
-            contractorName: c.contractor.legalName,
-            dba: c.contractor.dba,
-            ospCode: c.contractor.ospCode,
-            vendorCode: c.contractor.vendorCode,
-            county: c.contractor.county,
-          }))}
+          rows={rows}
         />
       )}
     </div>

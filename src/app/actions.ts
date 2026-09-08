@@ -28,7 +28,7 @@ import {
   parseFlexibleDate,
   parseSpreadsheetFile,
 } from "@/lib/import-records";
-import { matchNjCounty } from "@/lib/nj-counties";
+import { matchNjCounty, resolveCertCounty } from "@/lib/nj-counties";
 import { buildLabelPdf, mergePdfs, type LabelKind } from "@/lib/labels";
 import {
   contractLetterFields,
@@ -44,6 +44,10 @@ import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
 
 function formString(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
+}
+
+function isUniqueConflict(err: unknown) {
+  return Boolean(err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002");
 }
 
 function revalidateAll() {
@@ -117,6 +121,12 @@ export async function saveContractor(form: FormData) {
     : await prisma.contractor.create({
         data: { ...data, brcVerifiedAt: data.brcVerifiedAt ?? null },
       });
+  if (row.county) {
+    await prisma.annualCert.updateMany({
+      where: { contractorId: row.id, county: "" },
+      data: { county: row.county },
+    });
+  }
   await writeAudit({
     userId: user.id,
     action: id ? "update" : "create",
@@ -430,33 +440,50 @@ export async function saveCert(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
+  const contractorId = formString(form, "contractorId");
+  const contractor = await prisma.contractor.findUnique({ where: { id: contractorId } });
+  if (!contractor) throw new Error("Choose a contractor.");
+  const county = resolveCertCounty(formString(form, "county"), contractor.county);
+  if (!county) throw new Error("Choose the county this certification is for.");
   const data = {
-    contractorId: formString(form, "contractorId"),
+    contractorId,
     schoolYear: formString(form, "schoolYear"),
+    county,
     statusName: formString(form, "statusName") || "Need review",
     notes: formString(form, "notes") || null,
     receivedDate: parseDate(formString(form, "receivedDate")),
     reviewedDate: parseDate(formString(form, "reviewedDate")),
   };
-  const row = id
-    ? await prisma.annualCert.update({ where: { id }, data })
-    : await prisma.annualCert.upsert({
-        where: {
-          contractorId_schoolYear: {
-            contractorId: data.contractorId,
-            schoolYear: data.schoolYear,
+  let row;
+  try {
+    row = id
+      ? await prisma.annualCert.update({ where: { id }, data })
+      : await prisma.annualCert.upsert({
+          where: {
+            contractorId_schoolYear_county: {
+              contractorId: data.contractorId,
+              schoolYear: data.schoolYear,
+              county: data.county,
+            },
           },
-        },
-        update: data,
-        create: data,
-      });
+          update: data,
+          create: data,
+        });
+  } catch (err) {
+    if (isUniqueConflict(err)) {
+      throw new Error(
+        "This contractor already has an annual cert for that county this school year. Open that one instead of adding another."
+      );
+    }
+    throw err;
+  }
   await ensureChecklist("cert", row.id);
   await writeAudit({
     userId: user.id,
     action: id ? "update" : "create",
     entityType: "cert",
     entityId: row.id,
-    summary: `Updated annual cert for ${data.schoolYear}`,
+    summary: `Updated annual cert for ${data.schoolYear}${data.county ? ` · ${data.county}` : ""}`,
   });
   revalidateAll();
   redirect(`/certs/${row.id}`);
@@ -1194,6 +1221,7 @@ export async function generateCertLetter(form: FormData) {
       letterDate,
     },
   });
+  if (kind === "approved") await ensureChecklist("cert", id);
   await writeAudit({
     userId: user.id,
     action: kind,
@@ -1676,7 +1704,7 @@ export async function importContractors(form: FormData) {
         email: parsed.email ?? match?.email ?? null,
         brcNumber: parsed.brcNumber ?? match?.brcNumber ?? null,
         brcNameControl: match?.brcNameControl || nameControlFrom(parsed.legalName) || null,
-        county: parsed.county ?? match?.county ?? null,
+        county: match?.county || parsed.county || null,
       };
 
       const contractor = match
@@ -1693,9 +1721,14 @@ export async function importContractors(form: FormData) {
       }
 
       if (parsed.hasCertInfo && schoolYear) {
+        const certCounty = resolveCertCounty(parsed.county, contractor.county);
         const cert = await prisma.annualCert.upsert({
           where: {
-            contractorId_schoolYear: { contractorId: contractor.id, schoolYear },
+            contractorId_schoolYear_county: {
+              contractorId: contractor.id,
+              schoolYear,
+              county: certCounty,
+            },
           },
           update: {
             statusName: parsed.statusName,
@@ -1708,6 +1741,7 @@ export async function importContractors(form: FormData) {
           create: {
             contractorId: contractor.id,
             schoolYear,
+            county: certCounty,
             statusName: parsed.statusName,
             notes: parsed.notes,
             receivedDate: parsed.receivedDate,

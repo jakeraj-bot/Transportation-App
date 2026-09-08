@@ -72,7 +72,7 @@ export default async function CurrentRecordsPage({
         <ul className="mb-4 list-disc space-y-1 pl-5 text-sm text-muted">
           <li><strong>Contractor code</strong> — Office of Student Protection code</li>
           <li><strong>Bus Company</strong> — contractor name</li>
-          <li><strong>County</strong> — where the contractor is based (New Jersey counties are recognized automatically)</li>
+          <li><strong>County</strong> — home county for the contractor, and the county this annual cert is for. If the same company appears again with a different county, that is another terminal and another cert</li>
           <li><strong>Date Received</strong> — date we received their annual certification</li>
           <li><strong>Date reviewed</strong> — date we reviewed it</li>
           <li><strong>Compliance Status</strong> — approved, pending, need review, and so on</li>

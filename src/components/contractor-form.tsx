@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { saveContractor } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
-import { NJ_COUNTIES } from "@/lib/nj-counties";
+import { CountySelect } from "@/components/county-select";
 import { brcSearchUrl, nameControlFrom } from "@/lib/utils";
 
 type Values = {
@@ -55,17 +55,11 @@ export function ContractorForm({ id, values }: { id?: string; values?: Values })
       <Field label="Office of Student Protection code">
         <input className={inputClass} name="ospCode" defaultValue={values?.ospCode ?? ""} />
       </Field>
-      <Field label="County" hint="Where this contractor is based. All New Jersey counties are listed.">
-        <select className={inputClass} name="county" defaultValue={values?.county ?? ""}>
-          <option value="">Choose a county</option>
-          {values?.county && !NJ_COUNTIES.includes(values.county as (typeof NJ_COUNTIES)[number]) ? (
-            <option value={values.county}>{values.county}</option>
-          ) : null}
-          {NJ_COUNTIES.map((county) => (
-            <option key={county} value={county}>{county}</option>
-          ))}
-        </select>
-      </Field>
+      <CountySelect
+        name="county"
+        defaultValue={values?.county ?? ""}
+        hint="Where this contractor is based. If they have a terminal in another county, keep this as the main county and add a separate annual cert for that county."
+      />
       <Field label="Bus location">
         <input className={inputClass} name="busLocation" defaultValue={values?.busLocation ?? ""} />
       </Field>
