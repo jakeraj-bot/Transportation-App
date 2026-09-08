@@ -24,18 +24,21 @@ function storageKey(path: string, title: string) {
   return `collapse:${path}:${title}`;
 }
 
-function useRememberOpen(title: string) {
+function useRememberOpen(title: string, defaultOpen = false) {
   const path = usePathname() || "";
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const key = storageKey(path, title);
-    if (sessionStorage.getItem(key) === "1") el.open = true;
+    const stored = sessionStorage.getItem(key);
+    if (stored === "1") el.open = true;
+    else if (stored === "0") el.open = false;
+    else if (defaultOpen) el.open = true;
     const onToggle = () => sessionStorage.setItem(key, el.open ? "1" : "0");
     el.addEventListener("toggle", onToggle);
     return () => el.removeEventListener("toggle", onToggle);
-  }, [path, title]);
+  }, [path, title, defaultOpen]);
   return ref;
 }
 
@@ -43,12 +46,14 @@ export function CollapsibleSection({
   title,
   hint,
   children,
+  defaultOpen = false,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
-  const ref = useRememberOpen(title);
+  const ref = useRememberOpen(title, defaultOpen);
   return (
     <Card className="overflow-hidden p-0">
       <details ref={ref}>

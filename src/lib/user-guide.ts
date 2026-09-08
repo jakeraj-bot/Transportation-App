@@ -191,10 +191,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         bullets: [
-          "Enter the contractor, school year, status, date received, date reviewed, and notes.",
+          "Click a heading to open that section; click it again to close it, so you do not have to scroll the whole page.",
+          "Contractor information is at the top: company name, OSP and vendor codes, county, and contact, with a link to the contractor file. Then enter this year’s status, dates, and notes.",
           "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. Not approved yet hides ones already marked Approved.",
           "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
-          "You can generate an approval or disapproval letter from the cert page.",
+          "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
         ],
       },

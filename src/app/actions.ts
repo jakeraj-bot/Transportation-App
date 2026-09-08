@@ -1331,6 +1331,9 @@ export async function generatePt4AndEmail(form: FormData) {
     throw new Error("You do not have permission.");
   }
   const entityType = formString(form, "entityType");
+  if (entityType === "cert") {
+    throw new Error("PT-4s are for contracts, not annual certifications.");
+  }
   const entityId = formString(form, "entityId");
   const items = await prisma.checklistResponse.findMany({
     where: { entityType, entityId },
@@ -1368,14 +1371,6 @@ export async function generatePt4AndEmail(form: FormData) {
       where: { id: entityId },
       data: { statusName: "1st review missing items" },
     });
-  } else if (entityType === "cert") {
-    const cert = await prisma.annualCert.findUniqueOrThrow({
-      where: { id: entityId },
-      include: { contractor: true },
-    });
-    contractor = cert.contractor.legalName;
-    schoolYear = cert.schoolYear;
-    type = "Annual certification";
   }
 
   const to = formString(form, "to") || districtEmail;
