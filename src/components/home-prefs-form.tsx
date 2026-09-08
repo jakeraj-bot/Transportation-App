@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { saveHomePrefs } from "@/app/actions";
+import { ColorField } from "@/components/color-field";
+import { FontPicker } from "@/components/font-picker";
 import { Button, Field, inputClass } from "@/components/ui";
 import {
   HOME_ACCENTS,
-  HOME_FONTS,
   HOME_FONT_SIZES,
   HOME_TILE_KEYS,
   colorsFromAccent,
   parseHomePrefs,
   userThemeCss,
   type HomeAccent,
-  type HomeFont,
   type HomeFontSize,
   type HomePrefs,
   type HomeTileKey,
@@ -40,7 +40,8 @@ type ColorKey =
   | "btnSignOut"
   | "btnNewContract"
   | "btnNewCert"
-  | "btnViewAll";
+  | "btnViewAll"
+  | "scroll";
 
 const COLOR_FIELDS: { key: ColorKey; label: string; hint?: string }[] = [
   { key: "background", label: "Page background" },
@@ -48,6 +49,7 @@ const COLOR_FIELDS: { key: ColorKey; label: string; hint?: string }[] = [
   { key: "muted", label: "Letters (secondary text)" },
   { key: "nav", label: "Navigation background" },
   { key: "navText", label: "Navigation letters" },
+  { key: "scroll", label: "Scrollbar", hint: "The bar you drag in the navigation menu and on the page." },
 ];
 
 const BUTTON_FIELDS: { key: ColorKey; label: string }[] = [
@@ -61,47 +63,11 @@ const BUTTON_FIELDS: { key: ColorKey; label: string }[] = [
   { key: "btnViewAll", label: "View all / my districts (Home)" },
 ];
 
-function ColorField({
-  label,
-  name,
-  value,
-  hint,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  hint?: string;
-  onChange: (hex: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
-      <div className="flex items-center gap-2">
-        <input
-          aria-label={`${label} color picker`}
-          className="h-11 w-14 cursor-pointer rounded-xl border border-line bg-white p-1"
-          type="color"
-          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <input
-          className={inputClass}
-          name={name}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="#2f9d90"
-          spellCheck={false}
-        />
-      </div>
-      {hint ? <span className="mt-1 block text-sm text-muted">{hint}</span> : null}
-    </label>
-  );
-}
-
 export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
   const [draft, setDraft] = useState<HomePrefs>(prefs);
   const [hidden, setHidden] = useState<HomeTileKey[]>(prefs.hiddenTiles);
+  const [saved, setSaved] = useState("");
+  const [busy, setBusy] = useState(false);
   const previewPrefs = useMemo(() => parseHomePrefs(JSON.stringify({ ...draft, hiddenTiles: hidden })), [draft, hidden]);
   const previewCss = useMemo(() => userThemeCss(previewPrefs), [previewPrefs]);
 
@@ -140,7 +106,22 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
   }
 
   return (
-    <form action={saveHomePrefs} className="grid gap-6">
+    <form
+      className="grid gap-6"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setSaved("");
+        try {
+          await saveHomePrefs(new FormData(e.currentTarget));
+          setSaved("Saved. You are still on this page.");
+        } catch (err) {
+          setSaved(err instanceof Error ? err.message : "Could not save.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
       {hidden.map((key) => (
         <input key={key} type="hidden" name="hiddenTiles" value={key} />
       ))}
@@ -159,7 +140,23 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             <p className="serif text-lg" style={{ fontFamily: "var(--app-heading-font)" }}>
               What needs attention today
             </p>
-            <p style={{ color: draft.muted }}>Sample letters in your chosen size and font.</p>
+            {draft.layout === "compact" ? (
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-1.5">
+                <div className="grid grid-cols-2 gap-1">
+                  {["2nd", "Letter", "Quote", "Ins.", "Certs", "1st"].map((label) => (
+                    <span key={label} className="rounded-md border border-line bg-white px-1 py-1 text-center text-[9px] leading-tight">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid gap-1">
+                  <span className="rounded-md border border-line bg-white px-1.5 py-1 text-[9px]">2nd review list</span>
+                  <span className="rounded-md border border-line bg-white px-1.5 py-1 text-[9px]">Recently updated</span>
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: draft.muted }}>Sample letters in your chosen size and font.</p>
+            )}
             <div className="flex flex-wrap gap-2 pt-1">
               <span className="rounded-lg px-3 py-1.5 text-sm" style={{ background: draft.btnNewContract, color: "var(--btn-new-contract-text)" }}>
                 New contract
@@ -174,13 +171,17 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
                 Save
               </span>
             </div>
-            <p className="text-xs text-muted">{draft.layout === "compact" ? "Compact Home: shorter counts and tighter tiles." : "Regular Home: full-size counts and tile hints."}</p>
+            <p className="text-xs text-muted">
+              {draft.layout === "compact"
+                ? "Compact Home: smaller tiles on the left, 2nd review and recent contracts on the right."
+                : "Regular Home: full-size counts and tile hints."}
+            </p>
           </div>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Home layout" hint="Compact shortens the Home title, counts, and tiles. Regular is the full layout.">
+        <Field label="Home layout" hint="Compact makes the attention tiles smaller in height and width, puts them in rows on the left, and puts 2nd review and recently updated contracts on the right so Home fits on one screen.">
           <select
             className={inputClass}
             name="layout"
@@ -205,34 +206,6 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             ))}
           </select>
         </Field>
-        <Field label="Body font">
-          <select
-            className={inputClass}
-            name="font"
-            value={draft.font}
-            onChange={(e) => setDraft((current) => ({ ...current, font: e.target.value as HomeFont }))}
-          >
-            {HOME_FONTS.map((font) => (
-              <option key={font.id} value={font.id}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Heading font" hint="Titles such as page names and Home headings.">
-          <select
-            className={inputClass}
-            name="headingFont"
-            value={draft.headingFont}
-            onChange={(e) => setDraft((current) => ({ ...current, headingFont: e.target.value as HomeFont }))}
-          >
-            {HOME_FONTS.map((font) => (
-              <option key={font.id} value={font.id}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Letter size" className="md:col-span-2">
           <select
             className={inputClass}
@@ -247,6 +220,21 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
             ))}
           </select>
         </Field>
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink">Body font</p>
+        <p className="mb-3 text-sm text-muted">Click a sample. The live preview at the top changes right away. Save to keep it.</p>
+        <FontPicker name="font" value={draft.font} onChange={(font) => setDraft((current) => ({ ...current, font }))} />
+      </div>
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink">Heading font</p>
+        <p className="mb-3 text-sm text-muted">Titles such as page names and Home headings. You can mix a serif heading with a sans body.</p>
+        <FontPicker
+          name="headingFont"
+          value={draft.headingFont}
+          onChange={(headingFont) => setDraft((current) => ({ ...current, headingFont }))}
+        />
       </div>
 
       <div>
@@ -332,7 +320,8 @@ export function HomePrefsForm({ prefs }: { prefs: HomePrefs }) {
         </div>
       </div>
       <div>
-        <Button type="submit">Save my home screen</Button>
+        <Button type="submit">{busy ? "Saving…" : "Save my home screen"}</Button>
+        {saved ? <p className="mt-2 text-sm text-muted">{saved}</p> : null}
       </div>
     </form>
   );

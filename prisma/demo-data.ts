@@ -284,6 +284,7 @@ export async function seedDemo(
     sentToDistrictAt?: Date;
     hostDistrictId?: string;
     joinerDistricts?: string;
+    receivedDate?: Date;
     priorYearCost?: number;
     bidSpecId?: string;
     routePacketId?: string;
@@ -314,7 +315,7 @@ export async function seedDemo(
         type: sample.type,
         multiContractNumber: sample.multi,
         statusName: sample.status,
-        receivedDate: new Date("2026-08-10"),
+        receivedDate: sample.receivedDate ?? new Date("2026-08-10"),
         boardMeetingDate: new Date("2026-07-28"),
         startsOn: start,
         endsOn: end,

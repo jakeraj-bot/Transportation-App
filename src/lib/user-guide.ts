@@ -70,6 +70,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: "The larger cards under the row are flags: 2nd review waiting, late packets that need a rationale letter, quote timing, insurance that does not cover the full run, annual certs still open, and missing items.",
       },
       {
+        heading: "Compact Home",
+        body: "Under Settings → My home screen, Compact makes those flag tiles smaller in both height and width and lines them up in rows on the left. Contracts in 2nd review sit on the right, with recently updated contracts under that, so the whole Home screen can fit without scrolling down. Regular keeps the full-size tiles stacked above the lists.",
+      },
+      {
         heading: "Second review list",
         body: "This table shows every contract in 2nd review and how long it has been waiting. Super Admin can turn on an alert in Settings if a contract sits there too long.",
       },
@@ -93,12 +97,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "When you review",
-        body: "Open the contract. The review form shows extra questions based on the type:",
+        body: "Open the contract. Every type asks for status, contract start date, contract end date, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow the checklist for that type:",
         bullets: [
-          "Renewal: prior-year cost (used to check the CPI increase).",
-          "Joint agreement: host district and joiner district(s).",
           "Original / bid: link the approved route descriptions and the bid spec.",
+          "Renewal: prior-year cost (used to check the CPI increase) and any extra multi-contract numbers.",
           "Quote: link the emergency quote packet.",
+          "Joint agreement: host district and joiner district(s).",
+          "Addendum: if the cost increased, the bond amount has to increase too.",
+          "Parental: the shared review fields only, plus the parental checklist.",
         ],
       },
       {
@@ -117,9 +123,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Checklist, PT-4, and letters",
         steps: [
-          "Work the checklist while you review. Comment on anything missing.",
-          "Send a PT-4. The comments become the missing-items list and the status moves to 1st review missing items.",
-          "When the packet is ready, generate the approval or disapproval letter. You can check other contracts of the same type for that district so they print on one letter, with each multi-contract number and contractor on its own row. The Word template for that contract type fills the district’s name, contact, and mailing address.",
+          "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
+          "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
+          "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
         ],
       },
@@ -130,6 +136,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Folder tab and labels",
         body: "Use Print folder tab and labels. The tab is the contractor name. Labels use district, school year, multi-contract number, and the route numbers.",
+      },
+      {
+        heading: "Emails to districts",
+        body: "This app cannot send from a county mailbox until the state gives mailbox access. Prepare the message here, use Copy message or Open in your email app, then send from your work Outlook. Rewrite with AI polishes the wording if an OpenAI key is set. Keep the district transportation email on the district record so To is already filled.",
       },
     ],
   },
@@ -280,6 +290,15 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
+        heading: "My home screen",
+        bullets: [
+          "Open Settings → My home screen. Body font is the main letters. Heading font is titles. Click a sample to try it; Save to keep it.",
+          "Sans-serif and serif lists include extra typefaces such as Inter, Nunito Sans, Atkinson Hyperlegible, Libre Baskerville, Lora, Fraunces, and Playfair Display. System fonts such as Georgia and Segoe UI use what is already on the computer.",
+          "You can mix fonts (for example Source Serif headings with Source Sans body). Letter size changes how large the type is.",
+          "Compact Home makes the attention tiles smaller (height and width), keeps them in rows on the left, and puts 2nd review and recently updated contracts on the right so the page fits on one screen.",
+        ],
+      },
+      {
         heading: "Office settings",
         bullets: [
           "Click a heading on Settings to open that section. Click it again to close it, so you do not have to scroll the whole page.",
@@ -295,8 +314,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Statuses and letters",
         bullets: [
-          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct.",
-          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {districtAddress}, {city}, {state}, {zipCode}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
+          "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct. Pick a color square or type a hex code, the same way as My home screen. That color shows on the status chip and the Home status bar.",
+          "Under My home screen you can also pick a scrollbar hex. That color is used in the navigation menu and on the page.",
+          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). After you upload, you stay on Settings in the same open section. If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
           "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
       },
@@ -389,7 +409,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Joint agreements",
-        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it.",
+        body: "Two or more boards may transport jointly. 6A:27-9.16, 18A:39-11. The host sends the Commissioner form to the host ECS within 60 days, with certified minutes from each board. Cross-county agreements: copy the joiner ECS within 90 days. If documents never arrive after repeated asks, send the joint back to the district rather than disapproving it. Approval and disapproval letters group joints only when the host, joiner, and date received all match. If you pick six joints and they fall into three of those combinations, you get three letters.",
       },
     ],
   },

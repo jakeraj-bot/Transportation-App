@@ -1,10 +1,10 @@
 import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { ContractList } from "@/components/contract-list";
 import { prisma } from "@/lib/prisma";
-import { getSchoolYear } from "@/lib/data";
+import { getSchoolYear, getStatuses } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { hoursInSecondReview } from "@/lib/flags";
-import { contractTypeLabel } from "@/lib/utils";
+import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 
 export default async function ContractsPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function ContractsPage({
   searchParams: Promise<{ flag?: string; status?: string; view?: string }>;
 }) {
   const { flag, status, view } = await searchParams;
-  const [schoolYear, session] = await Promise.all([getSchoolYear(), getSession()]);
+  const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
   const where: Record<string, unknown> = { deletedAt: null, schoolYear };
@@ -20,10 +20,11 @@ export default async function ContractsPage({
   if (flag === "late") where.rationaleNeeded = true;
   if (flag === "meeting") where.nextMeetingFlag = true;
   if (status) where.statusName = status;
+  const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));
 
   const rows = await prisma.contract.findMany({
     where,
-    include: { district: true, contractor: true, routes: { include: { addenda: true } } },
+    include: { district: true, contractor: true, routes: { include: { addenda: true } }, hostDistrict: true },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -65,9 +66,16 @@ export default async function ContractsPage({
             type: c.type,
             typeLabel: contractTypeLabel(c.type),
             statusName: c.statusName,
+            statusColor: statusColor[c.statusName],
             rationaleNeeded: c.rationaleNeeded,
             nextMeetingFlag: c.nextMeetingFlag,
             secondReviewHours: c.statusName === "2nd review" ? hoursInSecondReview(c.secondReviewStartedAt) : undefined,
+            hostDistrictId: c.hostDistrictId,
+            hostName: c.hostDistrict?.name,
+            joinerDistricts: c.joinerDistricts,
+            receivedDate: toInputDate(c.receivedDate),
+            receivedDateLabel: formatDate(c.receivedDate),
+            schoolYear: c.schoolYear,
             routes: c.routes.map((r) => ({
               id: r.id,
               number: r.number,

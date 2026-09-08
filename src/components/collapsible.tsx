@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { Card } from "./ui";
 
 function Chevron() {
@@ -16,6 +20,25 @@ function Chevron() {
   );
 }
 
+function storageKey(path: string, title: string) {
+  return `collapse:${path}:${title}`;
+}
+
+function useRememberOpen(title: string) {
+  const path = usePathname() || "";
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const key = storageKey(path, title);
+    if (sessionStorage.getItem(key) === "1") el.open = true;
+    const onToggle = () => sessionStorage.setItem(key, el.open ? "1" : "0");
+    el.addEventListener("toggle", onToggle);
+    return () => el.removeEventListener("toggle", onToggle);
+  }, [path, title]);
+  return ref;
+}
+
 export function CollapsibleSection({
   title,
   hint,
@@ -25,9 +48,10 @@ export function CollapsibleSection({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const ref = useRememberOpen(title);
   return (
     <Card className="overflow-hidden p-0">
-      <details>
+      <details ref={ref}>
         <summary className="collapse-summary flex cursor-pointer items-start justify-between gap-4 px-6 py-5">
           <div>
             <h2 className="serif text-2xl">{title}</h2>
@@ -50,8 +74,9 @@ export function CollapsibleBlock({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const ref = useRememberOpen(title);
   return (
-    <details className="overflow-hidden rounded-xl border border-line">
+    <details ref={ref} className="overflow-hidden rounded-xl border border-line">
       <summary className="collapse-summary flex cursor-pointer items-start justify-between gap-3 px-4 py-3">
         <div>
           <p className="font-medium">{title}</p>

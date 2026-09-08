@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { statusChipStyle } from "@/lib/status-color";
 import { BackLink } from "./nav-controls";
 
 export function StatusChip({ name, color }: { name: string; color?: string }) {
-  const tone = color || "teal";
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-sm font-medium chip-teal", `chip-${tone}`)}>
+    <span className="inline-flex rounded-full px-2.5 py-1 text-sm font-medium" style={statusChipStyle(color)}>
       {name}
     </span>
   );
@@ -30,14 +30,16 @@ export function PageHeader({
   hint,
   actions,
   backHref,
+  className,
 }: {
   title: string;
   hint?: string;
   actions?: React.ReactNode;
   backHref?: string;
+  className?: string;
 }) {
   return (
-    <div className="mb-6">
+    <div className={cn("mb-6", className)}>
       <BackLink href={backHref} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -56,12 +58,16 @@ export function Button({
   variant = "primary",
   type = "button",
   className,
+  onClick,
+  disabled,
 }: {
   children: React.ReactNode;
   href?: string;
   variant?: "primary" | "secondary" | "danger" | "ghost";
   type?: "button" | "submit";
   className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   const styles = {
     primary: "btn-primary",
@@ -69,9 +75,13 @@ export function Button({
     danger: "btn-danger",
     ghost: "bg-transparent text-teal hover:bg-teal-soft",
   }[variant];
-  const cls = cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-[15px] font-medium transition", styles, className);
+  const cls = cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-[15px] font-medium transition disabled:opacity-60", styles, className);
   if (href) return <Link href={href} className={cls}>{children}</Link>;
-  return <button type={type} className={cls}>{children}</button>;
+  return (
+    <button type={type} className={cls} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
 }
 
 export function Field({

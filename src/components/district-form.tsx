@@ -74,7 +74,7 @@ export function DistrictForm({
           <Field
             label="Street for letters"
             className="md:col-span-2"
-            hint="Printed on this district’s approval, disapproval, and PT-4 letters."
+            hint="Street only, for example 90 Delaware Avenue. City, state, and ZIP have their own boxes so they are not printed twice."
           >
             <input className={inputClass} name="street" defaultValue={district?.street ?? ""} {...inputProps} />
           </Field>

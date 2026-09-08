@@ -1,3 +1,4 @@
+import { CHECKLISTS, checklistDefinition } from "./checklists";
 import { prisma } from "./prisma";
 import { currentSchoolYear } from "./utils";
 
@@ -45,35 +46,87 @@ export async function getChecklistTemplate(entityType: string, contractType?: st
   });
 }
 
+export async function syncChecklistTemplates() {
+  for (const list of CHECKLISTS) {
+    const contractType = list.contractType ?? null;
+    let template = await prisma.checklistTemplate.findFirst({
+      where: { entityType: list.entityType, contractType },
+    });
+    if (!template) {
+      template = await prisma.checklistTemplate.create({
+        data: {
+          entityType: list.entityType,
+          contractType,
+          name: list.name,
+        },
+      });
+    } else if (template.name !== list.name) {
+      template = await prisma.checklistTemplate.update({
+        where: { id: template.id },
+        data: { name: list.name },
+      });
+    }
+    const existing = await prisma.checklistTemplateItem.findMany({ where: { templateId: template.id } });
+    const wanted = new Set(list.items);
+    for (let sortOrder = 0; sortOrder < list.items.length; sortOrder += 1) {
+      const label = list.items[sortOrder];
+      const match = existing.find((item) => item.label === label);
+      if (match) {
+        if (match.sortOrder !== sortOrder) {
+          await prisma.checklistTemplateItem.update({
+            where: { id: match.id },
+            data: { sortOrder },
+          });
+        }
+      } else {
+        await prisma.checklistTemplateItem.create({
+          data: { templateId: template.id, label, sortOrder },
+        });
+      }
+    }
+    for (const item of existing) {
+      if (!wanted.has(item.label)) {
+        await prisma.checklistTemplateItem.delete({ where: { id: item.id } });
+      }
+    }
+  }
+}
+
 export async function ensureChecklist(
   entityType: string,
   entityId: string,
   contractType?: string | null
 ) {
-  const template = await getChecklistTemplate(entityType, contractType);
-  if (!template) return [];
-  for (const item of template.items) {
+  const defined = checklistDefinition(entityType, contractType);
+  const template = defined ? null : await getChecklistTemplate(entityType, contractType);
+  const labels = defined?.items ?? template?.items.map((item) => item.label) ?? [];
+  if (!labels.length) return [];
+  for (const itemLabel of labels) {
     await prisma.checklistResponse.upsert({
       where: {
         entityType_entityId_itemLabel: {
           entityType,
           entityId,
-          itemLabel: item.label,
+          itemLabel,
         },
       },
       update: {},
       create: {
         entityType,
         entityId,
-        itemLabel: item.label,
+        itemLabel,
         checked: false,
       },
     });
   }
-  return prisma.checklistResponse.findMany({
-    where: { entityType, entityId },
-    orderBy: { itemLabel: "asc" },
+  await prisma.checklistResponse.deleteMany({
+    where: { entityType, entityId, itemLabel: { notIn: labels } },
   });
+  const responses = await prisma.checklistResponse.findMany({
+    where: { entityType, entityId, itemLabel: { in: labels } },
+  });
+  const byLabel = new Map(responses.map((row) => [row.itemLabel, row]));
+  return labels.map((label) => byLabel.get(label)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function refreshContractFlags(contractId: string) {

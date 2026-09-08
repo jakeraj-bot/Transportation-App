@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
+import { checklistDefinition } from "@/lib/checklists";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
 
 type ContractorOption = { id: string; legalName: string; incomplete?: boolean };
@@ -57,6 +58,19 @@ export function ContractForm({
   const packets = useMemo(() => routePackets ?? [], [routePackets]);
   const bidPackets = packets.filter((p) => p.kind !== "emergency_quote");
   const quotePackets = packets.filter((p) => p.kind === "emergency_quote");
+  const checklist = checklistDefinition("contract", type);
+  const reviewHint =
+    type === "renewal"
+      ? "Renewals need prior-year cost so we can check the CPI increase, plus the renewal checklist."
+      : type === "addendum"
+        ? "If the addendum increases the cost, the bond amount has to increase too."
+        : type === "joint"
+          ? "Joints need host, joiner, and date received. Those three decide which agreements share an approval letter."
+          : type === "original"
+            ? "Originals need the linked bid spec and approved route descriptions, plus the bid checklist."
+            : type === "quote"
+              ? "Quotes need the linked emergency quote packet, plus the quote checklist."
+              : "Parental contracts only need the shared review fields plus the parental checklist.";
 
   async function createContractor() {
     setContractorError("");
@@ -250,6 +264,10 @@ export function ContractForm({
 
         {mode === "review" ? (
           <>
+            <p className="md:col-span-2 rounded-xl bg-cream px-4 py-3 text-sm text-muted">
+              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount.
+              {checklist ? ` The ${checklist.name.toLowerCase()} checklist is on this page after you save.` : ""} {reviewHint}
+            </p>
             <Field label="Contract start date" hint="Ask this when review starts. Do not assume September 1 unless that is what the packet says.">
               <input className={inputClass} type="date" name="startsOn" defaultValue={toInputDate(contract?.startsOn)} />
             </Field>
@@ -259,10 +277,13 @@ export function ContractForm({
             <Field label="Board meeting date">
               <input className={inputClass} type="date" name="boardMeetingDate" defaultValue={toInputDate(contract?.boardMeetingDate)} />
             </Field>
-            <Field label="Contract cost">
+            <Field label="Contract total cost">
               <input className={inputClass} name="cost" defaultValue={contract?.cost ?? ""} />
             </Field>
-            <Field label="Bond amount">
+            <Field
+              label="Bond amount"
+              hint={type === "addendum" ? "If this addendum increased the cost, the performance bond has to increase too." : undefined}
+            >
               <input className={inputClass} name="bondAmount" defaultValue={contract?.bondAmount ?? ""} />
             </Field>
             <Field label="Bond type">
@@ -272,7 +293,7 @@ export function ContractForm({
                 <option value="personal">Personal</option>
               </select>
             </Field>
-            <Field label="Insurance amount on this contract">
+            <Field label="Insurance amount">
               <input className={inputClass} name="insuranceAmount" defaultValue={contract?.insuranceAmount ?? ""} />
             </Field>
             {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract?.statusName ?? "") ? (

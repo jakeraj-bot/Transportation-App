@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { saveSettings, uploadTemplate } from "@/app/actions";
+import { saveSettings } from "@/app/actions";
 import { CollapsibleBlock, CollapsibleSection } from "@/components/collapsible";
 import { HomePrefsForm } from "@/components/home-prefs-form";
+import { TemplateUploadForm } from "@/components/template-upload";
 import { Button, Field, Flag, PageHeader, inputClass } from "@/components/ui";
 import { getSession } from "@/lib/auth";
 import { getSetting } from "@/lib/data";
@@ -19,30 +20,6 @@ const SHARED_TEMPLATES = [
   ["cert_disapproved", "Annual cert disapproval letter"],
   ["pt4", "PT-4 form"],
 ] as const;
-
-function TemplateRow({
-  templateKey,
-  label,
-  hint,
-  originalName,
-}: {
-  templateKey: string;
-  label: string;
-  hint: string;
-  originalName?: string;
-}) {
-  return (
-    <form action={uploadTemplate} className="grid gap-2 rounded-xl border border-line p-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-      <input type="hidden" name="key" value={templateKey} />
-      <div>
-        <p className="font-medium">{label}</p>
-        <p className="text-sm text-muted">{originalName ? `Current file: ${originalName}` : hint}</p>
-      </div>
-      <input className={inputClass} type="file" name="file" accept=".docx" required />
-      <Button type="submit">Upload</Button>
-    </form>
-  );
-}
 
 function letterHint(byKey: Record<string, string>, type: string) {
   const approved = byKey[contractLetterTemplateKey("approved", type)];
@@ -87,7 +64,7 @@ export default async function SettingsPage({
         }
       />
       {homeSaved ? <Flag tone="sage">Your Home screen settings were saved.</Flag> : null}
-      <CollapsibleSection title="My home screen" hint="Colors (including your own hex), fonts, letter size, buttons, compact layout, and which Home cards you want to see">
+      <CollapsibleSection title="My home screen" hint="Colors (including your own hex), more fonts to click as samples, letter size, buttons, compact layout, and which Home cards you want to see">
         <HomePrefsForm prefs={prefs} />
       </CollapsibleSection>
       {admin ? (
@@ -128,7 +105,7 @@ export default async function SettingsPage({
               <div><Button type="submit">Save settings</Button></div>
             </form>
             <p className="mt-4 text-sm text-muted">
-              Outlook send: {outlookConfigured() ? "connected." : "not connected yet. Ask county IT to put MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, and MS_MAILBOX in the .env file. Emails will still be saved as drafts."}
+              Emails: the office cannot send from this app until the state gives mailbox access. Prepare the message on the contract or insurance page, copy it, and paste it into your work Outlook. If Outlook is ever connected here, a Send button will appear. Status now: {outlookConfigured() ? "connected." : "not connected."}
             </p>
           </CollapsibleSection>
           <CollapsibleSection title="Letters by contract type" hint="Upload a different approval and disapproval letter for original, renewal, quote, parental, addendum, and joint">
@@ -145,20 +122,20 @@ export default async function SettingsPage({
                   {"{#contracts}{multiContractNumber}"} &nbsp;|&nbsp; {"{contractor}{/contracts}"}
                 </p>
                 <p className="mt-2 text-muted">
-                  Header fields: {"{letterDate}"}, {"{districtContact}"}, {"{districtContactPosition}"}, {"{districtName}"}, {"{districtAddress}"}, {"{city}"}, {"{state}"}, {"{zipCode}"}, {"{schoolYear}"}. Parental also uses {"{parentName}"}. Joint also uses {"{hostDistrict}"}, {"{jointDistrict}"}, {"{dateReceived}"}. Addendum also uses {"{routeNumber}"}, {"{addendumNumber}"}.
+                  Header fields: {"{letterDate}"}, {"{districtContact}"}, {"{districtContactPosition}"}, {"{districtName}"}, {"{schoolYear}"}. Address on two lines: {"{districtAddress}"} (street) then {"{city}, {state} {zipCode}"}. Do not put city, state, or ZIP inside {"{districtAddress}"} — those have their own fields. If you want the whole mailing address in one field, use {"{addressBlock}"} instead of those two lines. Parental also uses {"{parentName}"}. Joint also uses {"{hostDistrict}"}, {"{jointDistrict}"}, {"{dateReceived}"}. Addendum also uses {"{routeNumber}"}, {"{addendumNumber}"}.
                 </p>
               </div>
             </div>
             <div className="space-y-3">
               {CONTRACT_TYPES.map((type) => (
                 <CollapsibleBlock key={type.value} title={type.label} hint={letterHint(byKey, type.value)}>
-                  <TemplateRow
+                  <TemplateUploadForm
                     templateKey={contractLetterTemplateKey("approved", type.value)}
                     label="Approval letter"
                     hint="Using the default or built-in approval letter until you upload one."
                     originalName={byKey[contractLetterTemplateKey("approved", type.value)]}
                   />
-                  <TemplateRow
+                  <TemplateUploadForm
                     templateKey={contractLetterTemplateKey("disapproved", type.value)}
                     label="Disapproval letter"
                     hint="Using the default or built-in disapproval letter until you upload one."
@@ -174,7 +151,7 @@ export default async function SettingsPage({
             </p>
             <div className="space-y-4">
               {SHARED_TEMPLATES.map(([key, label]) => (
-                <TemplateRow
+                <TemplateUploadForm
                   key={key}
                   templateKey={key}
                   label={label}

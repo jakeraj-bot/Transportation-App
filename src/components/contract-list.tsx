@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { generateContractLetter } from "@/app/actions";
 import { StatusChip, inputClass } from "@/components/ui";
+import { groupByLetter } from "@/lib/letter-groups";
 
 export type ContractListRow = {
   id: string;
@@ -15,9 +16,16 @@ export type ContractListRow = {
   type: string;
   typeLabel: string;
   statusName: string;
+  statusColor?: string;
   rationaleNeeded: boolean;
   nextMeetingFlag: boolean;
   secondReviewHours?: number;
+  hostDistrictId?: string | null;
+  hostName?: string | null;
+  joinerDistricts?: string | null;
+  receivedDate?: string | null;
+  receivedDateLabel?: string | null;
+  schoolYear?: string;
   routes: Array<{ id: string; number: string; hasAddendum: boolean }>;
 };
 
@@ -28,12 +36,28 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
   const [error, setError] = useState("");
 
   const picked = rows.filter((row) => selected.includes(row.id));
-  const sameType = picked.length > 0 && picked.every((row) => row.type === picked[0].type && row.districtId === picked[0].districtId);
+  const sameType =
+    picked.length > 0 &&
+    picked.every((row) => row.type === picked[0].type) &&
+    (picked[0].type === "joint" || picked.every((row) => row.districtId === picked[0].districtId));
+  const letterCount = sameType
+    ? groupByLetter(picked, (row) => ({
+        type: row.type,
+        districtId: row.districtId,
+        schoolYear: row.schoolYear || "",
+        hostDistrictId: row.hostDistrictId,
+        joinerDistricts: row.joinerDistricts,
+        receivedDate: row.receivedDate,
+      })).length
+    : 0;
   const message = useMemo(() => {
     if (picked.length < 2) return "";
-    if (!sameType) return "To print one letter, pick contracts from the same district and the same type.";
+    if (!sameType) return "To print letters together, pick contracts of the same type. Non-joint packets also need the same district.";
+    if (picked[0].type === "joint" && letterCount > 1) {
+      return `${picked.length} joint agreements will print as ${letterCount} letters, grouped by host, joiner, and date received.`;
+    }
     return `${picked.length} ${picked[0].districtName} ${picked[0].typeLabel.toLowerCase()} contracts will print on one letter, one row each.`;
-  }, [picked, sameType]);
+  }, [picked, sameType, letterCount]);
 
   function toggle(id: string) {
     setSelected((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
@@ -76,7 +100,7 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                 onClick={approve}
                 className="rounded-xl bg-sage px-4 py-2.5 font-medium text-white disabled:opacity-60"
               >
-                {busy ? "Making letter…" : `Approve ${picked.length} and print one letter`}
+                {busy ? "Making letter…" : letterCount > 1 ? `Approve ${picked.length} and print ${letterCount} letters` : `Approve ${picked.length} and print one letter`}
               </button>
             </div>
           ) : null}
@@ -120,7 +144,14 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                     <div className="text-xs text-muted">In 2nd review {Math.max(1, Math.round(c.secondReviewHours))}h</div>
                   ) : null}
                 </td>
-                <td className="px-5 py-3">{c.districtName}</td>
+                <td className="px-5 py-3">
+                  {c.districtName}
+                  {c.type === "joint" ? (
+                    <div className="text-xs text-muted">
+                      Host {c.hostName || "—"} · Joiner {c.joinerDistricts || "—"} · Received {c.receivedDateLabel || "—"}
+                    </div>
+                  ) : null}
+                </td>
                 <td className={`px-5 py-3 ${c.contractorIncomplete ? "text-rose" : ""}`}>
                   {c.contractorName}
                   {c.contractorIncomplete ? <div className="text-xs">Needs contractor details</div> : null}
@@ -139,7 +170,7 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                   {c.routes.length === 0 ? "—" : null}
                 </td>
                 <td className="px-5 py-3">
-                  <StatusChip name={c.statusName} />
+                  <StatusChip name={c.statusName} color={c.statusColor} />
                 </td>
               </tr>
             ))}

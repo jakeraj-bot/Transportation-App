@@ -18,11 +18,13 @@ export async function GET(request: Request) {
     ? "application/pdf"
     : name.endsWith(".docx")
       ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      : "application/octet-stream";
+      : name.endsWith(".zip")
+        ? "application/zip"
+        : "application/octet-stream";
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": type,
-      "Content-Disposition": `inline; filename="${name}"`,
+      "Content-Disposition": `${name.endsWith(".zip") ? "attachment" : "inline"}; filename="${name}"`,
     },
   });
 }
