@@ -335,7 +335,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "The teal button in the lower right answers questions from N.J.A.C. 6A:27 and N.J.S.A. 18A:39. Use it when you are unsure about a rule. If the answer is not in our materials, check the current 6A:27 PDF on nj.gov/education.",
+        body: "The teal button in the lower right looks up the current N.J.A.C. 6A:27 PDF from nj.gov and searches official NJ pages (nj.gov, njleg). Use it when you are unsure about a rule. It is not legal advice — confirm a compliance decision against the official PDF. Super Admin should set OPENAI_API_KEY on the server so answers can use live web search; without a key, the app still pulls the current code PDF and matches keywords.",
       },
     ],
   },

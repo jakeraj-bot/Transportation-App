@@ -1536,49 +1536,8 @@ export async function sendDistrictEmail(form: FormData) {
 
 export async function askNjAi(question: string) {
   await requireSession();
-  const { NJ_KNOWLEDGE } = await import("@/lib/nj-knowledge");
-  const key = process.env.OPENAI_API_KEY;
-  if (key) {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.2,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are the Passaic County transportation office assistant. Answer only from the New Jersey transportation materials provided. Cite N.J.A.C. or N.J.S.A. sections. Use short, clear sentences for county staff. If you are not sure, say so.",
-          },
-          { role: "system", content: NJ_KNOWLEDGE },
-          { role: "user", content: question },
-        ],
-      }),
-    });
-    if (res.ok) {
-      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      return json.choices?.[0]?.message?.content || "I could not get an answer just now.";
-    }
-  }
-
-  const q = question.toLowerCase();
-  const chunks = NJ_KNOWLEDGE.split("\n## ").map((c, i) => (i === 0 ? c : `## ${c}`));
-  const scored = chunks
-    .map((chunk) => {
-      const words = q.split(/\W+/).filter((w) => w.length > 3);
-      const score = words.reduce((n, w) => n + (chunk.toLowerCase().includes(w) ? 1 : 0), 0);
-      return { chunk, score };
-    })
-    .sort((a, b) => b.score - a.score);
-  const best = scored.filter((s) => s.score > 0).slice(0, 2);
-  if (!best.length) {
-    return "I can answer from N.J.A.C. 6A:27 and N.J.S.A. 18A:39. Try asking about contracts, renewals, quotes, insurance, annual certifications, or bid specs. Add an OpenAI key in .env for fuller answers.";
-  }
-  return `From the New Jersey transportation materials we keep in this office:\n\n${best.map((b) => b.chunk.trim()).join("\n\n")}`;
+  const { answerNjTransportationQuestion } = await import("@/lib/nj-ask");
+  return answerNjTransportationQuestion(question);
 }
 
 function importRedirect(redirectTo: string, params: Record<string, string>): never {
