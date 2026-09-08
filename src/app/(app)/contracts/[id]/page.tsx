@@ -23,6 +23,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       routePacket: true,
       hostDistrict: true,
       firstReviewer: true,
+      secondReviewer: true,
       routeLinks: { include: { routeDescription: true } },
     },
   });
@@ -91,7 +92,20 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             <p className="mt-2 text-sm text-muted">
               Waiting {Math.max(1, Math.round(secondHours))} hours
               {contract.firstReviewer ? ` · first review by ${contract.firstReviewer.name}` : ""}
+              {contract.secondReviewer ? ` · second review by ${contract.secondReviewer.name}` : ""}
             </p>
+          ) : (
+            <>
+              {contract.firstReviewer ? (
+                <p className="mt-2 text-sm text-muted">1st reviewer: {contract.firstReviewer.name}</p>
+              ) : null}
+              {contract.secondReviewer ? (
+                <p className="mt-2 text-sm text-muted">2nd reviewer: {contract.secondReviewer.name}</p>
+              ) : null}
+            </>
+          )}
+          {contract.bidNumber ? (
+            <p className="mt-2 text-sm text-muted">Bid number {contract.bidNumber}</p>
           ) : null}
           {contract.sentToDistrictAt ? (
             <p className="mt-2 text-sm text-muted">Letter sent {formatDate(contract.sentToDistrictAt)}</p>

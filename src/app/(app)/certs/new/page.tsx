@@ -30,7 +30,13 @@ export default async function NewCertPage({
               {statuses.map((s) => <option key={s.id}>{s.name}</option>)}
             </select>
           </Field>
-          <Field label="Notes" className="md:col-span-2"><textarea className={inputClass} name="notes" rows={3} /></Field>
+          <Field label="Date received" hint="The day the annual certification arrived.">
+            <input className={inputClass} type="date" name="receivedDate" />
+          </Field>
+          <Field label="Date reviewed">
+            <input className={inputClass} type="date" name="reviewedDate" />
+          </Field>
+          <Field label="Notes" className="md:col-span-2" hint="If approved, the date the compliance letter went out. If pending, why it is pending."><textarea className={inputClass} name="notes" rows={3} /></Field>
           <div><Button type="submit">Save cert</Button></div>
         </form>
       </Card>

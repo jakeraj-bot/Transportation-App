@@ -5,19 +5,25 @@ import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { can, requireSession } from "@/lib/auth";
+import { can, requireSession, requireSuperAdmin } from "@/lib/auth";
 import { nameControlFrom, schoolYearDates } from "@/lib/utils";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
-import { ensureChecklist, getSetting, refreshContractFlags } from "@/lib/data";
+import { ensureChecklist, getSchoolYear, getSetting, refreshContractFlags } from "@/lib/data";
 import {
   contractTypeLabel,
   parseDate,
   parseMoney,
   splitRoutes,
 } from "@/lib/utils";
+import {
+  mapContractType,
+  parseContractorImportRow,
+  parseSpreadsheetFile,
+} from "@/lib/import-records";
+import { matchNjCounty } from "@/lib/nj-counties";
 import { buildLabelPdf } from "@/lib/labels";
 import {
   defaultLetterDocx,
@@ -80,6 +86,7 @@ export async function saveContractor(form: FormData) {
     brcStatus: formString(form, "brcStatus") || "Not on file",
     brcVerifiedAt: form.get("markVerified") ? new Date() : undefined,
     debarred: form.get("debarred") === "on",
+    county: matchNjCounty(formString(form, "county") || null),
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -209,6 +216,92 @@ export async function saveContract(form: FormData) {
   redirect(`/contracts/${row.id}`);
 }
 
+export async function saveCurrentContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const schoolYear = formString(form, "schoolYear");
+  const type = mapContractType(formString(form, "type"));
+  const defaults = schoolYearDates(schoolYear);
+  const routes = splitRoutes(formString(form, "routes"));
+  const statusName = formString(form, "statusName") || "Need Review";
+  const newContractorName = formString(form, "newContractorName");
+  let contractorId = formString(form, "contractorId");
+
+  if (!contractorId && newContractorName) {
+    const created = await prisma.contractor.create({
+      data: {
+        legalName: newContractorName,
+        county: matchNjCounty(formString(form, "newContractorCounty") || null),
+        brcNameControl: nameControlFrom(newContractorName) || null,
+      },
+    });
+    contractorId = created.id;
+  }
+  if (!contractorId) throw new Error("Choose a bus company or type a new name.");
+
+  const districtId = formString(form, "districtId");
+  const firstReviewerId = formString(form, "firstReviewerId") || null;
+  const secondReviewerId = formString(form, "secondReviewerId") || null;
+  const sentToDistrictAt = parseDate(formString(form, "sentToDistrictAt"));
+  const insuranceExpiresAt = parseDate(formString(form, "insuranceExpiresAt"));
+
+  const row = await prisma.contract.create({
+    data: {
+      districtId,
+      contractorId,
+      schoolYear,
+      type,
+      multiContractNumber: formString(form, "multiContractNumber"),
+      bidNumber: formString(form, "bidNumber") || null,
+      receivedDate: parseDate(formString(form, "receivedDate")),
+      statusName,
+      firstReviewerId,
+      secondReviewerId,
+      sentToDistrictAt,
+      secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
+      startsOn: defaults.start,
+      endsOn: defaults.end,
+      notes: formString(form, "notes") || "Entered from the current-system list.",
+    },
+  });
+  await syncRoutes(row.id, routes);
+
+  if (insuranceExpiresAt) {
+    const district = await prisma.district.findUnique({ where: { id: districtId } });
+    const existing = await prisma.insuranceCertificate.findFirst({
+      where: { contractorId, districtId, deletedAt: null },
+      orderBy: { expiresAt: "desc" },
+    });
+    const expired = insuranceExpiresAt < new Date();
+    const insData = {
+      schoolYear,
+      expiresAt: insuranceExpiresAt,
+      namedDistrict: district?.name ?? null,
+      statusName: expired ? "Needs update" : "On file",
+    };
+    if (existing) {
+      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
+    } else {
+      await prisma.insuranceCertificate.create({
+        data: { contractorId, districtId, ...insData },
+      });
+    }
+  }
+
+  await ensureChecklist("contract", row.id, row.type);
+  await refreshContractFlags(row.id);
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "contract",
+    entityId: row.id,
+    summary: `Entered current contract ${row.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(
+    `/settings/current-records?saved=contract&number=${encodeURIComponent(row.multiContractNumber)}`
+  );
+}
+
 export async function saveCert(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
@@ -218,6 +311,8 @@ export async function saveCert(form: FormData) {
     schoolYear: formString(form, "schoolYear"),
     statusName: formString(form, "statusName") || "Need review",
     notes: formString(form, "notes") || null,
+    receivedDate: parseDate(formString(form, "receivedDate")),
+    reviewedDate: parseDate(formString(form, "reviewedDate")),
   };
   const row = id
     ? await prisma.annualCert.update({ where: { id }, data })
@@ -1009,71 +1104,93 @@ export async function importContractors(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const file = form.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("Please choose a CSV file.");
-  const text = await file.text();
-  const rows = parseCsv(text);
+  if (!file || file.size === 0) throw new Error("Please choose a spreadsheet or CSV file.");
+  const rows = await parseSpreadsheetFile(file);
   if (!rows.length) throw new Error("That file did not have any contractor rows.");
+  const schoolYear = (await getSchoolYear()) || formString(form, "schoolYear");
+  const redirectTo = formString(form, "redirectTo") || "/contractors";
   let created = 0;
+  let updated = 0;
+  let certs = 0;
+  const existing = await prisma.contractor.findMany({ where: { deletedAt: null } });
+
   for (const row of rows) {
-    const legalName = row.legalName || row.name || row.contractor || "";
-    if (!legalName) continue;
-    await prisma.contractor.create({
-      data: {
-        legalName,
-        dba: row.dba || null,
-        vendorCode: row.vendorCode || row.vendor || null,
-        ospCode: row.ospCode || row.osp || null,
-        busLocation: row.busLocation || row.location || null,
-        contactName: row.contactName || row.contact || null,
-        phone: row.phone || null,
-        email: row.email || null,
-        brcNumber: row.brcNumber || row.certificateNumber || null,
-        brcNameControl: nameControlFrom(row.brcNameControl || legalName) || null,
-        brcStatus: "Not on file",
-      },
-    });
-    created += 1;
+    const parsed = parseContractorImportRow(row);
+    if (!parsed) continue;
+    const match =
+      (parsed.ospCode
+        ? existing.find((c) => c.ospCode && c.ospCode.toLowerCase() === parsed.ospCode!.toLowerCase())
+        : undefined) ??
+      existing.find((c) => c.legalName.toLowerCase() === parsed.legalName.toLowerCase());
+
+    const data = {
+      legalName: parsed.legalName,
+      dba: parsed.dba ?? match?.dba ?? null,
+      vendorCode: parsed.vendorCode ?? match?.vendorCode ?? null,
+      ospCode: parsed.ospCode ?? match?.ospCode ?? null,
+      busLocation: parsed.busLocation ?? match?.busLocation ?? null,
+      contactName: parsed.contactName ?? match?.contactName ?? null,
+      phone: parsed.phone ?? match?.phone ?? null,
+      email: parsed.email ?? match?.email ?? null,
+      brcNumber: parsed.brcNumber ?? match?.brcNumber ?? null,
+      brcNameControl: match?.brcNameControl || nameControlFrom(parsed.legalName) || null,
+      county: parsed.county ?? match?.county ?? null,
+    };
+
+    const contractor = match
+      ? await prisma.contractor.update({ where: { id: match.id }, data })
+      : await prisma.contractor.create({
+          data: { ...data, brcStatus: "Not on file" },
+        });
+    if (match) {
+      Object.assign(match, contractor);
+      updated += 1;
+    } else {
+      existing.push(contractor);
+      created += 1;
+    }
+
+    if (parsed.hasCertInfo && schoolYear) {
+      const cert = await prisma.annualCert.upsert({
+        where: {
+          contractorId_schoolYear: { contractorId: contractor.id, schoolYear },
+        },
+        update: {
+          statusName: parsed.statusName,
+          notes: parsed.notes,
+          receivedDate: parsed.receivedDate,
+          reviewedDate: parsed.reviewedDate,
+          letterDate: parsed.letterDate,
+          deletedAt: null,
+        },
+        create: {
+          contractorId: contractor.id,
+          schoolYear,
+          statusName: parsed.statusName,
+          notes: parsed.notes,
+          receivedDate: parsed.receivedDate,
+          reviewedDate: parsed.reviewedDate,
+          letterDate: parsed.letterDate,
+        },
+      });
+      await ensureChecklist("cert", cert.id);
+      certs += 1;
+    }
   }
+
   await writeAudit({
     userId: user.id,
     action: "create",
     entityType: "contractor",
-    summary: `Imported ${created} contractors from a list`,
+    summary: `Imported contractors from a list (${created} added, ${updated} updated, ${certs} certs)`,
   });
   revalidateAll();
-  redirect("/contractors");
-}
-
-function parseCsv(text: string) {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [] as Array<Record<string, string>>;
-  const headers = splitCsvLine(lines[0]).map((h) => h.replace(/[^a-zA-Z0-9]/g, ""));
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
-    const row: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      row[header] = (cells[i] || "").trim();
-    });
-    return row;
+  const next = new URLSearchParams({
+    imported: String(created),
+    updated: String(updated),
+    certs: String(certs),
   });
-}
-
-function splitCsvLine(line: string) {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (const char of line) {
-    if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      out.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  out.push(current);
-  return out;
+  redirect(`${redirectTo}?${next.toString()}`);
 }
 
 export async function saveAddendum(form: FormData) {

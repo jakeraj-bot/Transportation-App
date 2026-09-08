@@ -27,7 +27,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       <PageHeader
         title={contractor.legalName}
         backHref="/contractors"
-        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}`}
+        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}${contractor.county ? ` · ${contractor.county} County` : ""}`}
         actions={<form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>}
       />
       <Card>
@@ -38,6 +38,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
             dba: contractor.dba,
             vendorCode: contractor.vendorCode,
             ospCode: contractor.ospCode,
+            county: contractor.county,
             busLocation: contractor.busLocation,
             contactName: contractor.contactName,
             email: contractor.email,

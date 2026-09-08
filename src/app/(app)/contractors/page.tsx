@@ -3,7 +3,12 @@ import { importContractors } from "@/app/actions";
 import { Button, Card, EmptyState, Field, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 
-export default async function ContractorsPage() {
+export default async function ContractorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ imported?: string; updated?: string; certs?: string }>;
+}) {
+  const q = await searchParams;
   const rows = await prisma.contractor.findMany({
     where: { deletedAt: null },
     include: { annualCerts: true },
@@ -13,17 +18,32 @@ export default async function ContractorsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Contractors"
-        hint="Vendor codes, OSP codes, bus locations, contacts, and Business Registration Certificates."
+        hint="Vendor codes, OSP codes, county, bus locations, contacts, and Business Registration Certificates."
         actions={<Button href="/contractors/new">Add one contractor</Button>}
       />
+      {q.imported || q.updated || q.certs ? (
+        <Card className="bg-teal-soft">
+          <p className="font-medium">
+            Imported {q.imported || "0"} contractor{(q.imported || "0") === "1" ? "" : "s"}
+            {q.updated ? `, updated ${q.updated}` : ""}
+            {q.certs ? `, and ${q.certs} annual cert${q.certs === "1" ? "" : "s"}` : ""}.
+          </p>
+        </Card>
+      ) : null}
       <Card>
-        <h2 className="serif mb-2 text-2xl">Upload a list</h2>
+        <h2 className="serif mb-2 text-2xl">Upload a list or certification tracker</h2>
         <p className="mb-4 text-muted">
-          CSV columns: legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber. You can still add one contractor at a time.
+          Excel or CSV. A certification tracker can use: Contractor code (OSP), Bus Company, County, Date Received, Date reviewed, Compliance Status, and Status (notes). A plain contractor list can still use legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber.
         </p>
         <form action={importContractors} className="flex flex-wrap items-end gap-3">
-          <Field label="CSV file">
-            <input className={inputClass} type="file" name="file" accept=".csv,text/csv" required />
+          <Field label="Spreadsheet or CSV">
+            <input
+              className={inputClass}
+              type="file"
+              name="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              required
+            />
           </Field>
           <Button type="submit">Import contractors</Button>
         </form>
@@ -36,6 +56,7 @@ export default async function ContractorsPage() {
             <thead className="border-b border-line text-sm text-muted">
               <tr>
                 <th className="px-5 py-3 font-medium">Name</th>
+                <th className="px-5 py-3 font-medium">County</th>
                 <th className="px-5 py-3 font-medium">Vendor / OSP</th>
                 <th className="px-5 py-3 font-medium">Contact</th>
                 <th className="px-5 py-3 font-medium">BRC</th>
@@ -49,6 +70,7 @@ export default async function ContractorsPage() {
                     <Link className="text-teal hover:underline" href={`/contractors/${c.id}`}>{c.legalName}</Link>
                     {c.busLocation ? <div className="text-xs text-muted">{c.busLocation}</div> : null}
                   </td>
+                  <td className="px-5 py-3">{c.county || "—"}</td>
                   <td className="px-5 py-3">{c.vendorCode || "—"}{c.ospCode ? ` / ${c.ospCode}` : ""}</td>
                   <td className="px-5 py-3">{c.contactName || "—"}{c.phone ? ` · ${c.phone}` : ""}</td>
                   <td className="px-5 py-3"><StatusChip name={c.brcStatus} /></td>

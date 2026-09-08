@@ -26,6 +26,7 @@ model User {
   letters           Letter[]
   emails            EmailLog[]
   firstReviews      Contract[]       @relation("FirstReviewer")
+  secondReviews     Contract[]       @relation("SecondReviewer")
 }
 
 model UserDistrict {
@@ -99,6 +100,7 @@ model Contractor {
   brcStatus       String    @default("Not on file")
   brcVerifiedAt   DateTime?
   debarred        Boolean   @default(false)
+  county          String?
   notes           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -117,6 +119,8 @@ model AnnualCert {
   statusName   String    @default("Not received")
   notes        String?
   letterDate   DateTime?
+  receivedDate DateTime?
+  reviewedDate DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
@@ -135,6 +139,7 @@ model Contract {
   schoolYear           String
   type                 String
   multiContractNumber  String
+  bidNumber            String?
   cost                 Float?
   priorYearCost        Float?
   bondAmount           Float?
@@ -150,6 +155,7 @@ model Contract {
   endsOn               DateTime?
   sentToDistrictAt     DateTime?
   firstReviewerId      String?
+  secondReviewerId     String?
   secondReviewStartedAt DateTime?
   letterDate           DateTime?
   rationaleNeeded      Boolean   @default(false)
@@ -166,6 +172,7 @@ model Contract {
   emergencyQuote  EmergencyQuote?  @relation(fields: [emergencyQuoteId], references: [id])
   routePacket     RouteDescription? @relation("ContractPacket", fields: [routePacketId], references: [id])
   firstReviewer   User?            @relation("FirstReviewer", fields: [firstReviewerId], references: [id])
+  secondReviewer  User?            @relation("SecondReviewer", fields: [secondReviewerId], references: [id])
   routes          Route[]
   routeLinks      ContractRouteDescription[]
 }

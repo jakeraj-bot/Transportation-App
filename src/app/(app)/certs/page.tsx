@@ -22,8 +22,13 @@ export default async function CertsPage() {
       ) : (
         <Card className="divide-y divide-line p-0">
           {rows.map((c) => (
-            <Link key={c.id} href={`/certs/${c.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-teal-soft/40">
-              <span>{c.contractor.legalName} · {c.contractor.vendorCode || "no code"}</span>
+            <Link key={c.id} href={`/certs/${c.id}`} className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-teal-soft/40">
+              <span>
+                {c.contractor.legalName}
+                <span className="text-muted"> · {c.contractor.ospCode || c.contractor.vendorCode || "no code"}</span>
+                {c.contractor.county ? <span className="text-muted"> · {c.contractor.county}</span> : null}
+                {c.notes ? <span className="mt-1 block text-sm text-muted">{c.notes}</span> : null}
+              </span>
               <StatusChip name={c.statusName} />
             </Link>
           ))}

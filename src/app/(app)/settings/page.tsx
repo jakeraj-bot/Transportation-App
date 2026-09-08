@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { saveSettings, uploadTemplate } from "@/app/actions";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { getSession } from "@/lib/auth";
 import { getSetting } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { isSuperAdmin } from "@/lib/roles";
 
 const TEMPLATES = [
   ["contract_approved", "Contract approval letter"],
@@ -14,7 +16,8 @@ const TEMPLATES = [
 ];
 
 export default async function SettingsPage() {
-  const [schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] = await Promise.all([
+  const [session, schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates] = await Promise.all([
+    getSession(),
     getSetting("schoolYear"),
     getSetting("cpi"),
     getSetting("bidThreshold"),
@@ -30,6 +33,9 @@ export default async function SettingsPage() {
       <div className="flex flex-wrap gap-3">
         <Button href="/settings/users" variant="secondary">Users and permissions</Button>
         <Button href="/settings/statuses" variant="secondary">Statuses</Button>
+        {isSuperAdmin(session?.role) ? (
+          <Button href="/settings/current-records" variant="secondary">Bring in current records</Button>
+        ) : null}
       </div>
       <Card>
         <h2 className="serif mb-4 text-2xl">Office settings</h2>

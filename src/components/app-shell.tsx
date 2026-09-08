@@ -26,7 +26,12 @@ export function AppShell({
     { href: "/contractors", label: "Contractors" },
     { href: "/districts", label: "Districts" },
     { href: "/help", label: "Help" },
-    ...(isSuperAdmin(user.role) ? [{ href: "/activity", label: "Activity" }] : []),
+    ...(isSuperAdmin(user.role)
+      ? [
+          { href: "/settings/current-records", label: "Bring in records" },
+          { href: "/activity", label: "Activity" },
+        ]
+      : []),
     { href: "/settings", label: "Settings" },
   ];
 

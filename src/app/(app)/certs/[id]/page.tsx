@@ -4,6 +4,7 @@ import { ChecklistRow, LetterButtons, Pt4Form } from "@/components/client-forms"
 import { Button, Card, Field, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, ensureChecklist, getStatuses } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
+import { toInputDate } from "@/lib/utils";
 
 export default async function CertDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,7 +56,15 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
               {statuses.map((s) => <option key={s.id}>{s.name}</option>)}
             </select>
           </Field>
-          <Field label="Notes" className="md:col-span-2"><textarea className={inputClass} name="notes" rows={3} defaultValue={cert.notes ?? ""} /></Field>
+          <Field label="Date received" hint="The day the annual certification arrived.">
+            <input className={inputClass} type="date" name="receivedDate" defaultValue={toInputDate(cert.receivedDate)} />
+          </Field>
+          <Field label="Date reviewed">
+            <input className={inputClass} type="date" name="reviewedDate" defaultValue={toInputDate(cert.reviewedDate)} />
+          </Field>
+          <Field label="Notes" className="md:col-span-2" hint="If approved, the date the compliance letter went out. If pending, why it is pending.">
+            <textarea className={inputClass} name="notes" rows={3} defaultValue={cert.notes ?? ""} />
+          </Field>
           <div><Button type="submit">Save cert</Button></div>
         </form>
       </Card>

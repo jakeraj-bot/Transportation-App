@@ -39,7 +39,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Contract reviewers (Jakera and Tanisha): review packets, send PT-4s, do first and second review, and generate letters.",
           "Office manager (Debby): watches status and progress, and can review a contract when needed.",
           "Route and bid spec reviewer: works route descriptions (including emergency quotes) and bid specs.",
-          "Super Admin: sees Activity, adds users, assigns districts, and can do everything else.",
+          "Super Admin: sees Activity, brings in records from the current system, adds users, assigns districts, and can do everything else.",
         ],
       },
       {
@@ -181,7 +181,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         bullets: [
-          "Enter the contractor, school year, status, and notes.",
+          "Enter the contractor, school year, status, date received, date reviewed, and notes.",
+          "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
           "You can generate an approval or disapproval letter from the cert page.",
           "The vendor / contractor code on the cert should match the contractor record.",
         ],
@@ -214,16 +215,39 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Keep the company file here: vendor code, Office of Student Protection code, bus location, contact, and Business Registration Certificate.",
+        body: "Keep the company file here: vendor code, Office of Student Protection code, county, bus location, contact, and Business Registration Certificate.",
       },
       {
         heading: "Add one or upload a list",
         bullets: [
-          "Add one contractor at a time, or upload a CSV list (legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber).",
+          "Add one contractor at a time, or upload a list / certification tracker (Excel or CSV). Tracker columns: Contractor code, Bus Company, County, Date Received, Date reviewed, Compliance Status, Status.",
           "The taxpayer name control fills from the first four letters of the contractor name. Change it only if the BRC uses a different taxpayer name.",
           "Open BRC search copies the name control and certificate number, then opens the NJ Treasury site. Paste those two values and submit. The Treasury site will not let this app type into their form for you.",
           "Check the debarment list before a contract is approved. Flag the contractor if they are debarred.",
         ],
+      },
+    ],
+  },
+  {
+    id: "current-records",
+    title: "Bring in current records",
+    group: "using",
+    blocks: [
+      {
+        body: "Super Admin only. This page is for copying contractors and contracts that already exist in the current office system. It does not change how New contract works for packets that arrive from now on.",
+      },
+      {
+        heading: "Certification tracker",
+        steps: [
+          "Open Bring in records (Super Admin menu or Settings).",
+          "Upload the tracker as Excel or CSV.",
+          "Contractor code becomes the Office of Student Protection code. Bus Company becomes the contractor name. County is stored on the contractor.",
+          "Date Received, Date reviewed, Compliance Status, and Status (notes) become this year’s annual certification.",
+        ],
+      },
+      {
+        heading: "Current contracts",
+        body: "Use Enter a current contract for packets already on file. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },
