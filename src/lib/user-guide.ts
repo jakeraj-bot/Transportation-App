@@ -192,6 +192,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         bullets: [
           "Enter the contractor, school year, status, date received, date reviewed, and notes.",
+          "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. Not approved yet hides ones already marked Approved.",
           "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
           "You can generate an approval or disapproval letter from the cert page.",
           "The vendor / contractor code on the cert should match the contractor record.",
