@@ -21,6 +21,7 @@ import {
 import {
   mapContractType,
   parseContractorImportRow,
+  parseFlexibleDate,
   parseSpreadsheetFile,
 } from "@/lib/import-records";
 import { matchNjCounty } from "@/lib/nj-counties";
@@ -241,8 +242,8 @@ export async function saveCurrentContract(form: FormData) {
   const districtId = formString(form, "districtId");
   const firstReviewerId = formString(form, "firstReviewerId") || null;
   const secondReviewerId = formString(form, "secondReviewerId") || null;
-  const sentToDistrictAt = parseDate(formString(form, "sentToDistrictAt"));
-  const insuranceExpiresAt = parseDate(formString(form, "insuranceExpiresAt"));
+  const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
+  const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
 
   const row = await prisma.contract.create({
     data: {
@@ -252,7 +253,7 @@ export async function saveCurrentContract(form: FormData) {
       type,
       multiContractNumber: formString(form, "multiContractNumber"),
       bidNumber: formString(form, "bidNumber") || null,
-      receivedDate: parseDate(formString(form, "receivedDate")),
+      receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
       statusName,
       firstReviewerId,
       secondReviewerId,
