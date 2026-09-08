@@ -10,15 +10,17 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String   @default("staff")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  passwordHash     String
+  adminSetPassword String?
+  homePrefs        String?
+  role             String   @default("staff")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
 
   permissions       UserPermission[]
   assignedDistricts UserDistrict[]
@@ -27,6 +29,7 @@ model User {
   emails            EmailLog[]
   firstReviews      Contract[]       @relation("FirstReviewer")
   secondReviews     Contract[]       @relation("SecondReviewer")
+  comments          ContractComment[]
 }
 
 model UserDistrict {
@@ -70,6 +73,12 @@ model District {
   code      String?
   email     String?
   phone     String?
+  contactName     String?
+  contactPosition String?
+  street    String?
+  city      String?
+  state     String?
+  zip       String?
   notes     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -101,6 +110,7 @@ model Contractor {
   brcVerifiedAt   DateTime?
   debarred        Boolean   @default(false)
   county          String?
+  incomplete      Boolean   @default(false)
   notes           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -161,6 +171,9 @@ model Contract {
   rationaleNeeded      Boolean   @default(false)
   nextMeetingFlag      Boolean   @default(false)
   notes                String?
+  folderTabPrintedAt   DateTime?
+  labelsPrintedAt      DateTime?
+  signedApprovalLetterPath String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   deletedAt            DateTime?
@@ -175,6 +188,27 @@ model Contract {
   secondReviewer  User?            @relation("SecondReviewer", fields: [secondReviewerId], references: [id])
   routes          Route[]
   routeLinks      ContractRouteDescription[]
+  extraPackets    ExtraPacket[]
+  comments        ContractComment[]
+}
+
+model ExtraPacket {
+  id                  String   @id @default(cuid())
+  contractId          String
+  multiContractNumber String
+  routeNumber         String
+  sortOrder           Int      @default(0)
+  contract            Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+model ContractComment {
+  id         String   @id @default(cuid())
+  contractId String
+  userId     String
+  body       String
+  createdAt  DateTime @default(now())
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Route {
@@ -377,6 +411,12 @@ model AuditLog {
 model Setting {
   key   String @id
   value String
+}
+
+model StoredFile {
+  path      String   @id
+  contents  Bytes
+  updatedAt DateTime @updatedAt
 }
 
 model TemplateFile {

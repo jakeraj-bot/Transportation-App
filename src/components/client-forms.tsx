@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   generateCertLetter,
   generateContractLetter,
-  generateLabels,
+  generatePrintPacket,
   generatePt4AndEmail,
   sendDistrictEmail,
   updateChecklistItem,
@@ -13,31 +13,57 @@ import { Button, Field, inputClass } from "./ui";
 
 export function LabelButton({ contractId }: { contractId: string }) {
   const [msg, setMsg] = useState("");
+  async function print(kind: "tab" | "label" | "both") {
+    const form = new FormData();
+    form.append("ids", contractId);
+    form.set("kind", kind);
+    const url = await generatePrintPacket(form);
+    window.open(url, "_blank");
+    setMsg(kind === "tab" ? "Opened the folder tab." : kind === "label" ? "Opened the label." : "Opened the folder tab and labels.");
+  }
   return (
-    <button
-      type="button"
-      className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
-      onClick={async () => {
-        const url = await generateLabels(contractId);
-        window.open(url, "_blank");
-        setMsg("Opened the folder tab and labels.");
-      }}
-    >
-      {msg || "Print folder tab and labels"}
-    </button>
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("tab")}
+      >
+        Print folder tab
+      </button>
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("label")}
+      >
+        Print label
+      </button>
+      <button
+        type="button"
+        className="inline-flex rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-medium"
+        onClick={() => print("both")}
+      >
+        {msg || "Print both"}
+      </button>
+    </div>
   );
 }
 
 export function LetterButtons({
   kind,
   id,
+  contractTypeLabel,
+  sameTypeContracts,
 }: {
   kind: "contract" | "cert";
   id: string;
+  contractTypeLabel?: string;
+  sameTypeContracts?: Array<{ id: string; multiContractNumber: string; contractorName: string }>;
 }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const extras = sameTypeContracts?.filter((row) => row.id !== id) ?? [];
+  const [included, setIncluded] = useState<string[]>([]);
 
   async function run(decision: "approved" | "disapproved") {
     setBusy(true);
@@ -46,6 +72,8 @@ export function LetterButtons({
     form.set("kind", decision);
     form.set("letterDate", date);
     form.set("notes", notes);
+    form.append("ids", id);
+    for (const extraId of included) form.append("ids", extraId);
     const url =
       kind === "contract" ? await generateContractLetter(form) : await generateCertLetter(form);
     window.open(url, "_blank");
@@ -54,6 +82,37 @@ export function LetterButtons({
 
   return (
     <div className="space-y-3">
+      {kind === "contract" && contractTypeLabel ? (
+        <p className="text-sm text-muted">
+          This uses the {contractTypeLabel.toLowerCase()} approval or disapproval letter from Settings, and fills in this district’s mailing address.
+          {extras.length
+            ? ` Check other ${contractTypeLabel.toLowerCase()} contracts for this district to put them on the same letter, one row each.`
+            : ""}
+        </p>
+      ) : null}
+      {extras.length ? (
+        <div className="space-y-2 rounded-xl border border-line bg-cream px-4 py-3">
+          <p className="text-sm font-medium">Also include on this letter</p>
+          {extras.map((row) => (
+            <label key={row.id} className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 size-4"
+                checked={included.includes(row.id)}
+                onChange={(e) => {
+                  setIncluded((current) =>
+                    e.target.checked ? [...current, row.id] : current.filter((value) => value !== row.id)
+                  );
+                }}
+              />
+              <span>
+                <span className="font-medium">{row.multiContractNumber}</span>
+                <span className="text-muted"> · {row.contractorName}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : null}
       <Field label="Letter date" hint="Today is fine. Use a future date if the letter should show that date.">
         <input className={inputClass} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
@@ -67,7 +126,9 @@ export function LetterButtons({
           onClick={() => run("approved")}
           className="rounded-xl bg-sage px-4 py-2.5 font-medium text-white"
         >
-          Approve and print letter
+          {included.length
+            ? `Approve ${included.length + 1} contracts and print letter`
+            : "Approve and print letter"}
         </button>
         <button
           type="button"
@@ -75,7 +136,9 @@ export function LetterButtons({
           onClick={() => run("disapproved")}
           className="rounded-xl bg-rose px-4 py-2.5 font-medium text-white"
         >
-          Disapprove and print letter
+          {included.length
+            ? `Disapprove ${included.length + 1} contracts and print letter`
+            : "Disapprove and print letter"}
         </button>
       </div>
     </div>

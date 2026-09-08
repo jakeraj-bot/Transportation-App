@@ -1,21 +1,23 @@
 "use server";
 
-import fs from "fs";
-import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { can, requireSession, requireSuperAdmin } from "@/lib/auth";
-import { nameControlFrom, schoolYearDates } from "@/lib/utils";
-import { ROLE_PERMISSIONS } from "@/lib/roles";
+import { isSuperAdmin, ROLE_PERMISSIONS } from "@/lib/roles";
+import { ALL_PERMISSION_KEYS, ensurePermissions } from "@/lib/permissions";
+import { parseHomePrefs } from "@/lib/home-prefs";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
-import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { ensureChecklist, getSchoolYear, getSetting, refreshContractFlags } from "@/lib/data";
 import {
+  contractLetterTemplateKey,
   contractTypeLabel,
+  nameControlFrom,
   parseDate,
   parseMoney,
+  parsePercent,
+  schoolYearDates,
   splitRoutes,
 } from "@/lib/utils";
 import {
@@ -26,13 +28,13 @@ import {
   parseSpreadsheetFile,
 } from "@/lib/import-records";
 import { matchNjCounty } from "@/lib/nj-counties";
-import { buildLabelPdf } from "@/lib/labels";
+import { buildLabelPdf, mergePdfs, type LabelKind } from "@/lib/labels";
 import {
+  contractLetterFields,
   defaultLetterDocx,
-  ensureUploadDir,
   fillDocx,
-  uploadPath,
 } from "@/lib/docx";
+import { readStoredFile, saveStoredFile } from "@/lib/storage";
 import { sendOutlookMail } from "@/lib/email";
 import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
 
@@ -44,15 +46,37 @@ function revalidateAll() {
   revalidatePath("/", "layout");
 }
 
+function isRedirectError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+  );
+}
+
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+function canEditDistricts(user: { role: string; permissions: string[] }) {
+  return isSuperAdmin(user.role) || user.permissions.includes("edit_districts");
+}
+
 export async function saveDistrict(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  if (!canEditDistricts(user)) throw new Error("You do not have permission to change district information.");
   const id = formString(form, "id");
   const data = {
     name: formString(form, "name"),
     code: formString(form, "code") || null,
     email: formString(form, "email") || null,
     phone: formString(form, "phone") || null,
+    contactName: formString(form, "contactName") || null,
+    contactPosition: formString(form, "contactPosition") || null,
+    street: formString(form, "street") || null,
+    city: formString(form, "city") || null,
+    state: formString(form, "state") || null,
+    zip: formString(form, "zip") || null,
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -66,7 +90,8 @@ export async function saveDistrict(form: FormData) {
     summary: `${id ? "Updated" : "Added"} district ${row.name}`,
   });
   revalidateAll();
-  redirect(`/districts/${row.id}`);
+  const returnTo = formString(form, "returnTo");
+  redirect(returnTo === "/districts" ? "/districts" : `/districts/${row.id}`);
 }
 
 export async function saveContractor(form: FormData) {
@@ -89,6 +114,7 @@ export async function saveContractor(form: FormData) {
     brcVerifiedAt: form.get("markVerified") ? new Date() : undefined,
     debarred: form.get("debarred") === "on",
     county: matchNjCounty(formString(form, "county") || null),
+    incomplete: false,
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -105,6 +131,30 @@ export async function saveContractor(form: FormData) {
   });
   revalidateAll();
   redirect(`/contractors/${row.id}`);
+}
+
+export async function addQuickContractor(legalName: string) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const name = legalName.trim();
+  if (!name) throw new Error("Enter the contractor’s name.");
+  const row = await prisma.contractor.create({
+    data: {
+      legalName: name,
+      incomplete: true,
+      brcStatus: "Not on file",
+      brcNameControl: nameControlFrom(name) || null,
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "contractor",
+    entityId: row.id,
+    summary: `Added contractor name ${row.legalName} (details still needed)`,
+  });
+  revalidateAll();
+  return { id: row.id, legalName: row.legalName, incomplete: true };
 }
 
 async function syncRoutes(contractId: string, numbers: string[]) {
@@ -125,6 +175,32 @@ async function syncRoutes(contractId: string, numbers: string[]) {
   }
 }
 
+async function syncExtraPackets(
+  contractId: string,
+  packets: Array<{ multiContractNumber: string; routeNumber: string }>
+) {
+  await prisma.extraPacket.deleteMany({ where: { contractId } });
+  const rows = packets.filter((p) => p.multiContractNumber && p.routeNumber);
+  if (!rows.length) return;
+  await prisma.extraPacket.createMany({
+    data: rows.map((packet, sortOrder) => ({
+      contractId,
+      multiContractNumber: packet.multiContractNumber,
+      routeNumber: packet.routeNumber,
+      sortOrder,
+    })),
+  });
+}
+
+function extraPacketsFromForm(form: FormData) {
+  const multis = form.getAll("extraMultiContractNumber").map((value) => String(value ?? "").trim());
+  const routes = form.getAll("extraRouteNumber").map((value) => String(value ?? "").trim());
+  return multis.map((multiContractNumber, index) => ({
+    multiContractNumber,
+    routeNumber: routes[index] ?? "",
+  }));
+}
+
 export async function saveContract(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
@@ -134,7 +210,63 @@ export async function saveContract(form: FormData) {
   const statusName = formString(form, "statusName") || "Need Review";
   const schoolYear = formString(form, "schoolYear");
   const type = formString(form, "type");
-  const defaults = schoolYearDates(schoolYear);
+  const extras = extraPacketsFromForm(form);
+
+  if (!id && type === "addendum") {
+    const multi = formString(form, "multiContractNumber");
+    const districtId = formString(form, "districtId");
+    const existing = await prisma.contract.findFirst({
+      where: {
+        multiContractNumber: multi,
+        schoolYear,
+        deletedAt: null,
+        ...(districtId ? { districtId } : {}),
+      },
+      include: { routes: { include: { addenda: { where: { deletedAt: null } } } } },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!existing) {
+      redirect(
+        "/contracts/new?error=" +
+          encodeURIComponent(
+            "No existing contract has that multi-contract number and school year. An addendum has to attach to a route that is already on file."
+          )
+      );
+    }
+    const wanted = routes.map((number) => number.toLowerCase());
+    const matched = existing.routes.filter((route) => wanted.includes(route.number.toLowerCase()));
+    if (!matched.length) {
+      redirect(
+        `/contracts/new?error=` +
+          encodeURIComponent(
+            `Contract ${existing.multiContractNumber} is on file, but none of those route numbers match. Open that contract and add the route first, then try the addendum again.`
+          )
+      );
+    }
+    const previousCount = matched.reduce((sum, route) => sum + route.addenda.length, 0);
+    for (const route of matched) {
+      await prisma.routeAddendum.create({
+        data: {
+          routeId: route.id,
+          reason: formString(form, "notes") || `Addendum ${route.addenda.length + 1}`,
+          receivedDate: parseDate(formString(form, "receivedDate")),
+          notes: formString(form, "notes") || null,
+        },
+      });
+    }
+    const nextCount = previousCount + matched.length;
+    await writeAudit({
+      userId: user.id,
+      action: "create",
+      entityType: "addendum",
+      entityId: existing.id,
+      summary: `Linked addendum to ${existing.multiContractNumber} (${nextCount} addendum${nextCount === 1 ? "" : "s"} on matching routes)`,
+    });
+    revalidateAll();
+    redirect(
+      `/contracts/${existing.id}?addendumLinked=1&addendumCount=${nextCount}&routeCount=${matched.length}`
+    );
+  }
 
   const intake = {
     districtId: formString(form, "districtId"),
@@ -154,8 +286,8 @@ export async function saveContract(form: FormData) {
           bondType: formString(form, "bondType") || "none",
           insuranceAmount: parseMoney(formString(form, "insuranceAmount")),
           boardMeetingDate: parseDate(formString(form, "boardMeetingDate")),
-          startsOn: parseDate(formString(form, "startsOn")) || defaults.start,
-          endsOn: parseDate(formString(form, "endsOn")) || defaults.end,
+          startsOn: parseDate(formString(form, "startsOn")),
+          endsOn: parseDate(formString(form, "endsOn")),
           sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
           ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
           ...(type === "joint"
@@ -185,15 +317,10 @@ export async function saveContract(form: FormData) {
 
   const row = id
     ? await prisma.contract.update({ where: { id }, data })
-    : await prisma.contract.create({
-        data: {
-          ...intake,
-          startsOn: defaults.start,
-          endsOn: defaults.end,
-        },
-      });
+    : await prisma.contract.create({ data: intake });
 
   await syncRoutes(row.id, routes);
+  await syncExtraPackets(row.id, extras);
 
   if (mode === "review" && type === "original") {
     const linkedRoutes = form.getAll("routeDescriptionIds").map(String).filter(Boolean);
@@ -347,10 +474,9 @@ export async function saveInsurance(form: FormData) {
   const file = form.get("file") as File | null;
   let filePath: string | undefined;
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("insurance");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
     filePath = `insurance/${name}`;
+    await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
   }
   const data = {
     contractorId: formString(form, "contractorId"),
@@ -389,11 +515,10 @@ export async function saveRouteDescription(form: FormData) {
   let filePath: string | undefined;
   let extractedText: string | undefined;
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("route-descriptions");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(dir, name), buf);
     filePath = `route-descriptions/${name}`;
+    await saveStoredFile(filePath, buf);
     extractedText = fileToText(buf, file.name);
   }
   const content = formString(form, "content") || extractedText || null;
@@ -488,11 +613,10 @@ export async function saveBidSpec(form: FormData) {
   let highlightsJson: string | undefined;
 
   if (file && file.size > 0) {
-    const dir = ensureUploadDir("bid-specs");
     const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(dir, name), buf);
     filePath = `bid-specs/${name}`;
+    await saveStoredFile(filePath, buf);
     const text = fileToText(buf, file.name);
     const extracted = await extractBidSpec(text);
     extractedText = extracted.extractedText;
@@ -597,9 +721,60 @@ export async function softDelete(entityType: string, id: string, backTo: string)
   redirect(backTo);
 }
 
+export async function restoreDeleted(entityType: string, id: string) {
+  const user = await requireSession();
+  if (!isSuperAdmin(user.role) && !can(user, "delete")) throw new Error("You do not have permission.");
+  const data = { deletedAt: null as Date | null };
+  switch (entityType) {
+    case "district":
+      await prisma.district.update({ where: { id }, data });
+      break;
+    case "contractor":
+      await prisma.contractor.update({ where: { id }, data });
+      break;
+    case "contract":
+      await prisma.contract.update({ where: { id }, data });
+      break;
+    case "cert":
+      await prisma.annualCert.update({ where: { id }, data });
+      break;
+    case "insurance":
+      await prisma.insuranceCertificate.update({ where: { id }, data });
+      break;
+    case "bid_spec":
+      await prisma.bidSpec.update({ where: { id }, data });
+      break;
+    case "route_description":
+      await prisma.routeDescription.update({ where: { id }, data });
+      break;
+    case "emergency_quote":
+      await prisma.emergencyQuote.update({ where: { id }, data });
+      break;
+    case "status":
+      await prisma.status.update({ where: { id }, data });
+      break;
+    case "user":
+      await prisma.user.update({ where: { id }, data: { deletedAt: null, active: true } });
+      break;
+    case "addendum":
+      await prisma.routeAddendum.update({ where: { id }, data });
+      break;
+    default:
+      throw new Error("That item cannot be restored.");
+  }
+  await writeAudit({
+    userId: user.id,
+    action: "restore",
+    entityType,
+    entityId: id,
+    summary: `Restored a ${entityType.replace(/_/g, " ")}`,
+  });
+  revalidateAll();
+}
+
 export async function saveStatus(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "manage_statuses")) throw new Error("You do not have permission.");
+  if (!isSuperAdmin(user.role) && !can(user, "manage_statuses")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
   const data = {
     entityType: formString(form, "entityType"),
@@ -620,20 +795,21 @@ export async function saveStatus(form: FormData) {
 
 export async function saveSettings(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "manage_templates") && !can(user, "edit")) throw new Error("You do not have permission.");
-  for (const key of [
-    "schoolYear",
-    "cpi",
-    "bidThreshold",
-    "officeName",
-    "officeEmail",
-    "secondReviewAlertOn",
-    "secondReviewAlertHours",
-  ]) {
+  if (!isSuperAdmin(user.role)) throw new Error("Only Super Admin can change office settings.");
+  const values: Record<string, string> = {
+    schoolYear: formString(form, "schoolYear"),
+    cpi: parsePercent(formString(form, "cpi")),
+    bidThreshold: String(parseMoney(formString(form, "bidThreshold")) ?? ""),
+    officeName: formString(form, "officeName"),
+    officeEmail: formString(form, "officeEmail"),
+    secondReviewAlertOn: formString(form, "secondReviewAlertOn"),
+    secondReviewAlertHours: formString(form, "secondReviewAlertHours"),
+  };
+  for (const [key, value] of Object.entries(values)) {
     await prisma.setting.upsert({
       where: { key },
-      update: { value: formString(form, key) },
-      create: { key, value: formString(form, key) },
+      update: { value },
+      create: { key, value },
     });
   }
   await writeAudit({
@@ -647,7 +823,8 @@ export async function saveSettings(form: FormData) {
 
 export async function saveUser(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "manage_users")) throw new Error("You do not have permission.");
+  if (!isSuperAdmin(user.role) && !can(user, "manage_users")) throw new Error("You do not have permission.");
+  await ensurePermissions();
   const { hashPassword } = await import("@/lib/auth");
   const id = formString(form, "id");
   const password = formString(form, "password");
@@ -658,16 +835,21 @@ export async function saveUser(form: FormData) {
     role,
     active: form.get("active") !== "off",
   };
+  const passwordValue = password || (!id ? "Passaic2026!" : "");
+  const passwordFields = passwordValue
+    ? { passwordHash: await hashPassword(passwordValue), adminSetPassword: passwordValue }
+    : {};
   const row = id
     ? await prisma.user.update({
         where: { id },
-        data: {
-          ...data,
-          ...(password ? { passwordHash: await hashPassword(password) } : {}),
-        },
+        data: { ...data, ...passwordFields },
       })
     : await prisma.user.create({
-        data: { ...data, passwordHash: await hashPassword(password || "Passaic2026!") },
+        data: {
+          ...data,
+          passwordHash: await hashPassword(passwordValue || "Passaic2026!"),
+          adminSetPassword: passwordValue || "Passaic2026!",
+        },
       });
   const selected = ALL_PERMISSION_KEYS.filter((key) => form.get(`perm_${key}`) === "on");
   const perms = selected.length ? selected : ROLE_PERMISSIONS[role] ?? ["view"];
@@ -693,103 +875,258 @@ export async function saveUser(form: FormData) {
   redirect("/settings/users");
 }
 
-export async function uploadTemplate(form: FormData) {
+export async function sendUserLoginEmail(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "manage_templates")) throw new Error("You do not have permission.");
-  const key = formString(form, "key");
-  const file = form.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("Please choose a Word document.");
-  const dir = ensureUploadDir("templates");
-  const name = `${key}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
-  await prisma.templateFile.upsert({
-    where: { key },
-    update: { filePath: `templates/${name}`, originalName: file.name },
-    create: { key, filePath: `templates/${name}`, originalName: file.name },
+  if (!isSuperAdmin(user.role) && !can(user, "manage_users")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const target = await prisma.user.findFirst({ where: { id, deletedAt: null } });
+  if (!target) throw new Error("That user could not be found.");
+  const password = target.adminSetPassword;
+  if (!password) throw new Error("Set a password on this account first so it can be included in the email.");
+  const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+  const subject = "Your Passaic County Transportation login";
+  const body = `Hello ${target.name},\n\nAn account was created for you in the Passaic County Transportation office app.\n\nEmail: ${target.email}\nPassword: ${password}\n${appUrl ? `\nSign in: ${appUrl}\n` : ""}\nPlease sign in and keep this password somewhere safe.\n\nThank you,\nPassaic County Transportation`;
+  let status = "drafted";
+  let error: string | null = null;
+  try {
+    const result = await sendOutlookMail({
+      to: target.email,
+      subject,
+      body,
+    });
+    status = result.sent ? "sent" : "drafted";
+    if (!result.sent) error = result.reason;
+  } catch (e) {
+    status = "failed";
+    error = e instanceof Error ? e.message : "Send failed";
+  }
+  await prisma.emailLog.create({
+    data: {
+      toAddress: target.email,
+      subject,
+      body,
+      kind: "login",
+      status,
+      error,
+      sentAt: status === "sent" ? new Date() : null,
+      sentById: user.id,
+    },
   });
   await writeAudit({
     userId: user.id,
-    action: "update",
-    entityType: "template",
-    summary: `Uploaded template ${key}`,
+    action: "email",
+    entityType: "user",
+    entityId: target.id,
+    summary: `Login details ${status} for ${target.name}`,
   });
   revalidateAll();
+  redirect(`/settings/users?loginEmail=${status}${error ? `&loginError=${encodeURIComponent(error)}` : ""}`);
 }
 
-async function templateBuffer(key: "approved" | "disapproved" | "pt4") {
-  const map: Record<string, string> = {
-    approved: "contract_approved",
-    disapproved: "contract_disapproved",
-    pt4: "pt4",
-  };
-  const row = await prisma.templateFile.findUnique({ where: { key: map[key] } });
-  if (row && fs.existsSync(uploadPath(row.filePath))) {
-    return fs.readFileSync(uploadPath(row.filePath));
+export async function saveHomePrefs(form: FormData) {
+  const user = await requireSession();
+  const hiddenTiles = form.getAll("hiddenTiles").map(String);
+  const prefs = parseHomePrefs(
+    JSON.stringify({
+      layout: formString(form, "layout") === "compact" ? "compact" : "regular",
+      accent: formString(form, "accent") || "teal",
+      showStatusBar: form.get("showStatusBar") === "on",
+      showAttentionTiles: form.get("showAttentionTiles") === "on",
+      showSecondReview: form.get("showSecondReview") === "on",
+      showRecent: form.get("showRecent") === "on",
+      hiddenTiles,
+      font: formString(form, "font") || "sans",
+      headingFont: formString(form, "headingFont") || "serif",
+      fontSize: formString(form, "fontSize") || "md",
+      background: formString(form, "background"),
+      text: formString(form, "text"),
+      muted: formString(form, "muted"),
+      nav: formString(form, "nav"),
+      navText: formString(form, "navText"),
+      btnPrimary: formString(form, "btnPrimary"),
+      btnSecondary: formString(form, "btnSecondary"),
+      btnDanger: formString(form, "btnDanger"),
+      btnHelp: formString(form, "btnHelp"),
+      btnSignOut: formString(form, "btnSignOut"),
+      btnNewContract: formString(form, "btnNewContract"),
+      btnNewCert: formString(form, "btnNewCert"),
+      btnViewAll: formString(form, "btnViewAll"),
+    })
+  );
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { homePrefs: JSON.stringify(prefs) },
+  });
+  revalidateAll();
+  redirect("/settings?homeSaved=1");
+}
+
+export async function uploadTemplate(form: FormData) {
+  try {
+    const user = await requireSession();
+    if (!can(user, "manage_templates") || !isSuperAdmin(user.role)) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Your login cannot change letter templates. Ask Super Admin."));
+    }
+    const key = formString(form, "key");
+    const file = form.get("file") as File | null;
+    if (!file || file.size === 0) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Please choose a Word document."));
+    }
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      redirect("/settings?uploadError=" + encodeURIComponent("Please upload a Word .docx file, not a PDF or older .doc file."));
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      redirect(
+        "/settings?uploadError=" +
+          encodeURIComponent("That Word file is too large for the live site (about 4 MB). In Word use File → Compress Pictures, then try again.")
+      );
+    }
+    const name = `${key}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const filePath = `templates/${name}`;
+    await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
+    await prisma.templateFile.upsert({
+      where: { key },
+      update: { filePath, originalName: file.name },
+      create: { key, filePath, originalName: file.name },
+    });
+    await writeAudit({
+      userId: user.id,
+      action: "update",
+      entityType: "template",
+      summary: `Uploaded template ${key}`,
+    });
+    revalidateAll();
+    redirect("/settings?uploaded=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    console.error("uploadTemplate failed", error);
+    redirect(
+      "/settings?uploadError=" +
+        encodeURIComponent("The live site could not save that letter. Try a smaller .docx, or wait a moment and upload again.")
+    );
   }
-  return defaultLetterDocx(key);
+}
+
+async function readTemplateFile(key: string) {
+  const row = await prisma.templateFile.findUnique({ where: { key } });
+  if (!row) return null;
+  return readStoredFile(row.filePath);
+}
+
+async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractType?: string) {
+  if (key === "pt4") {
+    return (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4");
+  }
+  const typed = contractLetterTemplateKey(key, contractType);
+  const generic = `contract_${key}`;
+  const lookups = typed === generic ? [generic] : [typed, generic];
+  for (const lookup of lookups) {
+    const buf = await readTemplateFile(lookup);
+    if (buf) return buf;
+  }
+  return defaultLetterDocx(key, contractType);
 }
 
 async function certTemplateBuffer(kind: "approved" | "disapproved") {
   const key = kind === "approved" ? "cert_approved" : "cert_disapproved";
-  const row = await prisma.templateFile.findUnique({ where: { key } });
-  if (row && fs.existsSync(uploadPath(row.filePath))) {
-    return fs.readFileSync(uploadPath(row.filePath));
-  }
-  return defaultLetterDocx(kind);
+  return (await readTemplateFile(key)) ?? defaultLetterDocx(kind);
 }
 
 export async function generateContractLetter(form: FormData) {
   const user = await requireSession();
   if (!can(user, "approve")) throw new Error("You do not have permission.");
-  const id = formString(form, "id");
   const kind = formString(form, "kind") as "approved" | "disapproved";
   const letterDate = parseDate(formString(form, "letterDate")) || new Date();
-  const contract = await prisma.contract.findUniqueOrThrow({
-    where: { id },
-    include: { district: true, contractor: true, routes: true },
+  const ids = Array.from(
+    new Set(
+      [...form.getAll("ids"), form.get("id")]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (!ids.length) throw new Error("Choose at least one contract.");
+  const contracts = await prisma.contract.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    include: {
+      district: true,
+      contractor: true,
+      hostDistrict: true,
+      extraPackets: { orderBy: { sortOrder: "asc" } },
+      routes: { include: { addenda: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } } },
+    },
   });
+  if (contracts.length !== ids.length) throw new Error("One of those contracts could not be found.");
+  const first = contracts[0];
+  if (contracts.some((row) => row.type !== first.type)) {
+    throw new Error("All contracts on one letter must be the same type.");
+  }
+  if (contracts.some((row) => row.districtId !== first.districtId)) {
+    throw new Error("All contracts on one letter must be for the same district.");
+  }
+  if (contracts.some((row) => row.schoolYear !== first.schoolYear)) {
+    throw new Error("All contracts on one letter must be for the same school year.");
+  }
+  const ordered = ids.map((id) => contracts.find((row) => row.id === id)!);
   const notes = formString(form, "notes");
-  const fields = {
-    letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: contract.district.name,
-    contractor: contract.contractor.legalName,
-    vendorCode: contract.contractor.vendorCode || "—",
-    schoolYear: contract.schoolYear,
-    multiContractNumber: contract.multiContractNumber,
-    routes: contract.routes.map((r) => r.number).join(", ") || "—",
-    type: contractTypeLabel(contract.type),
+  const fields = contractLetterFields({
+    letterDate,
+    district: first.district,
+    schoolYear: first.schoolYear,
+    type: contractTypeLabel(first.type),
     decision: kind === "approved" ? "approved" : "disapproved",
     notes,
-    missingItems: "",
-  };
-  const buf = fillDocx(await templateBuffer(kind), fields);
-  const dir = ensureUploadDir("letters");
-  const fileName = `${kind}-${contract.multiContractNumber}-${Date.now()}.docx`.replace(/\s+/g, "_");
-  fs.writeFileSync(path.join(dir, fileName), buf);
-  await prisma.letter.create({
-    data: {
+    rows: ordered.flatMap((row) => [
+      {
+        multiContractNumber: row.multiContractNumber,
+        contractorName: row.contractor.legalName,
+        vendorCode: row.contractor.vendorCode,
+        routes: row.routes.map((route) => route.number),
+        addendumNumbers: row.routes.flatMap((route) =>
+          route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
+        ),
+        hostDistrictName: row.hostDistrict?.name,
+        jointDistrict: row.joinerDistricts,
+        receivedDate: row.receivedDate,
+      },
+      ...row.extraPackets.map((packet) => ({
+        multiContractNumber: packet.multiContractNumber,
+        contractorName: row.contractor.legalName,
+        vendorCode: row.contractor.vendorCode,
+        routes: packet.routeNumber ? [packet.routeNumber] : [],
+        addendumNumbers: [] as string[],
+        hostDistrictName: row.hostDistrict?.name,
+        jointDistrict: row.joinerDistricts,
+        receivedDate: row.receivedDate,
+      })),
+    ]),
+  });
+  const buf = fillDocx(await templateBuffer(kind, first.type), fields);
+  const fileName = `${kind}-${first.district.name}-${first.type}-${ordered.length}-${Date.now()}.docx`.replace(/\s+/g, "_");
+  await saveStoredFile(`letters/${fileName}`, buf);
+  const statusName = kind === "approved" ? "Approved" : "Disapproved";
+  for (const row of ordered) {
+    await prisma.letter.create({
+      data: {
+        entityType: "contract",
+        entityId: row.id,
+        kind,
+        letterDate,
+        filePath: `letters/${fileName}`,
+        createdById: user.id,
+      },
+    });
+    await prisma.contract.update({
+      where: { id: row.id },
+      data: { statusName, letterDate },
+    });
+    await writeAudit({
+      userId: user.id,
+      action: kind,
       entityType: "contract",
-      entityId: id,
-      kind,
-      letterDate,
-      filePath: `letters/${fileName}`,
-      createdById: user.id,
-    },
-  });
-  await prisma.contract.update({
-    where: { id },
-    data: {
-      statusName: kind === "approved" ? "Approved" : "Disapproved",
-      letterDate,
-    },
-  });
-  await writeAudit({
-    userId: user.id,
-    action: kind,
-    entityType: "contract",
-    entityId: id,
-    summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${contract.multiContractNumber}`,
-  });
+      entityId: row.id,
+      summary: `${kind === "approved" ? "Approved" : "Disapproved"} contract ${row.multiContractNumber}${ordered.length > 1 ? ` on a ${ordered.length}-contract letter` : ""}`,
+    });
+  }
   revalidateAll();
   return `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}`;
 }
@@ -804,23 +1141,25 @@ export async function generateCertLetter(form: FormData) {
     where: { id },
     include: { contractor: true },
   });
-  const fields = {
-    letterDate: letterDate.toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: "All districts served by this contractor",
-    contractor: cert.contractor.legalName,
-    vendorCode: cert.contractor.vendorCode || "—",
+  const fields = contractLetterFields({
+    letterDate,
+    district: { name: "All districts served by this contractor" },
     schoolYear: cert.schoolYear,
-    multiContractNumber: "Annual certification",
-    routes: "—",
     type: "Annual certification",
     decision: kind === "approved" ? "approved" : "disapproved",
     notes: formString(form, "notes"),
-    missingItems: "",
-  };
+    rows: [
+      {
+        multiContractNumber: "Annual certification",
+        contractorName: cert.contractor.legalName,
+        vendorCode: cert.contractor.vendorCode,
+        routes: [],
+      },
+    ],
+  });
   const buf = fillDocx(await certTemplateBuffer(kind), fields);
-  const dir = ensureUploadDir("letters");
   const fileName = `cert-${kind}-${cert.contractor.vendorCode || cert.id}-${Date.now()}.docx`;
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`letters/${fileName}`, buf);
   await prisma.letter.create({
     data: {
       entityType: "cert",
@@ -849,30 +1188,129 @@ export async function generateCertLetter(form: FormData) {
   return `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}`;
 }
 
-export async function generateLabels(contractId: string) {
+export async function generateLabels(contractId: string, kind: LabelKind = "both") {
+  const form = new FormData();
+  form.append("ids", contractId);
+  form.set("kind", kind);
+  return generatePrintPacket(form);
+}
+
+export async function generatePrintPacket(form: FormData) {
   const user = await requireSession();
-  const contract = await prisma.contract.findUniqueOrThrow({
-    where: { id: contractId },
+  const kind = (formString(form, "kind") || "both") as LabelKind;
+  const ids = Array.from(new Set(form.getAll("ids").map((value) => String(value ?? "").trim()).filter(Boolean)));
+  if (!ids.length) throw new Error("Choose at least one contract.");
+  const contracts = await prisma.contract.findMany({
+    where: { id: { in: ids }, deletedAt: null },
     include: { district: true, contractor: true, routes: true },
   });
-  const buf = await buildLabelPdf({
-    contractorName: contract.contractor.legalName,
-    districtName: contract.district.name,
-    schoolYear: contract.schoolYear,
-    multiContractNumber: contract.multiContractNumber,
-    routes: contract.routes.map((r) => r.number),
+  if (!contracts.length) throw new Error("Those contracts could not be found.");
+  const ordered = ids.map((id) => contracts.find((row) => row.id === id)).filter(Boolean) as typeof contracts;
+  const buffers = await Promise.all(
+    ordered.map((contract) =>
+      buildLabelPdf(
+        {
+          contractorName: contract.contractor.legalName,
+          districtName: contract.district.name,
+          schoolYear: contract.schoolYear,
+          multiContractNumber: contract.multiContractNumber,
+          routes: contract.routes.map((r) => r.number),
+        },
+        kind
+      )
+    )
+  );
+  const buf = buffers.length === 1 ? buffers[0] : await mergePdfs(buffers);
+  const stamp = Date.now();
+  const fileName = `${kind === "tab" ? "folder-tabs" : kind === "label" ? "labels" : "tabs-and-labels"}-${stamp}.pdf`;
+  await saveStoredFile(`labels/${fileName}`, buf);
+  const printedAt = new Date();
+  for (const contract of ordered) {
+    await prisma.contract.update({
+      where: { id: contract.id },
+      data: {
+        ...(kind === "tab" || kind === "both" ? { folderTabPrintedAt: printedAt } : {}),
+        ...(kind === "label" || kind === "both" ? { labelsPrintedAt: printedAt } : {}),
+      },
+    });
+    await writeAudit({
+      userId: user.id,
+      action: "print",
+      entityType: "contract",
+      entityId: contract.id,
+      summary:
+        kind === "tab"
+          ? `Printed folder tab for ${contract.multiContractNumber}`
+          : kind === "label"
+            ? `Printed file label for ${contract.multiContractNumber}`
+            : `Printed folder tab and labels for ${contract.multiContractNumber}`,
+    });
+  }
+  revalidateAll();
+  return `/api/files?path=${encodeURIComponent(`labels/${fileName}`)}`;
+}
+
+export async function saveSignedApprovalLetter(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "upload_files") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const file = form.get("file") as File | null;
+  if (!file || file.size === 0) {
+    redirect(`/contracts/${id}`);
+  }
+  const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const filePath = `signed-letters/${name}`;
+  await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
+  await prisma.contract.update({
+    where: { id },
+    data: { signedApprovalLetterPath: filePath },
   });
-  const dir = ensureUploadDir("labels");
-  const fileName = `labels-${contract.multiContractNumber}-${Date.now()}.pdf`.replace(/\s+/g, "_");
-  fs.writeFileSync(path.join(dir, fileName), buf);
   await writeAudit({
     userId: user.id,
-    action: "print",
+    action: "update",
     entityType: "contract",
-    entityId: contractId,
-    summary: `Printed folder tab and labels for ${contract.multiContractNumber}`,
+    entityId: id,
+    summary: "Uploaded a signed approval letter",
   });
-  return `/api/files?path=${encodeURIComponent(`labels/${fileName}`)}`;
+  revalidateAll();
+  redirect(`/contracts/${id}`);
+}
+
+export async function addContractComment(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const contractId = formString(form, "contractId");
+  const body = formString(form, "body");
+  if (!body) redirect(`/contracts/${contractId}`);
+  await prisma.contractComment.create({
+    data: { contractId, userId: user.id, body },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "comment",
+    entityId: contractId,
+    summary: "Added a contract comment",
+  });
+  revalidateAll();
+  redirect(`/contracts/${contractId}`);
+}
+
+export async function deleteContractComment(form: FormData) {
+  const user = await requireSession();
+  if (!isSuperAdmin(user.role)) throw new Error("Only Super Admin can delete comments.");
+  const id = formString(form, "id");
+  const comment = await prisma.contractComment.findUniqueOrThrow({ where: { id } });
+  await prisma.contractComment.delete({ where: { id } });
+  await writeAudit({
+    userId: user.id,
+    action: "delete",
+    entityType: "comment",
+    entityId: comment.contractId,
+    summary: "Deleted a contract comment",
+  });
+  revalidateAll();
+  redirect(`/contracts/${comment.contractId}`);
 }
 
 export async function generatePt4AndEmail(form: FormData) {
@@ -891,6 +1329,8 @@ export async function generatePt4AndEmail(form: FormData) {
   let districtId: string | null = null;
   let districtEmail = "";
   let districtName = "";
+  let districtForLetter: { name: string; street?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null =
+    null;
   let contractor = "";
   let schoolYear = await getSetting("schoolYear");
   let multi = "";
@@ -905,6 +1345,7 @@ export async function generatePt4AndEmail(form: FormData) {
     districtId = contract.districtId;
     districtEmail = contract.district.email || "";
     districtName = contract.district.name;
+    districtForLetter = contract.district;
     contractor = contract.contractor.legalName;
     schoolYear = contract.schoolYear;
     multi = contract.multiContractNumber;
@@ -932,23 +1373,25 @@ export async function generatePt4AndEmail(form: FormData) {
     formString(form, "body") ||
     `Hello,\n\nThe Passaic County transportation office reviewed this submission and still needs the items on the attached PT-4.\n\n${missingText}\n\nPlease send the missing information so we can finish the review.\n\nThank you,\nPassaic County Transportation`;
 
-  const fields = {
-    letterDate: new Date().toLocaleDateString("en-US", { dateStyle: "long" }),
-    district: districtName,
-    contractor,
-    vendorCode: "",
+  const fields = contractLetterFields({
+    letterDate: new Date(),
+    district: districtForLetter ?? { name: districtName },
     schoolYear,
-    multiContractNumber: multi,
-    routes,
     type,
     decision: "",
     notes: formString(form, "notes"),
     missingItems: missingText || "See comments on the checklist.",
-  };
+    rows: [
+      {
+        multiContractNumber: multi || "PT-4",
+        contractorName: contractor,
+        routes: routes ? routes.split(", ").filter(Boolean) : [],
+      },
+    ],
+  });
   const buf = fillDocx(await templateBuffer("pt4"), fields);
-  const dir = ensureUploadDir("letters");
   const fileName = `PT4-${Date.now()}.docx`;
-  fs.writeFileSync(path.join(dir, fileName), buf);
+  await saveStoredFile(`letters/${fileName}`, buf);
 
   let status = "drafted";
   let error: string | null = null;
