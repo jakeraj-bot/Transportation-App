@@ -11,7 +11,14 @@ import { CONTRACT_TYPES } from "@/lib/utils";
 export default async function CurrentRecordsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; number?: string; imported?: string; updated?: string; certs?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    number?: string;
+    imported?: string;
+    updated?: string;
+    certs?: string;
+    error?: string;
+  }>;
 }) {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/");
@@ -35,6 +42,12 @@ export default async function CurrentRecordsPage({
         hint="Super Admin only. Use this while we copy contractors and contracts from the current office system. Incoming packets should still use New contract. Tell us when the move is done and we can take this page out."
       />
 
+      {q.error ? (
+        <Card className="bg-rose-soft">
+          <p className="font-medium text-rose">{q.error}</p>
+          <p className="mt-1 text-sm">You can also copy the tracker rows in Excel and paste them in the box below.</p>
+        </Card>
+      ) : null}
       {q.saved === "contract" ? (
         <Card className="bg-teal-soft">
           <p className="font-medium">Saved {q.number || "the contract"}.</p>
@@ -65,10 +78,13 @@ export default async function CurrentRecordsPage({
           <li><strong>Compliance Status</strong> — approved, pending, need review, and so on</li>
           <li><strong>Status</strong> — notes: if approved, the date the compliance letter went out; if pending, why it is pending</li>
         </ul>
-        <form action={importContractors} className="flex flex-wrap items-end gap-3">
+        <form action={importContractors} encType="multipart/form-data" className="space-y-4">
           <input type="hidden" name="redirectTo" value="/settings/current-records" />
-          <Field label="Tracker file">
-            <input className={inputClass} type="file" name="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+          <Field label="Tracker file" hint="Excel (.xlsx) or CSV. Macros (.xlsm) are fine too.">
+            <input className={inputClass} type="file" name="file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,text/csv" />
+          </Field>
+          <Field label="Or paste from Excel" hint="Copy the header row and the contractor rows, then paste here.">
+            <textarea className={inputClass} name="pasted" rows={6} placeholder="Contractor code	Bus Company	County	Date Received	Date reviewed	Compliance Status	Status" />
           </Field>
           <Button type="submit">Upload tracker</Button>
         </form>

@@ -19,8 +19,9 @@ import {
   splitRoutes,
 } from "@/lib/utils";
 import {
+  describeSpreadsheet,
   mapContractType,
-  parseContractorImportRow,
+  parseCsvText,
   parseFlexibleDate,
   parseSpreadsheetFile,
 } from "@/lib/import-records";
@@ -1101,82 +1102,123 @@ export async function askNjAi(question: string) {
   return `From the New Jersey transportation materials we keep in this office:\n\n${best.map((b) => b.chunk.trim()).join("\n\n")}`;
 }
 
+function importRedirect(redirectTo: string, params: Record<string, string>): never {
+  const next = new URLSearchParams(params);
+  redirect(`${redirectTo}?${next.toString()}`);
+}
+
+function isNextRedirect(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    String((error as { digest?: string }).digest).startsWith("NEXT_REDIRECT")
+  );
+}
+
 export async function importContractors(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
-  const file = form.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("Please choose a spreadsheet or CSV file.");
-  const rows = await parseSpreadsheetFile(file);
-  if (!rows.length) throw new Error("That file did not have any contractor rows.");
-  const schoolYear = (await getSchoolYear()) || formString(form, "schoolYear");
   const redirectTo = formString(form, "redirectTo") || "/contractors";
+  const file = form.get("file") as File | null;
+  const pasted = formString(form, "pasted");
+  if ((!file || file.size === 0) && !pasted) {
+    importRedirect(redirectTo, { error: "Choose the tracker file, or paste the rows from Excel." });
+  }
+  let rows: Awaited<ReturnType<typeof parseSpreadsheetFile>> = [];
+  try {
+    rows = file && file.size > 0 ? await parseSpreadsheetFile(file) : parseCsvText(pasted);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "That file could not be read.";
+    importRedirect(redirectTo, {
+      error: `The tracker could not be read. ${message} Try Excel .xlsx, CSV, or paste the rows.`,
+    });
+  }
+  if (!rows.length) {
+    importRedirect(redirectTo, {
+      error: "No data rows were found. If the tracker has a title at the top, keep the header row (Bus Company, Contractor code, and the rest) and try again.",
+    });
+  }
+  const { parsed: records, headers } = describeSpreadsheet(rows);
+  if (!records.length) {
+    const found = headers.filter(Boolean).slice(0, 12).join(", ") || "none";
+    importRedirect(redirectTo, {
+      error: `A Bus Company / contractor name column was not found. Columns seen: ${found}.`,
+    });
+  }
+  const schoolYear = (await getSchoolYear()) || formString(form, "schoolYear");
   let created = 0;
   let updated = 0;
   let certs = 0;
-  const existing = await prisma.contractor.findMany({ where: { deletedAt: null } });
+  try {
+    const existing = await prisma.contractor.findMany({ where: { deletedAt: null } });
 
-  for (const row of rows) {
-    const parsed = parseContractorImportRow(row);
-    if (!parsed) continue;
-    const match =
-      (parsed.ospCode
-        ? existing.find((c) => c.ospCode && c.ospCode.toLowerCase() === parsed.ospCode!.toLowerCase())
-        : undefined) ??
-      existing.find((c) => c.legalName.toLowerCase() === parsed.legalName.toLowerCase());
+    for (const parsed of records) {
+      const match =
+        (parsed.ospCode
+          ? existing.find((c) => c.ospCode && c.ospCode.toLowerCase() === parsed.ospCode!.toLowerCase())
+          : undefined) ??
+        existing.find((c) => c.legalName.toLowerCase() === parsed.legalName.toLowerCase());
 
-    const data = {
-      legalName: parsed.legalName,
-      dba: parsed.dba ?? match?.dba ?? null,
-      vendorCode: parsed.vendorCode ?? match?.vendorCode ?? null,
-      ospCode: parsed.ospCode ?? match?.ospCode ?? null,
-      busLocation: parsed.busLocation ?? match?.busLocation ?? null,
-      contactName: parsed.contactName ?? match?.contactName ?? null,
-      phone: parsed.phone ?? match?.phone ?? null,
-      email: parsed.email ?? match?.email ?? null,
-      brcNumber: parsed.brcNumber ?? match?.brcNumber ?? null,
-      brcNameControl: match?.brcNameControl || nameControlFrom(parsed.legalName) || null,
-      county: parsed.county ?? match?.county ?? null,
-    };
+      const data = {
+        legalName: parsed.legalName,
+        dba: parsed.dba ?? match?.dba ?? null,
+        vendorCode: parsed.vendorCode ?? match?.vendorCode ?? null,
+        ospCode: parsed.ospCode ?? match?.ospCode ?? null,
+        busLocation: parsed.busLocation ?? match?.busLocation ?? null,
+        contactName: parsed.contactName ?? match?.contactName ?? null,
+        phone: parsed.phone ?? match?.phone ?? null,
+        email: parsed.email ?? match?.email ?? null,
+        brcNumber: parsed.brcNumber ?? match?.brcNumber ?? null,
+        brcNameControl: match?.brcNameControl || nameControlFrom(parsed.legalName) || null,
+        county: parsed.county ?? match?.county ?? null,
+      };
 
-    const contractor = match
-      ? await prisma.contractor.update({ where: { id: match.id }, data })
-      : await prisma.contractor.create({
-          data: { ...data, brcStatus: "Not on file" },
+      const contractor = match
+        ? await prisma.contractor.update({ where: { id: match.id }, data })
+        : await prisma.contractor.create({
+            data: { ...data, brcStatus: "Not on file" },
+          });
+      if (match) {
+        Object.assign(match, contractor);
+        updated += 1;
+      } else {
+        existing.push(contractor);
+        created += 1;
+      }
+
+      if (parsed.hasCertInfo && schoolYear) {
+        const cert = await prisma.annualCert.upsert({
+          where: {
+            contractorId_schoolYear: { contractorId: contractor.id, schoolYear },
+          },
+          update: {
+            statusName: parsed.statusName,
+            notes: parsed.notes,
+            receivedDate: parsed.receivedDate,
+            reviewedDate: parsed.reviewedDate,
+            letterDate: parsed.letterDate,
+            deletedAt: null,
+          },
+          create: {
+            contractorId: contractor.id,
+            schoolYear,
+            statusName: parsed.statusName,
+            notes: parsed.notes,
+            receivedDate: parsed.receivedDate,
+            reviewedDate: parsed.reviewedDate,
+            letterDate: parsed.letterDate,
+          },
         });
-    if (match) {
-      Object.assign(match, contractor);
-      updated += 1;
-    } else {
-      existing.push(contractor);
-      created += 1;
+        await ensureChecklist("cert", cert.id);
+        certs += 1;
+      }
     }
-
-    if (parsed.hasCertInfo && schoolYear) {
-      const cert = await prisma.annualCert.upsert({
-        where: {
-          contractorId_schoolYear: { contractorId: contractor.id, schoolYear },
-        },
-        update: {
-          statusName: parsed.statusName,
-          notes: parsed.notes,
-          receivedDate: parsed.receivedDate,
-          reviewedDate: parsed.reviewedDate,
-          letterDate: parsed.letterDate,
-          deletedAt: null,
-        },
-        create: {
-          contractorId: contractor.id,
-          schoolYear,
-          statusName: parsed.statusName,
-          notes: parsed.notes,
-          receivedDate: parsed.receivedDate,
-          reviewedDate: parsed.reviewedDate,
-          letterDate: parsed.letterDate,
-        },
-      });
-      await ensureChecklist("cert", cert.id);
-      certs += 1;
-    }
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "The database could not save those rows.";
+    importRedirect(redirectTo, { error: `The tracker was read, but saving failed. ${message}` });
   }
 
   await writeAudit({
@@ -1186,12 +1228,11 @@ export async function importContractors(form: FormData) {
     summary: `Imported contractors from a list (${created} added, ${updated} updated, ${certs} certs)`,
   });
   revalidateAll();
-  const next = new URLSearchParams({
+  importRedirect(redirectTo, {
     imported: String(created),
     updated: String(updated),
     certs: String(certs),
   });
-  redirect(`${redirectTo}?${next.toString()}`);
 }
 
 export async function saveAddendum(form: FormData) {

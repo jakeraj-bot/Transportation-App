@@ -22,6 +22,22 @@ export type ParsedContractorImport = {
   brcNumber: string | null;
 };
 
+type ColumnKey =
+  | "legalName"
+  | "ospCode"
+  | "county"
+  | "receivedDate"
+  | "reviewedDate"
+  | "compliance"
+  | "notes"
+  | "dba"
+  | "vendorCode"
+  | "busLocation"
+  | "contactName"
+  | "phone"
+  | "email"
+  | "brcNumber";
+
 export function parseFlexibleDate(value?: string | Date | null) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12);
@@ -54,10 +70,48 @@ export function normalizeHeader(header: string) {
   return header.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-function cell(row: SpreadsheetRow, ...keys: string[]) {
-  const wanted = new Set(keys.map(normalizeHeader));
-  for (const [key, value] of Object.entries(row)) {
-    if (wanted.has(normalizeHeader(key)) && String(value ?? "").trim()) {
+export function classifyHeader(header: string): ColumnKey | null {
+  const h = normalizeHeader(header);
+  if (!h) return null;
+  if (h.includes("county")) return "county";
+  if (
+    (h.includes("contractor") && h.includes("code")) ||
+    h.includes("osp") ||
+    (h.includes("protection") && h.includes("code")) ||
+    h === "code"
+  ) {
+    return "ospCode";
+  }
+  if (h.includes("compliance")) return "compliance";
+  if (h.includes("received")) return "receivedDate";
+  if (h.includes("review")) return "reviewedDate";
+  if (h.includes("vendor")) return "vendorCode";
+  if (h.includes("location") || h.includes("busyard") || h.includes("garage")) return "busLocation";
+  if (h.includes("contact")) return "contactName";
+  if (h.includes("phone") || h.includes("tel")) return "phone";
+  if (h.includes("email") || h.includes("mail")) return "email";
+  if (h.includes("brc") || h.includes("certificate")) return "brcNumber";
+  if (h === "dba" || h.includes("doingbusiness")) return "dba";
+  if (
+    h.includes("legalname") ||
+    h.includes("buscompany") ||
+    h.includes("companyname") ||
+    h.includes("contractorname") ||
+    (h.includes("bus") && h.includes("company")) ||
+    h === "contractor" ||
+    h === "company" ||
+    h === "name" ||
+    h === "bus"
+  ) {
+    return "legalName";
+  }
+  if (h === "status" || h.includes("comment") || h.includes("note") || h.includes("remark")) return "notes";
+  return null;
+}
+
+function cellByClass(row: SpreadsheetRow, key: ColumnKey) {
+  for (const [header, value] of Object.entries(row)) {
+    if (classifyHeader(header) === key && String(value ?? "").trim()) {
       return String(value).trim();
     }
   }
@@ -91,41 +145,47 @@ export function splitCsvLine(line: string, delimiter = ",") {
 function detectDelimiter(headerLine: string) {
   const commas = splitCsvLine(headerLine, ",").length;
   const tabs = splitCsvLine(headerLine, "\t").length;
-  return tabs > commas ? "\t" : ",";
+  const semis = splitCsvLine(headerLine, ";").length;
+  if (tabs >= commas && tabs >= semis && tabs > 1) return "\t";
+  if (semis > commas && semis > 1) return ";";
+  return ",";
 }
 
-export function parseCsvText(text: string): SpreadsheetRow[] {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [];
-  const delimiter = detectDelimiter(lines[0]);
-  const headers = splitCsvLine(lines[0], delimiter);
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line, delimiter);
-    const row: SpreadsheetRow = {};
-    headers.forEach((header, i) => {
-      row[header] = (cells[i] || "").trim();
-    });
-    return row;
-  });
+function formatCell(raw: string | number | Date | null | undefined) {
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, "0")}-${String(raw.getDate()).padStart(2, "0")}`;
+  }
+  if (raw == null) return "";
+  return String(raw).trim();
 }
 
-function sheetRowsToObjects(matrix: Array<Array<string | number | Date | null | undefined>>): SpreadsheetRow[] {
-  const headerRow = matrix.find((row) => row.some((value) => String(value ?? "").trim()));
-  if (!headerRow) return [];
-  const headers = headerRow.map((value) => String(value ?? "").trim());
-  const start = matrix.indexOf(headerRow) + 1;
-  return matrix.slice(start).flatMap((line) => {
+function headerScore(cells: Array<string | number | Date | null | undefined>) {
+  const keys = new Set(
+    cells.map((value) => classifyHeader(formatCell(value))).filter((key): key is ColumnKey => Boolean(key))
+  );
+  return keys.size;
+}
+
+function matrixToRows(matrix: Array<Array<string | number | Date | null | undefined>>): SpreadsheetRow[] {
+  if (!matrix.length) return [];
+  let bestIndex = 0;
+  let bestScore = 0;
+  const scan = Math.min(matrix.length, 20);
+  for (let i = 0; i < scan; i += 1) {
+    const score = headerScore(matrix[i] ?? []);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+  if (bestScore < 1) return [];
+  const headers = (matrix[bestIndex] ?? []).map((value) => formatCell(value));
+  return matrix.slice(bestIndex + 1).flatMap((line) => {
     const row: SpreadsheetRow = {};
     let any = false;
     headers.forEach((header, i) => {
       if (!header) return;
-      const raw = line[i];
-      let value = "";
-      if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
-        value = `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, "0")}-${String(raw.getDate()).padStart(2, "0")}`;
-      } else if (raw != null && String(raw).trim()) {
-        value = String(raw).trim();
-      }
+      const value = formatCell(line[i]);
       row[header] = value;
       if (value) any = true;
     });
@@ -133,21 +193,56 @@ function sheetRowsToObjects(matrix: Array<Array<string | number | Date | null | 
   });
 }
 
+export function parseCsvText(text: string): SpreadsheetRow[] {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+  if (!lines.length) return [];
+  const delimiter = detectDelimiter(lines[0]);
+  const matrix = lines.map((line) => splitCsvLine(line, delimiter));
+  return matrixToRows(matrix);
+}
+
+function loadXlsx(mod: Record<string, unknown>) {
+  const candidate = (mod.default ?? mod) as typeof import("xlsx");
+  if (typeof candidate.read !== "function") {
+    throw new Error("Excel support did not load.");
+  }
+  return candidate;
+}
+
 export async function parseSpreadsheetFile(file: File): Promise<SpreadsheetRow[]> {
   const name = file.name.toLowerCase();
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (name.endsWith(".xlsx") || name.endsWith(".xls") || bytes.subarray(0, 2).toString() === "PK") {
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.read(bytes, { type: "buffer", cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
-    const sheet = workbook.Sheets[sheetName];
-    const matrix = XLSX.utils.sheet_to_json<(string | number | Date | null)[]>(sheet, {
-      header: 1,
-      defval: "",
-      raw: true,
-    });
-    return sheetRowsToObjects(matrix);
+  const looksZip = bytes.subarray(0, 2).toString() === "PK";
+  const looksExcel =
+    name.endsWith(".xlsx") ||
+    name.endsWith(".xlsm") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".xlsb") ||
+    looksZip;
+
+  if (looksExcel) {
+    try {
+      const XLSX = loadXlsx((await import("xlsx")) as unknown as Record<string, unknown>);
+      const workbook = XLSX.read(bytes, { type: "buffer", cellDates: true });
+      let best: SpreadsheetRow[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) continue;
+        const matrix = XLSX.utils.sheet_to_json<(string | number | Date | null)[]>(sheet, {
+          header: 1,
+          defval: "",
+          raw: true,
+        });
+        const rows = matrixToRows(matrix);
+        if (rows.length > best.length) best = rows;
+      }
+      if (best.length) return best;
+    } catch (error) {
+      const asText = bytes.toString("utf8");
+      const csvRows = parseCsvText(asText);
+      if (csvRows.length) return csvRows;
+      throw error instanceof Error ? error : new Error("That Excel file could not be read.");
+    }
   }
   return parseCsvText(bytes.toString("utf8"));
 }
@@ -186,46 +281,39 @@ export function mapContractType(raw?: string | null) {
 }
 
 export function parseContractorImportRow(row: SpreadsheetRow): ParsedContractorImport | null {
-  const legalName = cell(
-    row,
-    "legalName",
-    "name",
-    "contractor",
-    "busCompany",
-    "contractorName",
-    "company"
-  );
+  const legalName = cellByClass(row, "legalName");
   if (!legalName) return null;
 
-  const compliance = cell(row, "complianceStatus", "certStatus", "annualCertStatus");
-  const statusNotes = cell(row, "status", "comments", "statusNotes");
-  const plainNotes = cell(row, "notes");
+  const compliance = cellByClass(row, "compliance");
+  const statusNotes = cellByClass(row, "notes");
   const statusName = mapCertStatus(compliance);
-  const reviewedDate = parseFlexibleDate(
-    cell(row, "dateReviewed", "reviewedDate", "reviewed", "dateReview")
-  );
-  const receivedDate = parseFlexibleDate(cell(row, "dateReceived", "receivedDate", "received"));
+  const reviewedDate = parseFlexibleDate(cellByClass(row, "reviewedDate"));
+  const receivedDate = parseFlexibleDate(cellByClass(row, "receivedDate"));
   const letterDate = statusName === "Approved" ? parseFlexibleDate(statusNotes) || reviewedDate : null;
-  const noteParts = [statusNotes || plainNotes || null].filter(Boolean);
   const hasCertInfo = Boolean(compliance || statusNotes || receivedDate || reviewedDate);
 
   return {
     legalName,
-    ospCode:
-      cell(row, "ospCode", "osp", "contractorCode", "code", "officeOfStudentProtectionCode") || null,
-    county: matchNjCounty(cell(row, "county", "countyName") || null),
+    ospCode: cellByClass(row, "ospCode") || null,
+    county: matchNjCounty(cellByClass(row, "county") || null),
     receivedDate,
     reviewedDate,
     statusName,
-    notes: noteParts.length ? noteParts.join("\n") : null,
+    notes: statusNotes || null,
     letterDate,
     hasCertInfo,
-    dba: cell(row, "dba") || null,
-    vendorCode: cell(row, "vendorCode", "vendor") || null,
-    busLocation: cell(row, "busLocation", "location") || null,
-    contactName: cell(row, "contactName", "contact") || null,
-    phone: cell(row, "phone") || null,
-    email: cell(row, "email") || null,
-    brcNumber: cell(row, "brcNumber", "certificateNumber") || null,
+    dba: cellByClass(row, "dba") || null,
+    vendorCode: cellByClass(row, "vendorCode") || null,
+    busLocation: cellByClass(row, "busLocation") || null,
+    contactName: cellByClass(row, "contactName") || null,
+    phone: cellByClass(row, "phone") || null,
+    email: cellByClass(row, "email") || null,
+    brcNumber: cellByClass(row, "brcNumber") || null,
   };
+}
+
+export function describeSpreadsheet(rows: SpreadsheetRow[]) {
+  const headers = rows[0] ? Object.keys(rows[0]) : [];
+  const parsed = rows.map(parseContractorImportRow).filter((row): row is ParsedContractorImport => Boolean(row));
+  return { headers, parsed };
 }

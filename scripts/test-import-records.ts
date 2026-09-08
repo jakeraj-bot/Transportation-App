@@ -5,6 +5,7 @@ import {
   parseContractorImportRow,
   parseCsvText,
   parseFlexibleDate,
+  parseSpreadsheetFile,
 } from "../src/lib/import-records";
 import { matchNjCounty } from "../src/lib/nj-counties";
 
@@ -41,19 +42,45 @@ Acme Bus,31-1,OSP-1`)[0]
 assert.equal(plain?.legalName, "Acme Bus");
 assert.equal(plain?.hasCertInfo, false);
 
-const workbook = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(
-  workbook,
-  XLSX.utils.aoa_to_sheet([
-    ["Contractor code", "Bus Company", "County", "Date Received", "Date reviewed", "Compliance Status", "Status"],
-    ["OSP-2214", "First Choice Transit", "Bergen", "2026-09-02", "2026-09-03", "Pending", "Waiting on packets"],
-  ]),
-  "Tracker"
-);
-const parsedSheet = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets.Tracker);
-const fromExcel = parseContractorImportRow(parsedSheet[0]);
-assert.equal(fromExcel?.ospCode, "OSP-2214");
-assert.equal(fromExcel?.county, "Bergen");
-assert.equal(fromExcel?.statusName, "Pending documents or changes");
+const titled = parseCsvText(`Passaic County Certification Tracker 2026-2027
 
-console.log("import-records tests passed");
+Contractor code,Bus Company,County,Date Received,Date reviewed,Compliance Status,Status
+OSP-1008,Garden State Bus Company,Passaic County,8/1/2026,8/4/2026,Approved,Compliance letter sent 8/5/2026
+`);
+const titledRow = parseContractorImportRow(titled[0]);
+assert.equal(titledRow?.legalName, "Garden State Bus Company");
+assert.equal(titledRow?.ospCode, "OSP-1008");
+
+const fuzzy = parseContractorImportRow({
+  "Contractor / Bus Company": "Wayne Coach",
+  "OSP Code": "OSP-55",
+  "Date Received": "7/1/2026",
+  "Compliance": "Pending documents",
+  Status: "Missing aide packets",
+});
+assert.equal(fuzzy?.legalName, "Wayne Coach");
+assert.equal(fuzzy?.ospCode, "OSP-55");
+assert.equal(fuzzy?.statusName, "Pending documents or changes");
+assert.equal(fuzzy?.notes, "Missing aide packets");
+
+async function main() {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["Annual Certification Tracker"],
+      ["Contractor code", "Bus Company", "County", "Date Received", "Date reviewed", "Compliance Status", "Status"],
+      ["OSP-2214", "First Choice Transit", "Bergen", "2026-09-02", "2026-09-03", "Pending", "Waiting on packets"],
+    ]),
+    "Cover"
+  );
+  const excelFile = new File([XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })], "tracker.xlsx");
+  const excelRows = await parseSpreadsheetFile(excelFile);
+  const fromExcel = parseContractorImportRow(excelRows[0]);
+  assert.equal(fromExcel?.ospCode, "OSP-2214");
+  assert.equal(fromExcel?.county, "Bergen");
+  assert.equal(fromExcel?.statusName, "Pending documents or changes");
+  console.log("import-records tests passed");
+}
+
+main();

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 export default async function ContractorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ imported?: string; updated?: string; certs?: string }>;
+  searchParams: Promise<{ imported?: string; updated?: string; certs?: string; error?: string }>;
 }) {
   const q = await searchParams;
   const rows = await prisma.contractor.findMany({
@@ -21,6 +21,11 @@ export default async function ContractorsPage({
         hint="Vendor codes, OSP codes, county, bus locations, contacts, and Business Registration Certificates."
         actions={<Button href="/contractors/new">Add one contractor</Button>}
       />
+      {q.error ? (
+        <Card className="bg-rose-soft">
+          <p className="font-medium text-rose">{q.error}</p>
+        </Card>
+      ) : null}
       {q.imported || q.updated || q.certs ? (
         <Card className="bg-teal-soft">
           <p className="font-medium">
@@ -35,15 +40,17 @@ export default async function ContractorsPage({
         <p className="mb-4 text-muted">
           Excel or CSV. A certification tracker can use: Contractor code (OSP), Bus Company, County, Date Received, Date reviewed, Compliance Status, and Status (notes). A plain contractor list can still use legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber.
         </p>
-        <form action={importContractors} className="flex flex-wrap items-end gap-3">
+        <form action={importContractors} encType="multipart/form-data" className="space-y-4">
           <Field label="Spreadsheet or CSV">
             <input
               className={inputClass}
               type="file"
               name="file"
-              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              required
+              accept=".csv,.xlsx,.xls,.xlsm,.xlsb,text/csv"
             />
+          </Field>
+          <Field label="Or paste from Excel">
+            <textarea className={inputClass} name="pasted" rows={5} />
           </Field>
           <Button type="submit">Import contractors</Button>
         </form>
