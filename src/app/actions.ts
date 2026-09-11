@@ -3,29 +3,39 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { can, requireSession } from "@/lib/auth";
+import { can, requireSession, requireSuperAdmin } from "@/lib/auth";
 import { isSuperAdmin, ROLE_PERMISSIONS } from "@/lib/roles";
 import { ALL_PERMISSION_KEYS, ensurePermissions } from "@/lib/permissions";
 import { parseHomePrefs } from "@/lib/home-prefs";
 import { sanitizeStatusColor } from "@/lib/status-color";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
-import { ensureChecklist, getSetting, refreshContractFlags } from "@/lib/data";
+import { ensureChecklist, getSchoolYear, getSetting, refreshContractFlags } from "@/lib/data";
 import {
-  contractLetterTemplateKey,
   contractTypeLabel,
+  letterTemplateLookups,
   nameControlFrom,
   parseDate,
   parseMoney,
   parsePercent,
+  schoolYearDates,
   splitRoutes,
 } from "@/lib/utils";
+import {
+  describeSpreadsheet,
+  mapContractType,
+  parseCsvText,
+  parseFlexibleDate,
+  parseSpreadsheetFile,
+} from "@/lib/import-records";
+import { matchNjCounty, resolveCertCounty } from "@/lib/nj-counties";
 import { buildLabelPdf, mergePdfs, type LabelKind } from "@/lib/labels";
 import {
   contractLetterFields,
   defaultLetterDocx,
   fillDocx,
   zipFiles,
+  type DistrictAddressInput,
 } from "@/lib/docx";
 import { groupByLetter } from "@/lib/letter-groups";
 import { readStoredFile, saveStoredFile } from "@/lib/storage";
@@ -34,6 +44,10 @@ import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
 
 function formString(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
+}
+
+function isUniqueConflict(err: unknown) {
+  return Boolean(err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002");
 }
 
 function revalidateAll() {
@@ -61,6 +75,7 @@ export async function saveDistrict(form: FormData) {
     city: formString(form, "city") || null,
     state: formString(form, "state") || null,
     zip: formString(form, "zip") || null,
+    addressBlock: formString(form, "addressBlock") || null,
     notes: formString(form, "notes") || null,
   };
   const row = id
@@ -97,6 +112,7 @@ export async function saveContractor(form: FormData) {
     brcStatus: formString(form, "brcStatus") || "Not on file",
     brcVerifiedAt: form.get("markVerified") ? new Date() : undefined,
     debarred: form.get("debarred") === "on",
+    county: matchNjCounty(formString(form, "county") || null),
     incomplete: false,
     notes: formString(form, "notes") || null,
   };
@@ -105,6 +121,12 @@ export async function saveContractor(form: FormData) {
     : await prisma.contractor.create({
         data: { ...data, brcVerifiedAt: data.brcVerifiedAt ?? null },
       });
+  if (row.county) {
+    await prisma.annualCert.updateMany({
+      where: { contractorId: row.id, county: "" },
+      data: { county: row.county },
+    });
+  }
   await writeAudit({
     userId: user.id,
     action: id ? "update" : "create",
@@ -328,35 +350,140 @@ export async function saveContract(form: FormData) {
   redirect(`/contracts/${row.id}`);
 }
 
+export async function saveCurrentContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const schoolYear = formString(form, "schoolYear");
+  const type = mapContractType(formString(form, "type"));
+  const defaults = schoolYearDates(schoolYear);
+  const routes = splitRoutes(formString(form, "routes"));
+  const statusName = formString(form, "statusName") || "Need Review";
+  const newContractorName = formString(form, "newContractorName");
+  let contractorId = formString(form, "contractorId");
+
+  if (!contractorId && newContractorName) {
+    const created = await prisma.contractor.create({
+      data: {
+        legalName: newContractorName,
+        county: matchNjCounty(formString(form, "newContractorCounty") || null),
+        brcNameControl: nameControlFrom(newContractorName) || null,
+      },
+    });
+    contractorId = created.id;
+  }
+  if (!contractorId) throw new Error("Choose a bus company or type a new name.");
+
+  const districtId = formString(form, "districtId");
+  const firstReviewerId = formString(form, "firstReviewerId") || null;
+  const secondReviewerId = formString(form, "secondReviewerId") || null;
+  const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
+  const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
+
+  const row = await prisma.contract.create({
+    data: {
+      districtId,
+      contractorId,
+      schoolYear,
+      type,
+      multiContractNumber: formString(form, "multiContractNumber"),
+      bidNumber: formString(form, "bidNumber") || null,
+      receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
+      statusName,
+      firstReviewerId,
+      secondReviewerId,
+      sentToDistrictAt,
+      secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
+      startsOn: defaults.start,
+      endsOn: defaults.end,
+      notes: formString(form, "notes") || "Entered from the current-system list.",
+    },
+  });
+  await syncRoutes(row.id, routes);
+
+  if (insuranceExpiresAt) {
+    const district = await prisma.district.findUnique({ where: { id: districtId } });
+    const existing = await prisma.insuranceCertificate.findFirst({
+      where: { contractorId, districtId, deletedAt: null },
+      orderBy: { expiresAt: "desc" },
+    });
+    const expired = insuranceExpiresAt < new Date();
+    const insData = {
+      schoolYear,
+      expiresAt: insuranceExpiresAt,
+      namedDistrict: district?.name ?? null,
+      statusName: expired ? "Needs update" : "On file",
+    };
+    if (existing) {
+      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
+    } else {
+      await prisma.insuranceCertificate.create({
+        data: { contractorId, districtId, ...insData },
+      });
+    }
+  }
+
+  await ensureChecklist("contract", row.id, row.type);
+  await refreshContractFlags(row.id);
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "contract",
+    entityId: row.id,
+    summary: `Entered current contract ${row.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(
+    `/settings/current-records?saved=contract&number=${encodeURIComponent(row.multiContractNumber)}`
+  );
+}
+
 export async function saveCert(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
+  const contractorId = formString(form, "contractorId");
+  const contractor = await prisma.contractor.findUnique({ where: { id: contractorId } });
+  if (!contractor) throw new Error("Choose a contractor.");
+  const county = resolveCertCounty(formString(form, "county"), contractor.county);
+  if (!county) throw new Error("Choose the county this certification is for.");
   const data = {
-    contractorId: formString(form, "contractorId"),
+    contractorId,
     schoolYear: formString(form, "schoolYear"),
+    county,
     statusName: formString(form, "statusName") || "Need review",
     notes: formString(form, "notes") || null,
+    receivedDate: parseDate(formString(form, "receivedDate")),
+    reviewedDate: parseDate(formString(form, "reviewedDate")),
   };
-  const row = id
-    ? await prisma.annualCert.update({ where: { id }, data })
-    : await prisma.annualCert.upsert({
-        where: {
-          contractorId_schoolYear: {
-            contractorId: data.contractorId,
-            schoolYear: data.schoolYear,
+  let row;
+  try {
+    row = id
+      ? await prisma.annualCert.update({ where: { id }, data })
+      : await prisma.annualCert.upsert({
+          where: {
+            contractorId_schoolYear_county: {
+              contractorId: data.contractorId,
+              schoolYear: data.schoolYear,
+              county: data.county,
+            },
           },
-        },
-        update: data,
-        create: data,
-      });
+          update: data,
+          create: data,
+        });
+  } catch (err) {
+    if (isUniqueConflict(err)) {
+      throw new Error(
+        "This contractor already has an annual cert for that county this school year. Open that one instead of adding another."
+      );
+    }
+    throw err;
+  }
   await ensureChecklist("cert", row.id);
   await writeAudit({
     userId: user.id,
     action: id ? "update" : "create",
     entityType: "cert",
     entityId: row.id,
-    summary: `Updated annual cert for ${data.schoolYear}`,
+    summary: `Updated annual cert for ${data.schoolYear}${data.county ? ` · ${data.county}` : ""}`,
   });
   revalidateAll();
   redirect(`/certs/${row.id}`);
@@ -911,9 +1038,7 @@ async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractT
   if (key === "pt4") {
     return (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4");
   }
-  const typed = contractLetterTemplateKey(key, contractType);
-  const generic = `contract_${key}`;
-  const lookups = typed === generic ? [generic] : [typed, generic];
+  const lookups = letterTemplateLookups(key, contractType);
   for (const lookup of lookups) {
     const buf = await readTemplateFile(lookup);
     if (buf) return buf;
@@ -1096,6 +1221,7 @@ export async function generateCertLetter(form: FormData) {
       letterDate,
     },
   });
+  if (kind === "approved") await ensureChecklist("cert", id);
   await writeAudit({
     userId: user.id,
     action: kind,
@@ -1233,6 +1359,9 @@ export async function generatePt4AndEmail(form: FormData) {
     throw new Error("You do not have permission.");
   }
   const entityType = formString(form, "entityType");
+  if (entityType === "cert") {
+    throw new Error("PT-4s are for contracts, not annual certifications.");
+  }
   const entityId = formString(form, "entityId");
   const items = await prisma.checklistResponse.findMany({
     where: { entityType, entityId },
@@ -1245,8 +1374,7 @@ export async function generatePt4AndEmail(form: FormData) {
   let districtId: string | null = null;
   let districtEmail = "";
   let districtName = "";
-  let districtForLetter: { name: string; street?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null =
-    null;
+  let districtForLetter: DistrictAddressInput | null = null;
   let contractor = "";
   let schoolYear = await getSetting("schoolYear");
   let multi = "";
@@ -1271,14 +1399,6 @@ export async function generatePt4AndEmail(form: FormData) {
       where: { id: entityId },
       data: { statusName: "1st review missing items" },
     });
-  } else if (entityType === "cert") {
-    const cert = await prisma.annualCert.findUniqueOrThrow({
-      where: { id: entityId },
-      include: { contractor: true },
-    });
-    contractor = cert.contractor.legalName;
-    schoolYear = cert.schoolYear;
-    type = "Annual certification";
   }
 
   const to = formString(form, "to") || districtEmail;
@@ -1416,49 +1536,22 @@ export async function sendDistrictEmail(form: FormData) {
 
 export async function askNjAi(question: string) {
   await requireSession();
-  const { NJ_KNOWLEDGE } = await import("@/lib/nj-knowledge");
-  const key = process.env.OPENAI_API_KEY;
-  if (key) {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.2,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are the Passaic County transportation office assistant. Answer only from the New Jersey transportation materials provided. Cite N.J.A.C. or N.J.S.A. sections. Use short, clear sentences for county staff. If you are not sure, say so.",
-          },
-          { role: "system", content: NJ_KNOWLEDGE },
-          { role: "user", content: question },
-        ],
-      }),
-    });
-    if (res.ok) {
-      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      return json.choices?.[0]?.message?.content || "I could not get an answer just now.";
-    }
-  }
+  const { answerNjTransportationQuestion } = await import("@/lib/nj-ask");
+  return answerNjTransportationQuestion(question);
+}
 
-  const q = question.toLowerCase();
-  const chunks = NJ_KNOWLEDGE.split("\n## ").map((c, i) => (i === 0 ? c : `## ${c}`));
-  const scored = chunks
-    .map((chunk) => {
-      const words = q.split(/\W+/).filter((w) => w.length > 3);
-      const score = words.reduce((n, w) => n + (chunk.toLowerCase().includes(w) ? 1 : 0), 0);
-      return { chunk, score };
-    })
-    .sort((a, b) => b.score - a.score);
-  const best = scored.filter((s) => s.score > 0).slice(0, 2);
-  if (!best.length) {
-    return "I can answer from N.J.A.C. 6A:27 and N.J.S.A. 18A:39. Try asking about contracts, renewals, quotes, insurance, annual certifications, or bid specs. Add an OpenAI key in .env for fuller answers.";
-  }
-  return `From the New Jersey transportation materials we keep in this office:\n\n${best.map((b) => b.chunk.trim()).join("\n\n")}`;
+function importRedirect(redirectTo: string, params: Record<string, string>): never {
+  const next = new URLSearchParams(params);
+  redirect(`${redirectTo}?${next.toString()}`);
+}
+
+function isNextRedirect(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    String((error as { digest?: string }).digest).startsWith("NEXT_REDIRECT")
+  );
 }
 
 export async function polishDistrictEmail(form: FormData) {
@@ -1517,72 +1610,126 @@ export async function polishDistrictEmail(form: FormData) {
 export async function importContractors(form: FormData) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const redirectTo = formString(form, "redirectTo") || "/contractors";
   const file = form.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("Please choose a CSV file.");
-  const text = await file.text();
-  const rows = parseCsv(text);
-  if (!rows.length) throw new Error("That file did not have any contractor rows.");
-  let created = 0;
-  for (const row of rows) {
-    const legalName = row.legalName || row.name || row.contractor || "";
-    if (!legalName) continue;
-    await prisma.contractor.create({
-      data: {
-        legalName,
-        dba: row.dba || null,
-        vendorCode: row.vendorCode || row.vendor || null,
-        ospCode: row.ospCode || row.osp || null,
-        busLocation: row.busLocation || row.location || null,
-        contactName: row.contactName || row.contact || null,
-        phone: row.phone || null,
-        email: row.email || null,
-        brcNumber: row.brcNumber || row.certificateNumber || null,
-        brcNameControl: nameControlFrom(row.brcNameControl || legalName) || null,
-        brcStatus: "Not on file",
-      },
-    });
-    created += 1;
+  const pasted = formString(form, "pasted");
+  if ((!file || file.size === 0) && !pasted) {
+    importRedirect(redirectTo, { error: "Choose the tracker file, or paste the rows from Excel." });
   }
+  let rows: Awaited<ReturnType<typeof parseSpreadsheetFile>> = [];
+  try {
+    rows = file && file.size > 0 ? await parseSpreadsheetFile(file) : parseCsvText(pasted);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "That file could not be read.";
+    importRedirect(redirectTo, {
+      error: `The tracker could not be read. ${message} Try Excel .xlsx, CSV, or paste the rows.`,
+    });
+  }
+  if (!rows.length) {
+    importRedirect(redirectTo, {
+      error: "No data rows were found. If the tracker has a title at the top, keep the header row (Bus Company, Contractor code, and the rest) and try again.",
+    });
+  }
+  const { parsed: records, headers } = describeSpreadsheet(rows);
+  if (!records.length) {
+    const found = headers.filter(Boolean).slice(0, 12).join(", ") || "none";
+    importRedirect(redirectTo, {
+      error: `A Bus Company / contractor name column was not found. Columns seen: ${found}.`,
+    });
+  }
+  const schoolYear = (await getSchoolYear()) || formString(form, "schoolYear");
+  let created = 0;
+  let updated = 0;
+  let certs = 0;
+  try {
+    const existing = await prisma.contractor.findMany({ where: { deletedAt: null } });
+
+    for (const parsed of records) {
+      const match =
+        (parsed.ospCode
+          ? existing.find((c) => c.ospCode && c.ospCode.toLowerCase() === parsed.ospCode!.toLowerCase())
+          : undefined) ??
+        existing.find((c) => c.legalName.toLowerCase() === parsed.legalName.toLowerCase());
+
+      const data = {
+        legalName: parsed.legalName,
+        dba: parsed.dba ?? match?.dba ?? null,
+        vendorCode: parsed.vendorCode ?? match?.vendorCode ?? null,
+        ospCode: parsed.ospCode ?? match?.ospCode ?? null,
+        busLocation: parsed.busLocation ?? match?.busLocation ?? null,
+        contactName: parsed.contactName ?? match?.contactName ?? null,
+        phone: parsed.phone ?? match?.phone ?? null,
+        email: parsed.email ?? match?.email ?? null,
+        brcNumber: parsed.brcNumber ?? match?.brcNumber ?? null,
+        brcNameControl: match?.brcNameControl || nameControlFrom(parsed.legalName) || null,
+        county: match?.county || parsed.county || null,
+      };
+
+      const contractor = match
+        ? await prisma.contractor.update({ where: { id: match.id }, data })
+        : await prisma.contractor.create({
+            data: { ...data, brcStatus: "Not on file" },
+          });
+      if (match) {
+        Object.assign(match, contractor);
+        updated += 1;
+      } else {
+        existing.push(contractor);
+        created += 1;
+      }
+
+      if (parsed.hasCertInfo && schoolYear) {
+        const certCounty = resolveCertCounty(parsed.county, contractor.county);
+        const cert = await prisma.annualCert.upsert({
+          where: {
+            contractorId_schoolYear_county: {
+              contractorId: contractor.id,
+              schoolYear,
+              county: certCounty,
+            },
+          },
+          update: {
+            statusName: parsed.statusName,
+            notes: parsed.notes,
+            receivedDate: parsed.receivedDate,
+            reviewedDate: parsed.reviewedDate,
+            letterDate: parsed.letterDate,
+            deletedAt: null,
+          },
+          create: {
+            contractorId: contractor.id,
+            schoolYear,
+            county: certCounty,
+            statusName: parsed.statusName,
+            notes: parsed.notes,
+            receivedDate: parsed.receivedDate,
+            reviewedDate: parsed.reviewedDate,
+            letterDate: parsed.letterDate,
+          },
+        });
+        await ensureChecklist("cert", cert.id);
+        certs += 1;
+      }
+    }
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "The database could not save those rows.";
+    importRedirect(redirectTo, { error: `The tracker was read, but saving failed. ${message}` });
+  }
+
   await writeAudit({
     userId: user.id,
     action: "create",
     entityType: "contractor",
-    summary: `Imported ${created} contractors from a list`,
+    summary: `Imported contractors from a list (${created} added, ${updated} updated, ${certs} certs)`,
   });
   revalidateAll();
-  redirect("/contractors");
-}
-
-function parseCsv(text: string) {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [] as Array<Record<string, string>>;
-  const headers = splitCsvLine(lines[0]).map((h) => h.replace(/[^a-zA-Z0-9]/g, ""));
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
-    const row: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      row[header] = (cells[i] || "").trim();
-    });
-    return row;
+  importRedirect(redirectTo, {
+    imported: String(created),
+    updated: String(updated),
+    certs: String(certs),
   });
-}
-
-function splitCsvLine(line: string) {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (const char of line) {
-    if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      out.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  out.push(current);
-  return out;
 }
 
 export async function saveAddendum(form: FormData) {

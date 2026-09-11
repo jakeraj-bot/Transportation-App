@@ -14,12 +14,28 @@ export default async function SearchPage({
   }
   const [contracts, contractors, districts, routes] = await Promise.all([
     prisma.contract.findMany({
-      where: { deletedAt: null, OR: [{ multiContractNumber: { contains: term } }, { notes: { contains: term } }] },
+      where: {
+        deletedAt: null,
+        OR: [
+          { multiContractNumber: { contains: term } },
+          { bidNumber: { contains: term } },
+          { notes: { contains: term } },
+        ],
+      },
       include: { district: true, contractor: true },
       take: 20,
     }),
     prisma.contractor.findMany({
-      where: { deletedAt: null, OR: [{ legalName: { contains: term } }, { vendorCode: { contains: term } }, { dba: { contains: term } }] },
+      where: {
+        deletedAt: null,
+        OR: [
+          { legalName: { contains: term } },
+          { vendorCode: { contains: term } },
+          { dba: { contains: term } },
+          { ospCode: { contains: term } },
+          { county: { contains: term } },
+        ],
+      },
       take: 20,
     }),
     prisma.district.findMany({
@@ -50,7 +66,7 @@ export default async function SearchPage({
       <Card>
         <h2 className="serif mb-2 text-2xl">Contractors</h2>
         {contractors.length === 0 ? <p className="text-muted">None</p> : contractors.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/contractors/${c.id}`}>{c.legalName}</Link></p>
+          <p key={c.id}><Link className="text-teal" href={`/contractors/${c.id}`}>{c.legalName}</Link>{c.county ? ` · ${c.county}` : ""}</p>
         ))}
       </Card>
       <Card>

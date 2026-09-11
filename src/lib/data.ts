@@ -122,6 +122,15 @@ export async function ensureChecklist(
   await prisma.checklistResponse.deleteMany({
     where: { entityType, entityId, itemLabel: { notIn: labels } },
   });
+  if (entityType === "cert") {
+    const cert = await prisma.annualCert.findUnique({ where: { id: entityId } });
+    if (cert?.statusName === "Approved") {
+      await prisma.checklistResponse.updateMany({
+        where: { entityType: "cert", entityId },
+        data: { checked: true },
+      });
+    }
+  }
   const responses = await prisma.checklistResponse.findMany({
     where: { entityType, entityId, itemLabel: { in: labels } },
   });

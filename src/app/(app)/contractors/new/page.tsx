@@ -7,7 +7,7 @@ export default function NewContractorPage() {
       <PageHeader
         title="Add contractor"
         backHref="/contractors"
-        hint="Vendor code, Office of Student Protection code, bus location, contact, and Business Registration Certificate."
+        hint="Vendor code, Office of Student Protection code, county, bus location, contact, and Business Registration Certificate."
       />
       <Card>
         <ContractorForm />

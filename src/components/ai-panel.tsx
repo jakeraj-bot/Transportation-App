@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { askNjAi } from "@/app/actions";
 
 export function AiPanel() {
   const [open, setOpen] = useState(false);
@@ -14,9 +13,19 @@ export function AiPanel() {
     if (!question.trim()) return;
     setBusy(true);
     try {
-      setAnswer(await askNjAi(question.trim()));
+      const res = await fetch("/api/ask-nj", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question.trim() }),
+      });
+      const data = (await res.json()) as { answer?: string; error?: string };
+      if (!res.ok) {
+        setAnswer(data.error || "I could not answer that just now. Try again, or open the current 6A:27 PDF on nj.gov.");
+        return;
+      }
+      setAnswer(data.answer || "I could not get an answer just now.");
     } catch {
-      setAnswer("I could not answer that just now. Try again, or check the N.J.A.C. 6A:27 PDF.");
+      setAnswer("I could not answer that just now. Try again, or open the current 6A:27 PDF on nj.gov.");
     } finally {
       setBusy(false);
     }
@@ -36,7 +45,9 @@ export function AiPanel() {
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <div>
               <p className="serif text-xl">NJ transportation help</p>
-              <p className="text-sm text-muted">Answers from N.J.A.C. 6A:27 and N.J.S.A. 18A:39</p>
+              <p className="text-sm text-muted">
+                Looks up the current N.J.A.C. 6A:27 PDF and official nj.gov pages
+              </p>
             </div>
             <button type="button" className="text-muted" onClick={() => setOpen(false)}>
               Close
@@ -47,7 +58,8 @@ export function AiPanel() {
               <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{answer}</div>
             ) : (
               <p className="text-muted">
-                Try: “Can a quote be renewed?” or “What must be on an insurance certificate?”
+                Try: “Can a quote be renewed?” or “What must be on an insurance certificate?” Answers come from the
+                current DOE code PDF and official NJ sites, not from a frozen office summary.
               </p>
             )}
           </div>
@@ -64,7 +76,7 @@ export function AiPanel() {
               disabled={busy}
               type="submit"
             >
-              {busy ? "Looking it up…" : "Ask"}
+              {busy ? "Looking up current NJ code…" : "Ask"}
             </button>
           </form>
         </div>

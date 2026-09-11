@@ -55,6 +55,7 @@ async function ensureContractor(
     vendorCode: string;
     ospCode: string;
     busLocation: string;
+    county?: string;
     contactName: string;
     phone: string;
     email: string;
@@ -123,6 +124,7 @@ export async function seedDemo(
     vendorCode: "31-1008",
     ospCode: "OSP-1008",
     busLocation: "Paterson",
+    county: "Passaic",
     contactName: "Alex Rivera",
     phone: "973-555-0142",
     email: "office@gardenstatebus.example",
@@ -133,6 +135,7 @@ export async function seedDemo(
     vendorCode: "31-2214",
     ospCode: "OSP-2214",
     busLocation: "Wayne",
+    county: "Passaic",
     contactName: "Pat Nguyen",
     phone: "973-555-0188",
     email: "dispatch@firstchoicetransit.example",
@@ -143,6 +146,7 @@ export async function seedDemo(
     vendorCode: "31-3099",
     ospCode: "OSP-3099",
     busLocation: "Clifton",
+    county: "Passaic",
     contactName: "Omar Hassan",
     phone: "973-555-0110",
     email: "omar@omartransport.example",
@@ -174,9 +178,9 @@ export async function seedDemo(
     { contractorId: omar.id, statusName: "Not received", notes: "[Demo] Reminder needed." },
   ]) {
     await prisma.annualCert.upsert({
-      where: { contractorId_schoolYear: { contractorId: cert.contractorId, schoolYear: year } },
+      where: { contractorId_schoolYear_county: { contractorId: cert.contractorId, schoolYear: year, county: "Passaic" } },
       update: {},
-      create: { ...cert, schoolYear: year },
+      create: { ...cert, schoolYear: year, county: "Passaic" },
     });
   }
 

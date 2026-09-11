@@ -28,6 +28,7 @@ model User {
   letters           Letter[]
   emails            EmailLog[]
   firstReviews      Contract[]       @relation("FirstReviewer")
+  secondReviews     Contract[]       @relation("SecondReviewer")
   comments          ContractComment[]
 }
 
@@ -74,11 +75,12 @@ model District {
   phone     String?
   contactName     String?
   contactPosition String?
-  street    String?
-  city      String?
-  state     String?
-  zip       String?
-  notes     String?
+  street       String?
+  city         String?
+  state        String?
+  zip          String?
+  addressBlock String?
+  notes        String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -108,6 +110,7 @@ model Contractor {
   brcStatus       String    @default("Not on file")
   brcVerifiedAt   DateTime?
   debarred        Boolean   @default(false)
+  county          String?
   incomplete      Boolean   @default(false)
   notes           String?
   createdAt       DateTime  @default(now())
@@ -124,16 +127,19 @@ model AnnualCert {
   id           String    @id @default(cuid())
   contractorId String
   schoolYear   String
+  county       String    @default("")
   statusName   String    @default("Not received")
   notes        String?
   letterDate   DateTime?
+  receivedDate DateTime?
+  reviewedDate DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
   contractor Contractor @relation(fields: [contractorId], references: [id])
 
-  @@unique([contractorId, schoolYear])
+  @@unique([contractorId, schoolYear, county])
 }
 
 model Contract {
@@ -145,6 +151,7 @@ model Contract {
   schoolYear           String
   type                 String
   multiContractNumber  String
+  bidNumber            String?
   cost                 Float?
   priorYearCost        Float?
   bondAmount           Float?
@@ -160,6 +167,7 @@ model Contract {
   endsOn               DateTime?
   sentToDistrictAt     DateTime?
   firstReviewerId      String?
+  secondReviewerId     String?
   secondReviewStartedAt DateTime?
   letterDate           DateTime?
   rationaleNeeded      Boolean   @default(false)
@@ -179,6 +187,7 @@ model Contract {
   emergencyQuote  EmergencyQuote?  @relation(fields: [emergencyQuoteId], references: [id])
   routePacket     RouteDescription? @relation("ContractPacket", fields: [routePacketId], references: [id])
   firstReviewer   User?            @relation("FirstReviewer", fields: [firstReviewerId], references: [id])
+  secondReviewer  User?            @relation("SecondReviewer", fields: [secondReviewerId], references: [id])
   routes          Route[]
   routeLinks      ContractRouteDescription[]
   extraPackets    ExtraPacket[]

@@ -13,6 +13,7 @@
     "vercel-build": "node scripts/vercel-db-setup.cjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test src/lib/letters.test.ts src/lib/cert-list.test.ts src/lib/nj-live-codes.test.ts",
     "db:push": "prisma db push",
     "db:push:prod": "prisma db push --schema prisma/schema.postgres.prisma",
     "db:seed": "tsx prisma/seed.ts",
@@ -37,6 +38,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tsx": "^4.23.12",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
