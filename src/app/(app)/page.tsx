@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button, Card, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
-import { getSchoolYear, getSetting, getStatuses } from "@/lib/data";
+import { getSchoolYear, getSetting, getStatuses, LIVE_CONTRACT } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
@@ -64,7 +64,7 @@ export default async function HomePage({
   const soon = new Date();
   soon.setDate(soon.getDate() + 30);
 
-  const whereYear = { deletedAt: null, schoolYear, ...districtFilter };
+  const whereYear = { ...LIVE_CONTRACT, schoolYear, ...districtFilter };
 
   const [statusCounts, total, late, quotes, expiredIns, openCerts, missing, secondReview, recent] =
     await Promise.all([
@@ -310,7 +310,7 @@ function RecentSection({
 
 async function countInsuranceGaps(schoolYear: string) {
   const contracts = await prisma.contract.findMany({
-    where: { deletedAt: null, schoolYear, startsOn: { not: null }, endsOn: { not: null } },
+    where: { ...LIVE_CONTRACT, schoolYear, startsOn: { not: null }, endsOn: { not: null } },
     select: { contractorId: true, districtId: true, startsOn: true, endsOn: true, district: { select: { name: true } } },
   });
   const certs = await prisma.insuranceCertificate.findMany({

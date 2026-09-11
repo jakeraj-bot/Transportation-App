@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
+import { LIVE_CONTRACT } from "@/lib/data";
 
 export default async function SearchPage({
   searchParams,
@@ -15,7 +16,7 @@ export default async function SearchPage({
   const [contracts, contractors, districts, routes] = await Promise.all([
     prisma.contract.findMany({
       where: {
-        deletedAt: null,
+        ...LIVE_CONTRACT,
         OR: [
           { multiContractNumber: { contains: term } },
           { bidNumber: { contains: term } },
@@ -43,7 +44,7 @@ export default async function SearchPage({
       take: 20,
     }),
     prisma.route.findMany({
-      where: { number: { contains: term } },
+      where: { number: { contains: term }, contract: LIVE_CONTRACT },
       include: { contract: { include: { district: true } } },
       take: 20,
     }),

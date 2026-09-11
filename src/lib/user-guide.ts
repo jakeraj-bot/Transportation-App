@@ -200,6 +200,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "On an open cert, use Search to find another bus company without going back to the list, and Next to go to the next cert in A–Z order.",
           "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
           "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
+          "You may upload the annual certification compliance letter on the cert. It is optional. Staff can open it from the cert page or the Annual certifications list. Do not upload driver or aide packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
         ],
       },
@@ -263,8 +264,18 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         ],
       },
       {
+        heading: "PDF of old contracts",
+        steps: [
+          "Open Bring in records and open Upload a PDF of old contracts.",
+          "Upload a PDF of the old contract list. The app reads date received, district, bus company, type, multi-contract number, routes, bid number, status, reviewers, date sent to district, and insurance expiration.",
+          "Those packets stay on Bring in records until you review them. They do not appear on Contracts yet.",
+          "Open Review imported contracts. Edit anything the PDF got wrong, then Approve to Contracts. Discard removes a bad import.",
+          "If the PDF names a bus company that is not in the system, the company is added in red (needs details) and an annual cert is started so you know to add that packet.",
+        ],
+      },
+      {
         heading: "Current contracts",
-        body: "Use Enter a current contract for packets already on file. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
+        body: "Use Enter a current contract for packets already on file if you are typing them yourself. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },

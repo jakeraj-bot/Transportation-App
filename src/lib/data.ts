@@ -2,6 +2,12 @@ import { CHECKLISTS, checklistDefinition } from "./checklists";
 import { prisma } from "./prisma";
 import { currentSchoolYear } from "./utils";
 
+/** Contracts that belong on the regular Contracts page (not waiting on Bring in records). */
+export const LIVE_CONTRACT = {
+  deletedAt: null,
+  importStatus: { not: "pending" },
+} as const;
+
 export async function getSetting(key: string, fallback = "") {
   const row = await prisma.setting.findUnique({ where: { key } });
   return row?.value ?? fallback;

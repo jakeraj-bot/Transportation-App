@@ -1,4 +1,5 @@
 import { NJ_KNOWLEDGE } from "./nj-knowledge";
+import { extractPdfText } from "./nj-live-codes";
 
 export type BidExtract = {
   insuranceAmount: number | null;
@@ -101,6 +102,8 @@ export function fileToText(buffer: Buffer, filename: string) {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".txt")) return buffer.toString("utf8");
   if (lower.endsWith(".pdf")) {
+    const inflated = extractPdfText(buffer);
+    if (inflated.length > 20) return inflated;
     const raw = buffer.toString("latin1");
     const bits: string[] = [];
     for (const match of raw.matchAll(/\((?:\\.|[^\\)])+\)/g)) {

@@ -4,6 +4,7 @@ import { softDelete } from "@/app/actions";
 import { ContractorForm } from "@/components/contractor-form";
 import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
+import { LIVE_CONTRACT } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import { insuranceCoverage } from "@/lib/flags";
 
@@ -14,7 +15,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
     include: {
       annualCerts: { where: { deletedAt: null } },
       insurance: { where: { deletedAt: null }, include: { district: true } },
-      contracts: { where: { deletedAt: null }, include: { district: true } },
+      contracts: { where: LIVE_CONTRACT, include: { district: true } },
     },
   });
   if (!contractor) notFound();
@@ -107,6 +108,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
               {c.county || contractor.county ? ` · ${c.county || contractor.county}` : ""}
             </Link>{" "}
             — {c.statusName}
+            {c.complianceLetterPath ? " · compliance letter on file" : ""}
           </p>
         ))}
         <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>

@@ -60,6 +60,7 @@ export function Button({
   className,
   onClick,
   disabled,
+  formAction,
 }: {
   children: React.ReactNode;
   href?: string;
@@ -68,6 +69,7 @@ export function Button({
   className?: string;
   onClick?: () => void;
   disabled?: boolean;
+  formAction?: (formData: FormData) => void | Promise<void>;
 }) {
   const styles = {
     primary: "btn-primary",
@@ -78,7 +80,7 @@ export function Button({
   const cls = cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-[15px] font-medium transition disabled:opacity-60", styles, className);
   if (href) return <Link href={href} className={cls}>{children}</Link>;
   return (
-    <button type={type} className={cls} onClick={onClick} disabled={disabled}>
+    <button type={type} className={cls} onClick={onClick} disabled={disabled} formAction={formAction}>
       {children}
     </button>
   );

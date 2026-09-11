@@ -30,6 +30,7 @@ export default async function CertsPage({
       ospCode: c.contractor.ospCode,
       vendorCode: c.contractor.vendorCode,
       county: c.county || c.contractor.county,
+      hasLetter: Boolean(c.complianceLetterPath),
     }))
   );
   return (
