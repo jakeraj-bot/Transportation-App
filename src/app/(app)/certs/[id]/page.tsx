@@ -53,6 +53,7 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
       ospCode: row.contractor.ospCode,
       vendorCode: row.contractor.vendorCode,
       county: row.county || row.contractor.county,
+      hasLetter: Boolean(row.complianceLetterPath),
     }))
   );
   const { next } = adjacentCerts(yearRows, cert.id);
@@ -98,6 +99,14 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
             <Link className="text-teal" href={`/certs/new?contractorId=${contractor.id}`}>
               Add a cert for another county
             </Link>
+            {cert.complianceLetterPath ? (
+              <>
+                {" · "}
+                <a className="text-teal" href={`/api/files?path=${encodeURIComponent(cert.complianceLetterPath)}`}>
+                  Open the compliance letter
+                </a>
+              </>
+            ) : null}
           </p>
         </div>
         <CertForm
@@ -112,6 +121,7 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
             notes: cert.notes,
             receivedDate: toInputDate(cert.receivedDate),
             reviewedDate: toInputDate(cert.reviewedDate),
+            hasLetter: Boolean(cert.complianceLetterPath),
           }}
         />
       </CollapsibleSection>
@@ -122,6 +132,15 @@ export default async function CertDetailPage({ params }: { params: Promise<{ id:
         <p className="mb-4">
           <StatusChip name={cert.statusName} />
         </p>
+        {cert.complianceLetterPath ? (
+          <p className="mb-4">
+            <a className="text-teal" href={`/api/files?path=${encodeURIComponent(cert.complianceLetterPath)}`}>
+              Open the uploaded compliance letter
+            </a>
+          </p>
+        ) : (
+          <p className="mb-4 text-sm text-muted">No compliance letter uploaded. You can add one in the Contractor section above if you have it. It is not required.</p>
+        )}
         <LetterButtons kind="cert" id={cert.id} />
       </CollapsibleSection>
       <CollapsibleSection title="Checklist" hint={`${checked} of ${checklist.length} checked`}>

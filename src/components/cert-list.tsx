@@ -146,6 +146,7 @@ export function CertList({
                 <span className="text-muted"> · {c.ospCode || c.vendorCode || "no code"}</span>
                 {c.county ? <span className="text-muted"> · {c.county}</span> : null}
                 {c.receivedDateLabel !== "—" ? <span className="text-muted"> · received {c.receivedDateLabel}</span> : null}
+                {c.hasLetter ? <span className="text-muted"> · letter on file</span> : null}
                 {c.notes ? <span className="mt-1 block text-sm text-muted">{c.notes}</span> : null}
               </span>
               <StatusChip name={c.statusName} color={c.statusColor} />

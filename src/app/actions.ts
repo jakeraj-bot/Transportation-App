@@ -10,7 +10,12 @@ import { parseHomePrefs } from "@/lib/home-prefs";
 import { sanitizeStatusColor } from "@/lib/status-color";
 import { parseRoutePacket } from "@/lib/extract-routes";
 import { writeAudit } from "@/lib/audit";
-import { ensureChecklist, getSchoolYear, getSetting, refreshContractFlags } from "@/lib/data";
+import { ensureChecklist, getSchoolYear, getSetting, LIVE_CONTRACT, refreshContractFlags } from "@/lib/data";
+import {
+  extractCurrentContractsFromFile,
+  mapImportedContractStatus,
+  matchByName,
+} from "@/lib/extract-current-contracts";
 import {
   contractTypeLabel,
   letterTemplateLookups,
@@ -350,16 +355,93 @@ export async function saveContract(form: FormData) {
   redirect(`/contracts/${row.id}`);
 }
 
-export async function saveCurrentContract(form: FormData) {
-  const user = await requireSuperAdmin();
-  const schoolYear = formString(form, "schoolYear");
-  const type = mapContractType(formString(form, "type"));
-  const defaults = schoolYearDates(schoolYear);
-  const routes = splitRoutes(formString(form, "routes"));
-  const statusName = formString(form, "statusName") || "Need Review";
+type CurrentContractPayload = {
+  schoolYear: string;
+  type: string;
+  districtId: string;
+  contractorId: string;
+  multiContractNumber: string;
+  bidNumber: string | null;
+  receivedDate: Date | null;
+  statusName: string;
+  firstReviewerId: string | null;
+  secondReviewerId: string | null;
+  sentToDistrictAt: Date | null;
+  notes: string | null;
+  importStatus: "pending" | "live";
+};
+
+async function applyInsuranceExpiration(
+  contractorId: string,
+  districtId: string,
+  schoolYear: string,
+  insuranceExpiresAt: Date
+) {
+  const district = await prisma.district.findUnique({ where: { id: districtId } });
+  const existing = await prisma.insuranceCertificate.findFirst({
+    where: { contractorId, districtId, deletedAt: null },
+    orderBy: { expiresAt: "desc" },
+  });
+  const expired = insuranceExpiresAt < new Date();
+  const insData = {
+    schoolYear,
+    expiresAt: insuranceExpiresAt,
+    namedDistrict: district?.name ?? null,
+    statusName: expired ? "Needs update" : "On file",
+  };
+  if (existing) {
+    await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
+  } else {
+    await prisma.insuranceCertificate.create({
+      data: { contractorId, districtId, ...insData },
+    });
+  }
+}
+
+async function persistCurrentContract(opts: {
+  id?: string;
+  userId: string;
+  payload: CurrentContractPayload;
+  routes: string[];
+  insuranceExpiresAt: Date | null;
+  auditSummary: string;
+}) {
+  const existing = opts.id
+    ? await prisma.contract.findFirst({ where: { id: opts.id, deletedAt: null } })
+    : null;
+  if (opts.id && !existing) throw new Error("That contract was not found.");
+  const defaults = schoolYearDates(opts.payload.schoolYear);
+  const data = {
+    ...opts.payload,
+    secondReviewStartedAt:
+      opts.payload.statusName === "2nd review"
+        ? existing?.secondReviewStartedAt ?? new Date()
+        : existing?.secondReviewStartedAt ?? null,
+    startsOn: existing?.startsOn ?? defaults.start,
+    endsOn: existing?.endsOn ?? defaults.end,
+  };
+  const row = opts.id
+    ? await prisma.contract.update({ where: { id: opts.id }, data })
+    : await prisma.contract.create({ data });
+  await syncRoutes(row.id, opts.routes);
+  if (opts.insuranceExpiresAt) {
+    await applyInsuranceExpiration(row.contractorId, row.districtId, row.schoolYear, opts.insuranceExpiresAt);
+  }
+  await ensureChecklist("contract", row.id, row.type);
+  await refreshContractFlags(row.id);
+  await writeAudit({
+    userId: opts.userId,
+    action: opts.id ? "update" : "create",
+    entityType: "contract",
+    entityId: row.id,
+    summary: opts.auditSummary,
+  });
+  return row;
+}
+
+async function contractorIdFromCurrentForm(form: FormData) {
   const newContractorName = formString(form, "newContractorName");
   let contractorId = formString(form, "contractorId");
-
   if (!contractorId && newContractorName) {
     const created = await prisma.contractor.create({
       data: {
@@ -371,69 +453,264 @@ export async function saveCurrentContract(form: FormData) {
     contractorId = created.id;
   }
   if (!contractorId) throw new Error("Choose a bus company or type a new name.");
+  return contractorId;
+}
 
-  const districtId = formString(form, "districtId");
-  const firstReviewerId = formString(form, "firstReviewerId") || null;
-  const secondReviewerId = formString(form, "secondReviewerId") || null;
-  const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
-  const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
+function payloadFromCurrentForm(
+  form: FormData,
+  contractorId: string,
+  importStatus: "pending" | "live",
+  fallbackNotes: string
+): CurrentContractPayload {
+  return {
+    schoolYear: formString(form, "schoolYear"),
+    type: mapContractType(formString(form, "type")),
+    districtId: formString(form, "districtId"),
+    contractorId,
+    multiContractNumber: formString(form, "multiContractNumber"),
+    bidNumber: formString(form, "bidNumber") || null,
+    receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
+    statusName: formString(form, "statusName") || "Need Review",
+    firstReviewerId: formString(form, "firstReviewerId") || null,
+    secondReviewerId: formString(form, "secondReviewerId") || null,
+    sentToDistrictAt: parseFlexibleDate(formString(form, "sentToDistrictAt")),
+    notes: formString(form, "notes") || fallbackNotes,
+    importStatus,
+  };
+}
 
-  const row = await prisma.contract.create({
-    data: {
-      districtId,
-      contractorId,
-      schoolYear,
-      type,
-      multiContractNumber: formString(form, "multiContractNumber"),
-      bidNumber: formString(form, "bidNumber") || null,
-      receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
-      statusName,
-      firstReviewerId,
-      secondReviewerId,
-      sentToDistrictAt,
-      secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
-      startsOn: defaults.start,
-      endsOn: defaults.end,
-      notes: formString(form, "notes") || "Entered from the current-system list.",
-    },
-  });
-  await syncRoutes(row.id, routes);
-
-  if (insuranceExpiresAt) {
-    const district = await prisma.district.findUnique({ where: { id: districtId } });
-    const existing = await prisma.insuranceCertificate.findFirst({
-      where: { contractorId, districtId, deletedAt: null },
-      orderBy: { expiresAt: "desc" },
-    });
-    const expired = insuranceExpiresAt < new Date();
-    const insData = {
-      schoolYear,
-      expiresAt: insuranceExpiresAt,
-      namedDistrict: district?.name ?? null,
-      statusName: expired ? "Needs update" : "On file",
-    };
-    if (existing) {
-      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
-    } else {
-      await prisma.insuranceCertificate.create({
-        data: { contractorId, districtId, ...insData },
-      });
-    }
-  }
-
-  await ensureChecklist("contract", row.id, row.type);
-  await refreshContractFlags(row.id);
-  await writeAudit({
+export async function saveCurrentContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const contractorId = await contractorIdFromCurrentForm(form);
+  const row = await persistCurrentContract({
     userId: user.id,
-    action: "create",
-    entityType: "contract",
-    entityId: row.id,
-    summary: `Entered current contract ${row.multiContractNumber}`,
+    payload: payloadFromCurrentForm(
+      form,
+      contractorId,
+      "live",
+      "Entered from the current-system list."
+    ),
+    routes: splitRoutes(formString(form, "routes")),
+    insuranceExpiresAt: parseFlexibleDate(formString(form, "insuranceExpiresAt")),
+    auditSummary: `Entered current contract ${formString(form, "multiContractNumber")}`,
   });
   revalidateAll();
   redirect(
     `/settings/current-records?saved=contract&number=${encodeURIComponent(row.multiContractNumber)}`
   );
+}
+
+async function pendingContractFromForm(form: FormData) {
+  const id = formString(form, "id");
+  const existing = await prisma.contract.findFirst({
+    where: { id, deletedAt: null, importStatus: "pending" },
+  });
+  if (!existing) throw new Error("That imported contract was not found.");
+  return existing;
+}
+
+export async function savePendingImportContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const existing = await pendingContractFromForm(form);
+  const contractorId = await contractorIdFromCurrentForm(form);
+  const row = await persistCurrentContract({
+    id: existing.id,
+    userId: user.id,
+    payload: payloadFromCurrentForm(form, contractorId, "pending", existing.notes || "Brought in from a PDF. Review before sending to Contracts."),
+    routes: splitRoutes(formString(form, "routes")),
+    insuranceExpiresAt: parseFlexibleDate(formString(form, "insuranceExpiresAt")),
+    auditSummary: `Updated imported contract ${formString(form, "multiContractNumber")}`,
+  });
+  revalidateAll();
+  redirect(
+    `/settings/current-records?saved=pending&number=${encodeURIComponent(row.multiContractNumber)}`
+  );
+}
+
+export async function approveImportedContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const existing = await pendingContractFromForm(form);
+  const contractorId = await contractorIdFromCurrentForm(form);
+  const row = await persistCurrentContract({
+    id: existing.id,
+    userId: user.id,
+    payload: payloadFromCurrentForm(form, contractorId, "live", existing.notes || "Brought in from a PDF."),
+    routes: splitRoutes(formString(form, "routes")),
+    insuranceExpiresAt: parseFlexibleDate(formString(form, "insuranceExpiresAt")),
+    auditSummary: `Approved imported contract ${formString(form, "multiContractNumber")} onto Contracts`,
+  });
+  revalidateAll();
+  redirect(
+    `/settings/current-records?approved=1&number=${encodeURIComponent(row.multiContractNumber)}`
+  );
+}
+
+export async function discardImportedContract(form: FormData) {
+  const user = await requireSuperAdmin();
+  const existing = await pendingContractFromForm(form);
+  await prisma.contract.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+  await writeAudit({
+    userId: user.id,
+    action: "delete",
+    entityType: "contract",
+    entityId: existing.id,
+    summary: `Discarded imported contract ${existing.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(
+    `/settings/current-records?discarded=1&number=${encodeURIComponent(existing.multiContractNumber)}`
+  );
+}
+
+export async function importContractsFromPdf(form: FormData) {
+  const user = await requireSuperAdmin();
+  const file = form.get("file") as File | null;
+  if (!file || file.size === 0) {
+    importRedirect("/settings/current-records", { error: "Choose a PDF of the old contracts." });
+  }
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".pdf") && !name.endsWith(".txt")) {
+    importRedirect("/settings/current-records", {
+      error: "Upload a PDF of the old contracts (a .txt file of the same information also works).",
+    });
+  }
+  let extracted: Awaited<ReturnType<typeof extractCurrentContractsFromFile>> = [];
+  try {
+    extracted = await extractCurrentContractsFromFile(file);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "That file could not be read.";
+    importRedirect("/settings/current-records", {
+      error: `The PDF could not be read. ${message}`,
+    });
+  }
+  if (!extracted.length) {
+    importRedirect("/settings/current-records", {
+      error:
+        "No contracts could be read from that PDF. Try a file that lists Date received, District, Bus company, and Multi-contract number for each packet, or enter them below.",
+    });
+  }
+
+  const schoolYear = (await getSchoolYear()) || formString(form, "schoolYear");
+  const [districts, contractorRows, reviewers] = await Promise.all([
+    prisma.district.findMany({ where: { deletedAt: null } }),
+    prisma.contractor.findMany({ where: { deletedAt: null } }),
+    prisma.user.findMany({ where: { deletedAt: null, active: true } }),
+  ]);
+  const contractors = [...contractorRows];
+  let imported = 0;
+  let contractorsAdded = 0;
+  let stubCerts = 0;
+  const skipReasons: string[] = [];
+
+  try {
+    for (const row of extracted) {
+      const district = matchByName(row.districtName, districts, (item) => item.name);
+      if (!district) {
+        skipReasons.push(
+          `${row.multiContractNumber || row.busCompany || "A row"}: district “${row.districtName || "blank"}” is not in the system.`
+        );
+        continue;
+      }
+      if (!row.busCompany) {
+        skipReasons.push(`${row.multiContractNumber || district.name}: no bus company name.`);
+        continue;
+      }
+      let contractor =
+        matchByName(row.busCompany, contractors, (item) => item.legalName) ||
+        matchByName(row.busCompany, contractors, (item) => item.dba);
+      if (!contractor) {
+        contractor = await prisma.contractor.create({
+          data: {
+            legalName: row.busCompany,
+            county: matchNjCounty(row.county),
+            incomplete: true,
+            brcStatus: "Not on file",
+            brcNameControl: nameControlFrom(row.busCompany) || null,
+          },
+        });
+        contractors.push(contractor);
+        contractorsAdded += 1;
+        const certCounty = resolveCertCounty(row.county, contractor.county);
+        const cert = await prisma.annualCert.upsert({
+          where: {
+            contractorId_schoolYear_county: {
+              contractorId: contractor.id,
+              schoolYear,
+              county: certCounty,
+            },
+          },
+          update: {},
+          create: {
+            contractorId: contractor.id,
+            schoolYear,
+            county: certCounty,
+            statusName: "Not received",
+            notes: "Added when this bus company was brought in from a PDF. Add the annual certification.",
+          },
+        });
+        await ensureChecklist("cert", cert.id);
+        stubCerts += 1;
+      }
+      const number = row.multiContractNumber || `PDF-${imported + skipReasons.length + 1}`;
+      const firstReviewer = row.firstReviewer
+        ? matchByName(row.firstReviewer, reviewers, (item) => item.name)
+        : undefined;
+      const secondReviewer = row.secondReviewer
+        ? matchByName(row.secondReviewer, reviewers, (item) => item.name)
+        : undefined;
+      await persistCurrentContract({
+        userId: user.id,
+        payload: {
+          schoolYear,
+          type: mapContractType(row.type),
+          districtId: district.id,
+          contractorId: contractor.id,
+          multiContractNumber: number,
+          bidNumber: row.bidNumber,
+          receivedDate: parseFlexibleDate(row.dateReceived),
+          statusName: mapImportedContractStatus(row.status),
+          firstReviewerId: firstReviewer?.id ?? null,
+          secondReviewerId: secondReviewer?.id ?? null,
+          sentToDistrictAt: parseFlexibleDate(row.dateSentToDistrict),
+          notes: "Brought in from a PDF. Review every field before sending to Contracts.",
+          importStatus: "pending",
+        },
+        routes: splitRoutes(row.routeNumbers),
+        insuranceExpiresAt: parseFlexibleDate(row.insuranceExpiration),
+        auditSummary: `Imported pending contract ${number} from a PDF`,
+      });
+      imported += 1;
+    }
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error ? error.message : "The database could not save those contracts.";
+    importRedirect("/settings/current-records", {
+      error: `The PDF was read, but saving failed. ${message}`,
+    });
+  }
+
+  if (!imported) {
+    importRedirect("/settings/current-records", {
+      error: skipReasons.join(" ") || "Nothing was brought in from that PDF.",
+    });
+  }
+
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "contract",
+    summary: `Imported ${imported} contract${imported === 1 ? "" : "s"} from a PDF (${contractorsAdded} new bus compan${contractorsAdded === 1 ? "y" : "ies"})`,
+  });
+  revalidateAll();
+  importRedirect("/settings/current-records", {
+    importedPdf: String(imported),
+    newContractors: String(contractorsAdded),
+    stubCerts: String(stubCerts),
+    ...(skipReasons.length
+      ? { skipped: String(skipReasons.length), skippedDetail: skipReasons.slice(0, 4).join(" ") }
+      : {}),
+  });
 }
 
 export async function saveCert(form: FormData) {
@@ -476,6 +753,13 @@ export async function saveCert(form: FormData) {
       );
     }
     throw err;
+  }
+  const letter = form.get("complianceLetter") as File | null;
+  if (letter && letter.size > 0) {
+    const fileName = `${Date.now()}-${letter.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const complianceLetterPath = `certs/${fileName}`;
+    await saveStoredFile(complianceLetterPath, Buffer.from(await letter.arrayBuffer()));
+    row = await prisma.annualCert.update({ where: { id: row.id }, data: { complianceLetterPath } });
   }
   await ensureChecklist("cert", row.id);
   await writeAudit({
@@ -1065,7 +1349,7 @@ export async function generateContractLetter(form: FormData) {
   );
   if (!ids.length) throw new Error("Choose at least one contract.");
   const contracts = await prisma.contract.findMany({
-    where: { id: { in: ids }, deletedAt: null },
+    where: { id: { in: ids }, ...LIVE_CONTRACT },
     include: {
       district: true,
       contractor: true,
@@ -1246,7 +1530,7 @@ export async function generatePrintPacket(form: FormData) {
   const ids = Array.from(new Set(form.getAll("ids").map((value) => String(value ?? "").trim()).filter(Boolean)));
   if (!ids.length) throw new Error("Choose at least one contract.");
   const contracts = await prisma.contract.findMany({
-    where: { id: { in: ids }, deletedAt: null },
+    where: { id: { in: ids }, ...LIVE_CONTRACT },
     include: { district: true, contractor: true, routes: true },
   });
   if (!contracts.length) throw new Error("Those contracts could not be found.");

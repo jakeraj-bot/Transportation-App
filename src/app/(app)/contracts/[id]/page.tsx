@@ -11,7 +11,7 @@ import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } fr
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
-import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
+import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, LIVE_CONTRACT } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
@@ -67,14 +67,14 @@ export default async function ContractDetailPage({
                 id: { not: contract.id },
                 type: "joint",
                 schoolYear: contract.schoolYear,
-                deletedAt: null,
+                ...LIVE_CONTRACT,
               }
             : {
                 id: { not: contract.id },
                 districtId: contract.districtId,
                 type: contract.type,
                 schoolYear: contract.schoolYear,
-                deletedAt: null,
+                ...LIVE_CONTRACT,
               },
         include: { contractor: true, hostDistrict: true },
         orderBy: { multiContractNumber: "asc" },
@@ -128,7 +128,7 @@ export default async function ContractDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={contract.multiContractNumber}
-        backHref="/contracts"
+        backHref={contract.importStatus === "pending" ? "/settings/current-records" : "/contracts"}
         hint={`${contract.district.name} · ${contract.contractor.legalName} · ${contractTypeLabel(contract.type)}`}
         actions={
           <>
@@ -137,6 +137,20 @@ export default async function ContractDetailPage({
           </>
         }
       />
+
+      {contract.importStatus === "pending" ? (
+        <Flag tone="amber">
+          This packet is still on Bring in records. It will not appear on Contracts until you review it and approve it.
+          {isSuperAdmin(session?.role) ? (
+            <>
+              {" "}
+              <Link className="underline" href="/settings/current-records">
+                Open Bring in records
+              </Link>
+            </>
+          ) : null}
+        </Flag>
+      ) : null}
 
       {linked.addendumLinked ? (
         <Flag tone="sage">

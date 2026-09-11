@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { saveInsurance, softDelete } from "@/app/actions";
 import { SimpleEmailForm } from "@/components/client-forms";
 import { Button, Card, Field, Flag, PageHeader, inputClass } from "@/components/ui";
-import { activeContractors, activeDistricts } from "@/lib/data";
+import { activeContractors, activeDistricts, LIVE_CONTRACT } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +19,7 @@ export default async function InsuranceDetailPage({ params }: { params: Promise<
     activeContractors(),
     activeDistricts(),
     prisma.contract.findMany({
-      where: { contractorId: row.contractorId, districtId: row.districtId, deletedAt: null },
+      where: { contractorId: row.contractorId, districtId: row.districtId, ...LIVE_CONTRACT },
     }),
   ]);
   const gaps = contracts

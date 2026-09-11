@@ -1,7 +1,7 @@
 import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { ContractList } from "@/components/contract-list";
 import { prisma } from "@/lib/prisma";
-import { getSchoolYear, getStatuses } from "@/lib/data";
+import { getSchoolYear, getStatuses, LIVE_CONTRACT } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { hoursInSecondReview } from "@/lib/flags";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
@@ -15,7 +15,7 @@ export default async function ContractsPage({
   const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
-  const where: Record<string, unknown> = { deletedAt: null, schoolYear };
+  const where: Record<string, unknown> = { ...LIVE_CONTRACT, schoolYear };
   if (showMine) where.districtId = { in: assigned };
   if (flag === "late") where.rationaleNeeded = true;
   if (flag === "meeting") where.nextMeetingFlag = true;

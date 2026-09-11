@@ -23,6 +23,12 @@ describe("pdfContentToText", () => {
     const text = pdfContentToText("(See 6A:27-9.9\\(c\\) and \\(f\\)) Tj");
     assert.equal(text, "See 6A:27-9.9(c) and (f)");
   });
+
+  it("reads hex-encoded Tj strings used by many saved PDFs", () => {
+    const hex = Buffer.from("Date received: 08/15/2025", "latin1").toString("hex");
+    const text = pdfContentToText(`<${hex}> Tj`);
+    assert.equal(text, "Date received: 08/15/2025");
+  });
 });
 
 describe("htmlToText", () => {

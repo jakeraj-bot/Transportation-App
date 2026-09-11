@@ -38,21 +38,42 @@ function decodePdfLiteral(raw: string) {
     .replace(/\\(\d{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
 }
 
+function decodePdfHex(hex: string) {
+  const clean = hex.replace(/\s+/g, "");
+  if (clean.length % 2 !== 0) return "";
+  const bytes = Buffer.from(clean, "hex");
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return bytes.subarray(2).swap16().toString("utf16le");
+  }
+  return bytes.toString("latin1");
+}
+
+function decodePdfStringToken(token: string) {
+  if (token.startsWith("(") && token.endsWith(")")) {
+    return decodePdfLiteral(token.slice(1, -1));
+  }
+  if (token.startsWith("<") && token.endsWith(">")) {
+    return decodePdfHex(token.slice(1, -1));
+  }
+  return "";
+}
+
 /** Turn a PDF content stream (Tj / TJ operators) into readable text. */
 export function pdfContentToText(content: string) {
   const parts: string[] = [];
-  const tj = /\((?:\\.|[^\\)])*\)\s*Tj/g;
+  const tj = /(?:\((?:\\.|[^\\)])*\)|<[^>]*>)\s*Tj/g;
   const tjArr = /\[([\s\S]*?)\]\s*TJ/g;
   let match: RegExpExecArray | null;
   while ((match = tj.exec(content))) {
-    parts.push(decodePdfLiteral(match[0].replace(/\s*Tj$/, "").slice(1, -1)));
+    const token = match[0].replace(/\s*Tj$/, "");
+    parts.push(decodePdfStringToken(token));
   }
   while ((match = tjArr.exec(content))) {
-    const inner = match[1].matchAll(/\((?:\\.|[^\\)])*\)/g);
-    for (const piece of inner) parts.push(decodePdfLiteral(piece[0].slice(1, -1)));
+    const inner = match[1].matchAll(/\((?:\\.|[^\\)])*\)|<[^>]*>/g);
+    for (const piece of inner) parts.push(decodePdfStringToken(piece[0]));
     parts.push("\n");
   }
-  return parts.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return parts.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export function extractPdfText(buffer: Buffer) {

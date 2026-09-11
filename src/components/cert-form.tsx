@@ -24,9 +24,10 @@ export function CertForm({
     schoolYear: string;
     county: string | null;
     statusName: string;
-    notes: string | null;
+      notes: string | null;
     receivedDate: string;
     reviewedDate: string;
+    hasLetter?: boolean;
   };
   defaultContractorId?: string;
 }) {
@@ -96,6 +97,16 @@ export function CertForm({
         hint="If approved, the date the compliance letter went out. If pending, why it is pending."
       >
         <textarea className={inputClass} name="notes" rows={3} defaultValue={cert?.notes ?? ""} />
+      </Field>
+      <Field
+        label="Compliance letter (optional)"
+        className="md:col-span-2"
+        hint="Upload the annual certification compliance letter if you have it. Staff can open it from this cert. You do not have to add it."
+      >
+        {cert?.hasLetter ? (
+          <p className="mb-2 text-sm text-muted">A letter is already on file. Upload a new file only if you need to replace it.</p>
+        ) : null}
+        <input className={inputClass} type="file" name="complianceLetter" accept=".pdf,.doc,.docx,image/*" />
       </Field>
       <div>
         <Button type="submit">Save cert</Button>

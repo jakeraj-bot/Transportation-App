@@ -9,6 +9,7 @@ export type CertListRow = {
   ospCode: string | null;
   vendorCode: string | null;
   county: string | null;
+  hasLetter?: boolean;
 };
 
 export type CertListFilters = {
@@ -45,6 +46,7 @@ export function filterCerts(rows: CertListRow[], filters: CertListFilters) {
       row.county,
       row.notes,
       row.statusName,
+      row.hasLetter ? "compliance letter" : "",
     ]
       .filter(Boolean)
       .join(" ")

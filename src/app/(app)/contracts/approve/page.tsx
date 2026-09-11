@@ -1,6 +1,6 @@
 import { BatchContractPicker } from "@/components/batch-contract-picker";
 import { EmptyState, PageHeader } from "@/components/ui";
-import { getSchoolYear } from "@/lib/data";
+import { getSchoolYear, LIVE_CONTRACT } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ export default async function ApproveContractsPage() {
   const schoolYear = await getSchoolYear();
   const rows = await prisma.contract.findMany({
     where: {
-      deletedAt: null,
+      ...LIVE_CONTRACT,
       schoolYear,
       statusName: { notIn: BLOCKED },
     },

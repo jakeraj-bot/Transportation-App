@@ -1,13 +1,13 @@
 import { BatchContractPicker } from "@/components/batch-contract-picker";
 import { EmptyState, PageHeader } from "@/components/ui";
-import { getSchoolYear } from "@/lib/data";
+import { getSchoolYear, LIVE_CONTRACT } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { contractTypeLabel } from "@/lib/utils";
 
 export default async function PrintLabelsPage() {
   const schoolYear = await getSchoolYear();
   const rows = await prisma.contract.findMany({
-    where: { deletedAt: null, schoolYear, labelsPrintedAt: null },
+    where: { ...LIVE_CONTRACT, schoolYear, labelsPrintedAt: null },
     include: { district: true, contractor: true, routes: true },
     orderBy: [{ type: "asc" }, { multiContractNumber: "asc" }],
   });

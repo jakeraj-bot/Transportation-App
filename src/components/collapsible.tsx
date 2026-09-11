@@ -48,12 +48,14 @@ export function CollapsibleSection({
   children,
   rememberAs,
   defaultOpen = false,
+  danger = false,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
   rememberAs?: string;
   defaultOpen?: boolean;
+  danger?: boolean;
 }) {
   const ref = useRememberOpen(rememberAs ?? title, defaultOpen);
   return (
@@ -61,8 +63,8 @@ export function CollapsibleSection({
       <details ref={ref}>
         <summary className="collapse-summary flex cursor-pointer items-start justify-between gap-4 px-6 py-5">
           <div>
-            <h2 className="serif text-2xl">{title}</h2>
-            {hint ? <p className="mt-1 text-sm text-muted">{hint}</p> : null}
+            <h2 className={`serif text-2xl ${danger ? "text-rose" : ""}`}>{title}</h2>
+            {hint ? <p className={`mt-1 text-sm ${danger ? "text-rose" : "text-muted"}`}>{hint}</p> : null}
           </div>
           <Chevron />
         </summary>
@@ -76,18 +78,24 @@ export function CollapsibleBlock({
   title,
   hint,
   children,
+  rememberAs,
+  defaultOpen = false,
+  danger = false,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
+  rememberAs?: string;
+  defaultOpen?: boolean;
+  danger?: boolean;
 }) {
-  const ref = useRememberOpen(title);
+  const ref = useRememberOpen(rememberAs ?? title, defaultOpen);
   return (
-    <details ref={ref} className="overflow-hidden rounded-xl border border-line">
+    <details ref={ref} className={`overflow-hidden rounded-xl border ${danger ? "border-rose" : "border-line"}`}>
       <summary className="collapse-summary flex cursor-pointer items-start justify-between gap-3 px-4 py-3">
         <div>
-          <p className="font-medium">{title}</p>
-          {hint ? <p className="text-sm text-muted">{hint}</p> : null}
+          <p className={`font-medium ${danger ? "text-rose" : ""}`}>{title}</p>
+          {hint ? <p className={`text-sm ${danger ? "text-rose" : "text-muted"}`}>{hint}</p> : null}
         </div>
         <Chevron />
       </summary>
