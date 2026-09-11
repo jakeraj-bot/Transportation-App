@@ -43,12 +43,14 @@ export function CollapsibleSection({
   title,
   hint,
   children,
+  rememberAs,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
+  rememberAs?: string;
 }) {
-  const ref = useRememberOpen(title);
+  const ref = useRememberOpen(rememberAs ?? title);
   return (
     <Card className="overflow-hidden p-0">
       <details ref={ref}>

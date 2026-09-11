@@ -286,6 +286,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Users",
         body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts.",
+        note: "On Users and permissions, click a person’s name to open their account. Click it again to close it, so you do not have to scroll past every form.",
       },
       {
         heading: "Statuses and letters",
