@@ -78,12 +78,12 @@ export default async function CurrentRecordsPage({
           <li><strong>Compliance Status</strong> — approved, pending, need review, and so on</li>
           <li><strong>Status</strong> — notes: if approved, the date the compliance letter went out; if pending, why it is pending</li>
         </ul>
-        <form action={importContractors} encType="multipart/form-data" className="space-y-4">
+        <form action={importContractors} className="space-y-4">
           <input type="hidden" name="redirectTo" value="/settings/current-records" />
           <Field label="Tracker file" hint="Excel (.xlsx) or CSV. Macros (.xlsm) are fine too.">
             <input className={inputClass} type="file" name="file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,text/csv" />
           </Field>
-          <Field label="Or paste from Excel" hint="Copy the header row and the contractor rows, then paste here.">
+          <Field label="Or paste from Excel" hint="Paste the header row, then each contractor on its own line. You can also upload the Excel file above.">
             <textarea className={inputClass} name="pasted" rows={6} placeholder="Contractor code	Bus Company	County	Date Received	Date reviewed	Compliance Status	Status" />
           </Field>
           <Button type="submit">Upload tracker</Button>

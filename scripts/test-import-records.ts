@@ -51,6 +51,15 @@ const titledRow = parseContractorImportRow(titled[0]);
 assert.equal(titledRow?.legalName, "Garden State Bus Company");
 assert.equal(titledRow?.ospCode, "OSP-1008");
 
+const oneLine = parseCsvText(
+  "Contractor code\tBus Company\tCounty\tDate Received\tDate reviewed\tCompliance Status\tStatus\tOSP-TEST1\tTest County Bus Co\tPassaic\t8/1/2026\t8/4/2026\tApproved\tCompliance letter sent 8/5/2026"
+);
+const oneLineRow = parseContractorImportRow(oneLine[0]);
+assert.equal(oneLineRow?.legalName, "Test County Bus Co");
+assert.equal(oneLineRow?.ospCode, "OSP-TEST1");
+assert.equal(oneLineRow?.county, "Passaic");
+assert.equal(oneLineRow?.statusName, "Approved");
+
 const fuzzy = parseContractorImportRow({
   "Contractor / Bus Company": "Wayne Coach",
   "OSP Code": "OSP-55",

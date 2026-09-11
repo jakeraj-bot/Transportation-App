@@ -166,6 +166,30 @@ function headerScore(cells: Array<string | number | Date | null | undefined>) {
   return keys.size;
 }
 
+function notesHeaderIndex(cells: Array<string | number | Date | null | undefined>) {
+  return cells.findIndex((value) => {
+    const raw = formatCell(value);
+    const key = classifyHeader(raw);
+    const name = normalizeHeader(raw);
+    return key === "notes" && (name === "status" || name.includes("note") || name.includes("comment"));
+  });
+}
+
+function lineToRow(
+  headers: string[],
+  line: Array<string | number | Date | null | undefined>
+): SpreadsheetRow | null {
+  const row: SpreadsheetRow = {};
+  let any = false;
+  headers.forEach((header, i) => {
+    if (!header) return;
+    const value = formatCell(line[i]);
+    row[header] = value;
+    if (value) any = true;
+  });
+  return any ? row : null;
+}
+
 function matrixToRows(matrix: Array<Array<string | number | Date | null | undefined>>): SpreadsheetRow[] {
   if (!matrix.length) return [];
   let bestIndex = 0;
@@ -179,22 +203,25 @@ function matrixToRows(matrix: Array<Array<string | number | Date | null | undefi
     }
   }
   if (bestScore < 1) return [];
-  const headers = (matrix[bestIndex] ?? []).map((value) => formatCell(value));
-  return matrix.slice(bestIndex + 1).flatMap((line) => {
-    const row: SpreadsheetRow = {};
-    let any = false;
-    headers.forEach((header, i) => {
-      if (!header) return;
-      const value = formatCell(line[i]);
-      row[header] = value;
-      if (value) any = true;
-    });
-    return any ? [row] : [];
+  const headerLine = [...(matrix[bestIndex] ?? [])];
+  const notesAt = notesHeaderIndex(headerLine);
+  let extraOnHeader: Array<string | number | Date | null | undefined> = [];
+  if (notesAt >= 0 && headerLine.length > notesAt + 1) {
+    extraOnHeader = headerLine.slice(notesAt + 1);
+    headerLine.length = notesAt + 1;
+  }
+  const headers = headerLine.map((value) => formatCell(value));
+  const dataLines = matrix.slice(bestIndex + 1);
+  if (extraOnHeader.some((value) => formatCell(value))) dataLines.unshift(extraOnHeader);
+  return dataLines.flatMap((line) => {
+    const row = lineToRow(headers, line);
+    return row ? [row] : [];
   });
 }
 
 export function parseCsvText(text: string): SpreadsheetRow[] {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+  const normalized = text.replace(/^\uFEFF/, "").replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
+  const lines = normalized.split(/\r?\n/).filter((line) => line.trim());
   if (!lines.length) return [];
   const delimiter = detectDelimiter(lines[0]);
   const matrix = lines.map((line) => splitCsvLine(line, delimiter));
