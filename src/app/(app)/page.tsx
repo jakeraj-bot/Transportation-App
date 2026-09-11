@@ -110,7 +110,7 @@ export default async function HomePage({
     { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting" },
     { key: "quotes", href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
     { key: "insurance", href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
-    { key: "certs", href: "/certs", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },
+    { key: "certs", href: "/certs?open=1", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },
     { key: "missing", href: "/contracts?status=1st%20review%20missing%20items", label: "1st review missing items", value: missing, hint: "PT-4 sent or packet still needs fixing" },
   ];
   const visibleTiles = tiles.filter((tile) => !prefs.hiddenTiles.includes(tile.key));

@@ -43,6 +43,7 @@ export default async function ContractDetailPage({
       routePacket: true,
       hostDistrict: true,
       firstReviewer: true,
+      secondReviewer: true,
       routeLinks: { include: { routeDescription: true } },
     },
   });
@@ -80,7 +81,11 @@ export default async function ContractDetailPage({
       }),
     ]);
 
-  const cert = contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
+  const cert =
+    contract.contractor.annualCerts.find(
+      (c) => c.schoolYear === contract.schoolYear && !c.deletedAt && (c.county === "Passaic" || !c.county)
+    ) ??
+    contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
   const insurance = await prisma.insuranceCertificate.findFirst({
     where: {
       contractorId: contract.contractorId,
@@ -155,7 +160,20 @@ export default async function ContractDetailPage({
             <p className="mt-2 text-sm text-muted">
               Waiting {Math.max(1, Math.round(secondHours))} hours
               {contract.firstReviewer ? ` · first review by ${contract.firstReviewer.name}` : ""}
+              {contract.secondReviewer ? ` · second review by ${contract.secondReviewer.name}` : ""}
             </p>
+          ) : (
+            <>
+              {contract.firstReviewer ? (
+                <p className="mt-2 text-sm text-muted">1st reviewer: {contract.firstReviewer.name}</p>
+              ) : null}
+              {contract.secondReviewer ? (
+                <p className="mt-2 text-sm text-muted">2nd reviewer: {contract.secondReviewer.name}</p>
+              ) : null}
+            </>
+          )}
+          {contract.bidNumber ? (
+            <p className="mt-2 text-sm text-muted">Bid number {contract.bidNumber}</p>
           ) : null}
           {contract.sentToDistrictAt ? (
             <p className="mt-2 text-sm text-muted">Letter sent {formatDate(contract.sentToDistrictAt)}</p>

@@ -13,6 +13,7 @@ type DistrictValues = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  addressBlock: string | null;
   notes: string | null;
 };
 
@@ -87,6 +88,13 @@ export function DistrictForm({
           <Field label="ZIP">
             <input className={inputClass} name="zip" defaultValue={district?.zip ?? ""} {...inputProps} />
           </Field>
+          <Field
+            label="Letter-ready block (optional)"
+            className="md:col-span-2"
+            hint="Paste a full mailing block if the letter needs a suite, attention line, or anything beyond street, city, state, and ZIP. When this is filled, letters use it as {addressBlock}."
+          >
+            <textarea className={inputClass} name="addressBlock" rows={3} defaultValue={district?.addressBlock ?? ""} {...inputProps} />
+          </Field>
         </>
       ) : district ? (
         <>
@@ -94,6 +102,7 @@ export function DistrictForm({
           <input type="hidden" name="city" value={district.city ?? ""} />
           <input type="hidden" name="state" value={district.state ?? ""} />
           <input type="hidden" name="zip" value={district.zip ?? ""} />
+          <input type="hidden" name="addressBlock" value={district.addressBlock ?? ""} />
         </>
       ) : null}
       {readOnly ? (

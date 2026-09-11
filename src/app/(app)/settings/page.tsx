@@ -72,6 +72,7 @@ export default async function SettingsPage({
           <div className="flex flex-wrap gap-3">
             <Button href="/settings/users" variant="secondary">Users and permissions</Button>
             <Button href="/settings/statuses" variant="secondary">Statuses</Button>
+            <Button href="/settings/current-records" variant="secondary">Bring in current records</Button>
           </div>
           {uploaded ? <Flag tone="sage">The Word letter was saved. It will be used the next time you print that type of approval or disapproval letter.</Flag> : null}
           {uploadError ? <Flag tone="rose">{uploadError}</Flag> : null}
@@ -144,12 +145,12 @@ export default async function SettingsPage({
               ))}
             </div>
           </CollapsibleSection>
-          <CollapsibleSection title="Default letters, annual certs, and PT-4" hint="Fallback Word files used when a contract type has no letter of its own">
+          <CollapsibleSection title="Default letters and annual certs" hint="Fallback Word files for contracts and annual certifications">
             <p className="mb-4 text-sm text-muted">
-              The default contract letters are used only when that contract type does not have its own file.
+              The default contract letters are used only when that contract type does not have its own file. Annual cert letters are used from the annual certification page — not a PT-4.
             </p>
             <div className="space-y-4">
-              {SHARED_TEMPLATES.map(([key, label]) => (
+              {SHARED_TEMPLATES.filter(([key]) => key !== "pt4").map(([key, label]) => (
                 <TemplateUploadForm
                   key={key}
                   templateKey={key}
@@ -159,6 +160,17 @@ export default async function SettingsPage({
                 />
               ))}
             </div>
+          </CollapsibleSection>
+          <CollapsibleSection title="PT-4 (contracts only)" hint="Request for additional information on a contract packet. Not used for annual certifications.">
+            <p className="mb-4 text-sm text-muted">
+              Create a PT-4 from a contract when the packet is missing items. Annual certifications do not use a PT-4.
+            </p>
+            <TemplateUploadForm
+              templateKey="pt4"
+              label="PT-4 form"
+              hint="Using the built-in letter until you upload one."
+              originalName={byKey.pt4}
+            />
           </CollapsibleSection>
           <p className="text-sm text-muted">
             Need a reminder of who can do what? Open <Link className="text-teal" href="/settings/users">Users and permissions</Link>.

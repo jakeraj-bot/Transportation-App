@@ -4,6 +4,7 @@ import { CollapsibleSection } from "@/components/collapsible";
 import { DistrictForm } from "@/components/district-form";
 import { PageHeader } from "@/components/ui";
 import { getSession } from "@/lib/auth";
+import { formatDistrictAddress } from "@/lib/docx";
 import { prisma } from "@/lib/prisma";
 import { canEditDistricts } from "@/lib/roles";
 
@@ -18,8 +19,7 @@ export default async function DistrictPage({ params }: { params: Promise<{ id: s
     "use server";
     await softDelete("district", id, "/districts");
   }
-  const address =
-    [district.street, district.city, district.state, district.zip].filter(Boolean).join(", ") || "No letter address yet";
+  const address = formatDistrictAddress(district) || "No letter address yet";
   return (
     <div className="space-y-4">
       <PageHeader

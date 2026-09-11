@@ -39,7 +39,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Contract reviewers (Jakera and Tanisha): review packets, send PT-4s, do first and second review, and generate letters.",
           "Office manager (Debby): watches status and progress, and can review a contract when needed.",
           "Route and bid spec reviewer: works route descriptions (including emergency quotes) and bid specs.",
-          "Super Admin: sees Activity, adds users, assigns districts, and can do everything else.",
+          "Super Admin: sees Activity, brings in records from the current system, adds users, assigns districts, and can do everything else.",
         ],
       },
       {
@@ -191,8 +191,15 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         bullets: [
-          "Enter the contractor, school year, status, and notes.",
-          "You can generate an approval or disapproval letter from the cert page.",
+          "Click a heading to open that section; click it again to close it, so you do not have to scroll the whole page.",
+          "Contractor information is at the top: company name, OSP and vendor codes, home county, and contact, with a link to the contractor file. Then enter this year’s county, status, dates, and notes.",
+          "County on the cert is usually the same as the contractor. If they have a terminal in another county, add a separate annual cert for that county — they need one packet per county.",
+          "The list is A–Z by bus company. Saving a cert does not move it to the top.",
+          "On the Annual certifications list, type a bus company, OSP code, county, or notes to search. Use Status and County to narrow the list. County lists every New Jersey county. Not approved yet hides ones already marked Approved.",
+          "If status is Approved, every checklist box is checked because that packet was already accepted.",
+          "On an open cert, use Search to find another bus company without going back to the list, and Next to go to the next cert in A–Z order.",
+          "Notes: if the cert is approved, record the date the compliance letter went out. If it is pending, record why.",
+          "You can generate an approval or disapproval letter from the cert page. Do not use a PT-4 here — PT-4s are only for contract packets.",
           "The vendor / contractor code on the cert should match the contractor record.",
         ],
       },
@@ -224,16 +231,40 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Keep the company file here: vendor code, Office of Student Protection code, bus location, contact, and Business Registration Certificate.",
+        body: "Keep the company file here: vendor code, Office of Student Protection code, home county, bus location, contact, and Business Registration Certificate. If they run terminals in more than one county, keep one contractor file and add an annual cert for each county.",
       },
       {
         heading: "Add one or upload a list",
         bullets: [
-          "Add one contractor at a time, or upload a CSV list (legalName, dba, vendorCode, ospCode, busLocation, contactName, phone, email, brcNumber).",
+          "Add one contractor at a time, or upload a list / certification tracker (Excel or CSV). Tracker columns: Contractor code, Bus Company, County, Date Received, Date reviewed, Compliance Status, Status.",
           "The taxpayer name control fills from the first four letters of the contractor name. Change it only if the BRC uses a different taxpayer name.",
           "Open BRC search copies the name control and certificate number, then opens the NJ Treasury site. Paste those two values and submit. The Treasury site will not let this app type into their form for you.",
           "Check the debarment list before a contract is approved. Flag the contractor if they are debarred.",
         ],
+      },
+    ],
+  },
+  {
+    id: "current-records",
+    title: "Bring in current records",
+    group: "using",
+    blocks: [
+      {
+        body: "Super Admin only. This page is for copying contractors and contracts that already exist in the current office system. It does not change how New contract works for packets that arrive from now on.",
+      },
+      {
+        heading: "Certification tracker",
+        steps: [
+          "Open Bring in records (Super Admin menu or Settings).",
+          "Upload the tracker as Excel or CSV.",
+          "Contractor code becomes the Office of Student Protection code. Bus Company becomes the contractor name. County is stored on the contractor as their home county, and on that year’s annual cert.",
+          "If the same bus company appears again with a different county, that is another terminal: the contractor file stays one record, and a second annual cert is added for the other county.",
+          "Date Received, Date reviewed, Compliance Status, and Status (notes) become this year’s annual certification.",
+        ],
+      },
+      {
+        heading: "Current contracts",
+        body: "Use Enter a current contract for packets already on file. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },
@@ -243,7 +274,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Every Passaic County district we review packets for lives here. Click a district to open it, then click again to close it. You can rename a district (for example if Passaic County Educational Services Commission has a new name), add the letter contact, and enter the street, city, state, and ZIP. Letters use that district’s name and address — not a shared county address. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
+        body: "Every Passaic County district we review packets for lives here. Click a district to open it, then click again to close it. You can rename a district (for example if Passaic County Educational Services Commission has a new name), add the letter contact, and enter the street, city, state, and ZIP — or paste one letter-ready block if the letter needs a suite or attention line. Letters use that district’s name and address — not a shared county address. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
       },
       {
         note: "To assign which districts you review, do not edit the district. Go to Settings → Users and permissions, open your name, check Your districts, save, then sign out and sign back in.",
@@ -286,13 +317,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Users",
         body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts.",
+        note: "On Users and permissions, click a person’s name to open their account. Click it again to close it, so you do not have to scroll past every form.",
       },
       {
         heading: "Statuses and letters",
         bullets: [
           "Statuses can be renamed if Super Admin needs a new word, but the main contract statuses should stay as they are so Home counts stay correct. Pick a color square or type a hex code, the same way as My home screen. That color shows on the status chip and the Home status bar.",
           "Under My home screen you can also pick a scrollbar hex. That color is used in the navigation menu and on the page.",
-          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). After you upload, you stay on Settings in the same open section. If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
+          "Upload a Word approval letter and a Word disapproval letter for each contract type (original, renewal, quote, parental, addendum, joint). After you upload, you stay on Settings in the same open section. If a type has no file, the default or built-in letter is used. For several contracts on one letter, keep one table data row: {#contracts}{multiContractNumber} | {contractor}{/contracts}. Address lines: {districtAddress} is the street; put {city}, {state} {zipCode} on the next line. Do not put city, state, and ZIP inside {districtAddress}. Or use {addressBlock} alone for the whole mailing address — including a pasted letter-ready block. Other fields: {letterDate}, {districtContact}, {districtContactPosition}, {districtName}, {schoolYear}, {parentName}, {hostDistrict}, {jointDistrict}, {dateReceived}, {routeNumber}, {addendumNumber}.",
           "Edit district names, letter contacts, and mailing addresses under Districts. Letters pull those from the contract’s district.",
         ],
       },
@@ -304,7 +336,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "The teal button in the lower right answers questions from N.J.A.C. 6A:27 and N.J.S.A. 18A:39. Use it when you are unsure about a rule. If the answer is not in our materials, check the current 6A:27 PDF on nj.gov/education.",
+        body: "The teal button in the lower right looks up the current N.J.A.C. 6A:27 PDF from nj.gov and searches official NJ pages (nj.gov, njleg). Use it when you are unsure about a rule. It is not legal advice — confirm a compliance decision against the official PDF. Super Admin should set OPENAI_API_KEY on the server so answers can use live web search; without a key, the app still pulls the current code PDF and matches keywords.",
       },
     ],
   },

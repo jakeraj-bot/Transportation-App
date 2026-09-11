@@ -180,8 +180,10 @@ export function LetterButtons({
 
 export function ChecklistRow({
   item,
+  commentPlaceholder = "If something is missing or wrong, write it here. It will go on the PT-4.",
 }: {
   item: { id: string; itemLabel: string; checked: boolean; comment: string | null };
+  commentPlaceholder?: string;
 }) {
   const [checked, setChecked] = useState(item.checked);
   const [comment, setComment] = useState(item.comment ?? "");
@@ -211,7 +213,7 @@ export function ChecklistRow({
       <textarea
         className={`${inputClass} mt-2`}
         rows={2}
-        placeholder="If something is missing or wrong, write it here. It will go on the PT-4."
+        placeholder={commentPlaceholder}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         onBlur={() => save(checked, comment)}
