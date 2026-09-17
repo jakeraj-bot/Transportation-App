@@ -5,6 +5,7 @@ import { getSchoolYear, getStatuses } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { hoursInSecondReview } from "@/lib/flags";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
+import { formatCompanyNames } from "@/lib/contract-intake";
 
 export default async function ContractsPage({
   searchParams,
@@ -24,7 +25,7 @@ export default async function ContractsPage({
 
   const rows = await prisma.contract.findMany({
     where,
-    include: { district: true, contractor: true, routes: { include: { addenda: true } }, hostDistrict: true },
+            include: { district: true, contractor: true, extraContractors: { include: { contractor: true } }, routes: { include: { addenda: true } }, hostDistrict: true },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -61,7 +62,10 @@ export default async function ContractsPage({
             multiContractNumber: c.multiContractNumber,
             districtId: c.districtId,
             districtName: c.district.name,
-            contractorName: c.contractor.legalName,
+            contractorName: formatCompanyNames([
+              c.parentName || c.contractor.legalName,
+              ...c.extraContractors.map((link) => link.contractor.legalName),
+            ]),
             contractorIncomplete: c.contractor.incomplete,
             type: c.type,
             typeLabel: contractTypeLabel(c.type),

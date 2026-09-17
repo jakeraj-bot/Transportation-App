@@ -41,6 +41,15 @@ import { groupByLetter } from "@/lib/letter-groups";
 import { readStoredFile, saveStoredFile } from "@/lib/storage";
 import { sendOutlookMail } from "@/lib/email";
 import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
+import {
+  formatCompanyNames,
+  intakeTypeLabel,
+  parseJoinerDistricts,
+  parsePacketRows,
+  primaryAndExtraPackets,
+  usesHostJoiner,
+  usesParentName,
+} from "@/lib/contract-intake";
 
 function formString(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -138,7 +147,7 @@ export async function saveContractor(form: FormData) {
   redirect(`/contractors/${row.id}`);
 }
 
-export async function addQuickContractor(legalName: string) {
+export async function addQuickContractor(legalName: string, county?: string) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const name = legalName.trim();
@@ -149,6 +158,7 @@ export async function addQuickContractor(legalName: string) {
       incomplete: true,
       brcStatus: "Not on file",
       brcNameControl: nameControlFrom(name) || null,
+      county: matchNjCounty(county || null),
     },
   });
   await writeAudit({
@@ -182,7 +192,7 @@ async function syncRoutes(contractId: string, numbers: string[]) {
 
 async function syncExtraPackets(
   contractId: string,
-  packets: Array<{ multiContractNumber: string; routeNumber: string }>
+  packets: Array<{ multiContractNumber: string; routeNumber: string; renewalNumber?: string }>
 ) {
   await prisma.extraPacket.deleteMany({ where: { contractId } });
   const rows = packets.filter((p) => p.multiContractNumber && p.routeNumber);
@@ -192,18 +202,253 @@ async function syncExtraPackets(
       contractId,
       multiContractNumber: packet.multiContractNumber,
       routeNumber: packet.routeNumber,
+      renewalNumber: packet.renewalNumber || null,
       sortOrder,
     })),
   });
 }
 
-function extraPacketsFromForm(form: FormData) {
-  const multis = form.getAll("extraMultiContractNumber").map((value) => String(value ?? "").trim());
-  const routes = form.getAll("extraRouteNumber").map((value) => String(value ?? "").trim());
-  return multis.map((multiContractNumber, index) => ({
-    multiContractNumber,
-    routeNumber: routes[index] ?? "",
+async function syncContractContractors(contractId: string, contractorIds: string[]) {
+  const extraIds = [...new Set(contractorIds.slice(1))].filter((id) => id && id !== contractorIds[0]);
+  await prisma.contractContractor.deleteMany({ where: { contractId } });
+  if (!extraIds.length) return;
+  await prisma.contractContractor.createMany({
+    data: extraIds.map((contractorId, sortOrder) => ({ contractId, contractorId, sortOrder })),
+  });
+}
+
+async function resolveContractorIdsFromForm(form: FormData) {
+  const selected = form.getAll("contractorId").map((value) => String(value ?? "").trim());
+  const names = form.getAll("newContractorName").map((value) => String(value ?? "").trim());
+  const counties = form.getAll("newContractorCounty").map((value) => String(value ?? "").trim());
+  const ids: string[] = [];
+  const length = Math.max(selected.length, names.length, 1);
+  for (let index = 0; index < length; index += 1) {
+    if (selected[index]) {
+      ids.push(selected[index]);
+      continue;
+    }
+    if (!names[index]) continue;
+    const created = await prisma.contractor.create({
+      data: {
+        legalName: names[index],
+        incomplete: true,
+        brcStatus: "Not on file",
+        brcNameControl: nameControlFrom(names[index]) || null,
+        county: matchNjCounty(counties[index] || null),
+      },
+    });
+    ids.push(created.id);
+  }
+  const fromSingleName = formString(form, "newContractorName");
+  const fromSingleId = formString(form, "contractorId");
+  if (!ids.length && fromSingleId) ids.push(fromSingleId);
+  if (!ids.length && fromSingleName && !names.length) {
+    const created = await prisma.contractor.create({
+      data: {
+        legalName: fromSingleName,
+        incomplete: true,
+        brcStatus: "Not on file",
+        brcNameControl: nameControlFrom(fromSingleName) || null,
+        county: matchNjCounty(formString(form, "newContractorCounty") || null),
+      },
+    });
+    ids.push(created.id);
+  }
+  return [...new Set(ids)];
+}
+
+async function resolveParentContractorId(parentName: string) {
+  const name = parentName.trim();
+  if (!name) throw new Error("Enter the parent name.");
+  const existing = await prisma.contractor.findMany({
+    where: { deletedAt: null },
+    select: { id: true, legalName: true },
+  });
+  const match = existing.find((row) => row.legalName.toLowerCase() === name.toLowerCase());
+  if (match) return match.id;
+  const created = await prisma.contractor.create({
+    data: {
+      legalName: name,
+      incomplete: true,
+      brcStatus: "Not on file",
+      brcNameControl: nameControlFrom(name) || null,
+    },
+  });
+  return created.id;
+}
+
+function intakeErrorPath(form: FormData, type: string, message: string) {
+  const source = formString(form, "source") || "incoming";
+  const base = source === "current" ? "/settings/current-records" : "/contracts/new";
+  return `${base}?type=${encodeURIComponent(type)}&error=${encodeURIComponent(message)}`;
+}
+
+export async function findContractForAddendum({
+  schoolYear,
+  multiContractNumber,
+  districtId,
+}: {
+  schoolYear: string;
+  multiContractNumber: string;
+  districtId?: string;
+}) {
+  await requireSession();
+  const multi = multiContractNumber.trim();
+  const year = schoolYear.trim();
+  if (!multi || !year) throw new Error("Enter the school year and multi-contract number.");
+  const rows = await prisma.contract.findMany({
+    where: {
+      deletedAt: null,
+      schoolYear: year,
+      type: { not: "addendum" },
+      ...(districtId ? { districtId } : {}),
+      OR: [
+        { multiContractNumber: multi },
+        { extraPackets: { some: { multiContractNumber: multi } } },
+      ],
+    },
+    include: {
+      district: true,
+      contractor: true,
+      extraContractors: { include: { contractor: true }, orderBy: { sortOrder: "asc" } },
+      routes: { orderBy: { number: "asc" } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 8,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    type: row.type,
+    typeLabel: intakeTypeLabel(row.type),
+    schoolYear: row.schoolYear,
+    multiContractNumber: row.multiContractNumber,
+    districtName: row.district.name,
+    contractorNames: formatCompanyNames([
+      row.parentName || row.contractor.legalName,
+      ...row.extraContractors.map((link) => link.contractor.legalName),
+    ]),
+    statusName: row.statusName,
+    routes: row.routes.map((route) => ({ id: route.id, number: route.number })),
   }));
+}
+
+async function linkAddendumFromForm(form: FormData, userId: string) {
+  const type = "addendum";
+  if (formString(form, "confirmAddendumLink") !== "yes") {
+    redirect(intakeErrorPath(form, type, "Confirm that this addendum should be linked to the contract we found before saving."));
+  }
+  const linkedId = formString(form, "linkedContractId");
+  const existing = await prisma.contract.findFirst({
+    where: { id: linkedId, deletedAt: null },
+    include: { routes: { include: { addenda: { where: { deletedAt: null } } } }, extraContractors: true },
+  });
+  if (!existing) {
+    redirect(intakeErrorPath(form, type, "That contract is no longer on file. Find it again, then confirm before linking."));
+  }
+  const pickedRouteIds = form.getAll("addendumRouteId").map((value) => String(value ?? "").trim()).filter(Boolean);
+  const wantedNumbers = splitRoutes(formString(form, "routes"));
+  const matched = existing.routes.filter(
+    (route) => pickedRouteIds.includes(route.id) || wantedNumbers.includes(route.number)
+  );
+  if (!matched.length) {
+    redirect(
+      intakeErrorPath(
+        form,
+        type,
+        `Contract ${existing.multiContractNumber} is on file, but you have to pick a route that is already on that contract.`
+      )
+    );
+  }
+  const bidNumber = formString(form, "bidNumber") || null;
+  const renewalNumber = formString(form, "renewalNumber") || null;
+  const notes = formString(form, "notes") || null;
+  const previousCount = matched.reduce((sum, route) => sum + route.addenda.length, 0);
+  for (const route of matched) {
+    await prisma.routeAddendum.create({
+      data: {
+        routeId: route.id,
+        reason: notes || `Addendum ${route.addenda.length + 1}`,
+        receivedDate: parseDate(formString(form, "receivedDate")) || parseFlexibleDate(formString(form, "receivedDate")),
+        bidNumber,
+        renewalNumber,
+        notes,
+      },
+    });
+  }
+  const statusName = formString(form, "statusName");
+  const firstReviewerId = formString(form, "firstReviewerId") || null;
+  const secondReviewerId = formString(form, "secondReviewerId") || null;
+  const sentToDistrictAt = parseDate(formString(form, "sentToDistrictAt")) || parseFlexibleDate(formString(form, "sentToDistrictAt"));
+  await prisma.contract.update({
+    where: { id: existing.id },
+    data: {
+      ...(statusName ? { statusName } : {}),
+      ...(firstReviewerId ? { firstReviewerId } : {}),
+      ...(secondReviewerId ? { secondReviewerId } : {}),
+      ...(sentToDistrictAt ? { sentToDistrictAt } : {}),
+    },
+  });
+  const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
+  if (insuranceExpiresAt) {
+    const contractorIds = [existing.contractorId, ...existing.extraContractors.map((link) => link.contractorId)];
+    await upsertInsuranceExpiration({
+      contractorIds,
+      districtId: existing.districtId,
+      schoolYear: existing.schoolYear,
+      expiresAt: insuranceExpiresAt,
+    });
+  }
+  const nextCount = previousCount + matched.length;
+  await writeAudit({
+    userId,
+    action: "create",
+    entityType: "addendum",
+    entityId: existing.id,
+    summary: `Linked addendum to ${existing.multiContractNumber} (${nextCount} addendum${nextCount === 1 ? "" : "s"} on matching routes)`,
+  });
+  revalidateAll();
+  const source = formString(form, "source") || "incoming";
+  if (source === "current") {
+    redirect(
+      `/settings/current-records?type=addendum&saved=addendum&number=${encodeURIComponent(existing.multiContractNumber)}`
+    );
+  }
+  redirect(`/contracts/${existing.id}?addendumLinked=1&addendumCount=${nextCount}&routeCount=${matched.length}`);
+}
+
+async function upsertInsuranceExpiration({
+  contractorIds,
+  districtId,
+  schoolYear,
+  expiresAt,
+}: {
+  contractorIds: string[];
+  districtId: string;
+  schoolYear: string;
+  expiresAt: Date;
+}) {
+  const district = await prisma.district.findUnique({ where: { id: districtId } });
+  const expired = expiresAt < new Date();
+  for (const contractorId of [...new Set(contractorIds)]) {
+    const existing = await prisma.insuranceCertificate.findFirst({
+      where: { contractorId, districtId, deletedAt: null },
+      orderBy: { expiresAt: "desc" },
+    });
+    const insData = {
+      schoolYear,
+      expiresAt,
+      namedDistrict: district?.name ?? null,
+      statusName: expired ? "Needs update" : "On file",
+    };
+    if (existing) {
+      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
+    } else {
+      await prisma.insuranceCertificate.create({
+        data: { contractorId, districtId, ...insData },
+      });
+    }
+  }
 }
 
 export async function saveContract(form: FormData) {
@@ -211,77 +456,47 @@ export async function saveContract(form: FormData) {
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
   const mode = formString(form, "mode") || "intake";
-  const routes = splitRoutes(formString(form, "routes"));
   const statusName = formString(form, "statusName") || "Need Review";
   const schoolYear = formString(form, "schoolYear");
   const type = formString(form, "type");
-  const extras = extraPacketsFromForm(form);
+  const packets = primaryAndExtraPackets(parsePacketRows(form));
+  const routes = packets.routeNumbers.length ? packets.routeNumbers : splitRoutes(formString(form, "routes"));
 
   if (!id && type === "addendum") {
-    const multi = formString(form, "multiContractNumber");
-    const districtId = formString(form, "districtId");
-    const existing = await prisma.contract.findFirst({
-      where: {
-        multiContractNumber: multi,
-        schoolYear,
-        deletedAt: null,
-        ...(districtId ? { districtId } : {}),
-      },
-      include: { routes: { include: { addenda: { where: { deletedAt: null } } } } },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!existing) {
-      redirect(
-        "/contracts/new?error=" +
-          encodeURIComponent(
-            "No existing contract has that multi-contract number and school year. An addendum has to attach to a route that is already on file."
-          )
-      );
-    }
-    const wanted = routes.map((number) => number.toLowerCase());
-    const matched = existing.routes.filter((route) => wanted.includes(route.number.toLowerCase()));
-    if (!matched.length) {
-      redirect(
-        `/contracts/new?error=` +
-          encodeURIComponent(
-            `Contract ${existing.multiContractNumber} is on file, but none of those route numbers match. Open that contract and add the route first, then try the addendum again.`
-          )
-      );
-    }
-    const previousCount = matched.reduce((sum, route) => sum + route.addenda.length, 0);
-    for (const route of matched) {
-      await prisma.routeAddendum.create({
-        data: {
-          routeId: route.id,
-          reason: formString(form, "notes") || `Addendum ${route.addenda.length + 1}`,
-          receivedDate: parseDate(formString(form, "receivedDate")),
-          notes: formString(form, "notes") || null,
-        },
-      });
-    }
-    const nextCount = previousCount + matched.length;
-    await writeAudit({
-      userId: user.id,
-      action: "create",
-      entityType: "addendum",
-      entityId: existing.id,
-      summary: `Linked addendum to ${existing.multiContractNumber} (${nextCount} addendum${nextCount === 1 ? "" : "s"} on matching routes)`,
-    });
-    revalidateAll();
-    redirect(
-      `/contracts/${existing.id}?addendumLinked=1&addendumCount=${nextCount}&routeCount=${matched.length}`
-    );
+    await linkAddendumFromForm(form, user.id);
+  }
+
+  const contractorIds = usesParentName(type)
+    ? [await resolveParentContractorId(formString(form, "parentName"))]
+    : await resolveContractorIdsFromForm(form);
+  if (!contractorIds.length) {
+    redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
+  }
+
+  const hostDistrictId = usesHostJoiner(type) ? formString(form, "hostDistrictId") || null : null;
+  const districtId = usesHostJoiner(type) ? hostDistrictId || formString(form, "districtId") : formString(form, "districtId");
+  if (!districtId) {
+    redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
   }
 
   const intake = {
-    districtId: formString(form, "districtId"),
-    contractorId: formString(form, "contractorId"),
+    districtId,
+    contractorId: contractorIds[0],
     schoolYear,
     type,
-    multiContractNumber: formString(form, "multiContractNumber"),
+    multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
+    bidNumber: formString(form, "bidNumber") || null,
+    renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
+    parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
     receivedDate: parseDate(formString(form, "receivedDate")),
     statusName,
     notes: formString(form, "notes") || null,
+    ...(usesHostJoiner(type)
+      ? {
+          hostDistrictId,
+          joinerDistricts: parseJoinerDistricts(form),
+        }
+      : {}),
   };
   const review =
     mode === "review"
@@ -295,12 +510,6 @@ export async function saveContract(form: FormData) {
           endsOn: parseDate(formString(form, "endsOn")),
           sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
           ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
-          ...(type === "joint"
-            ? {
-                hostDistrictId: formString(form, "hostDistrictId") || null,
-                joinerDistricts: formString(form, "joinerDistricts") || null,
-              }
-            : {}),
           ...(type === "original" ? { bidSpecId: formString(form, "bidSpecId") || null } : {}),
           ...(type === "quote" ? { routePacketId: formString(form, "routePacketId") || null } : {}),
         }
@@ -325,7 +534,8 @@ export async function saveContract(form: FormData) {
     : await prisma.contract.create({ data: intake });
 
   await syncRoutes(row.id, routes);
-  await syncExtraPackets(row.id, extras);
+  await syncExtraPackets(row.id, packets.extras);
+  await syncContractContractors(row.id, contractorIds);
 
   if (mode === "review" && type === "original") {
     const linkedRoutes = form.getAll("routeDescriptionIds").map(String).filter(Boolean);
@@ -352,27 +562,26 @@ export async function saveContract(form: FormData) {
 
 export async function saveCurrentContract(form: FormData) {
   const user = await requireSuperAdmin();
-  const schoolYear = formString(form, "schoolYear");
   const type = mapContractType(formString(form, "type"));
-  const defaults = schoolYearDates(schoolYear);
-  const routes = splitRoutes(formString(form, "routes"));
-  const statusName = formString(form, "statusName") || "Need Review";
-  const newContractorName = formString(form, "newContractorName");
-  let contractorId = formString(form, "contractorId");
-
-  if (!contractorId && newContractorName) {
-    const created = await prisma.contractor.create({
-      data: {
-        legalName: newContractorName,
-        county: matchNjCounty(formString(form, "newContractorCounty") || null),
-        brcNameControl: nameControlFrom(newContractorName) || null,
-      },
-    });
-    contractorId = created.id;
+  if (type === "addendum") {
+    await linkAddendumFromForm(form, user.id);
   }
-  if (!contractorId) throw new Error("Choose a bus company or type a new name.");
-
-  const districtId = formString(form, "districtId");
+  const schoolYear = formString(form, "schoolYear");
+  const defaults = schoolYearDates(schoolYear);
+  const packets = primaryAndExtraPackets(parsePacketRows(form));
+  const routes = packets.routeNumbers.length ? packets.routeNumbers : splitRoutes(formString(form, "routes"));
+  const statusName = formString(form, "statusName") || "Need Review";
+  const contractorIds = usesParentName(type)
+    ? [await resolveParentContractorId(formString(form, "parentName"))]
+    : await resolveContractorIdsFromForm(form);
+  if (!contractorIds.length) {
+    redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
+  }
+  const hostDistrictId = usesHostJoiner(type) ? formString(form, "hostDistrictId") || null : null;
+  const districtId = usesHostJoiner(type) ? hostDistrictId || formString(form, "districtId") : formString(form, "districtId");
+  if (!districtId) {
+    redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
+  }
   const firstReviewerId = formString(form, "firstReviewerId") || null;
   const secondReviewerId = formString(form, "secondReviewerId") || null;
   const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
@@ -381,11 +590,15 @@ export async function saveCurrentContract(form: FormData) {
   const row = await prisma.contract.create({
     data: {
       districtId,
-      contractorId,
+      contractorId: contractorIds[0],
       schoolYear,
       type,
-      multiContractNumber: formString(form, "multiContractNumber"),
+      multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
       bidNumber: formString(form, "bidNumber") || null,
+      renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
+      parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
+      hostDistrictId,
+      joinerDistricts: usesHostJoiner(type) ? parseJoinerDistricts(form) : null,
       receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
       statusName,
       firstReviewerId,
@@ -398,27 +611,16 @@ export async function saveCurrentContract(form: FormData) {
     },
   });
   await syncRoutes(row.id, routes);
+  await syncExtraPackets(row.id, packets.extras);
+  await syncContractContractors(row.id, contractorIds);
 
   if (insuranceExpiresAt) {
-    const district = await prisma.district.findUnique({ where: { id: districtId } });
-    const existing = await prisma.insuranceCertificate.findFirst({
-      where: { contractorId, districtId, deletedAt: null },
-      orderBy: { expiresAt: "desc" },
-    });
-    const expired = insuranceExpiresAt < new Date();
-    const insData = {
+    await upsertInsuranceExpiration({
+      contractorIds,
+      districtId,
       schoolYear,
       expiresAt: insuranceExpiresAt,
-      namedDistrict: district?.name ?? null,
-      statusName: expired ? "Needs update" : "On file",
-    };
-    if (existing) {
-      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
-    } else {
-      await prisma.insuranceCertificate.create({
-        data: { contractorId, districtId, ...insData },
-      });
-    }
+    });
   }
 
   await ensureChecklist("contract", row.id, row.type);
@@ -432,7 +634,7 @@ export async function saveCurrentContract(form: FormData) {
   });
   revalidateAll();
   redirect(
-    `/settings/current-records?saved=contract&number=${encodeURIComponent(row.multiContractNumber)}`
+    `/settings/current-records?type=${encodeURIComponent(type)}&saved=contract&number=${encodeURIComponent(row.multiContractNumber)}`
   );
 }
 
@@ -1071,6 +1273,7 @@ export async function generateContractLetter(form: FormData) {
       contractor: true,
       hostDistrict: true,
       extraPackets: { orderBy: { sortOrder: "asc" } },
+      extraContractors: { include: { contractor: true } },
       routes: { include: { addenda: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } } },
     },
   });
@@ -1108,30 +1311,38 @@ export async function generateContractLetter(form: FormData) {
       type: contractTypeLabel(lead.type),
       decision: kind === "approved" ? "approved" : "disapproved",
       notes,
-      rows: group.flatMap((row) => [
-        {
-          multiContractNumber: row.multiContractNumber,
-          contractorName: row.contractor.legalName,
-          vendorCode: row.contractor.vendorCode,
-          routes: row.routes.map((route) => route.number),
-          addendumNumbers: row.routes.flatMap((route) =>
-            route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
-          ),
-          hostDistrictName: row.hostDistrict?.name,
-          jointDistrict: row.joinerDistricts,
-          receivedDate: row.receivedDate,
-        },
-        ...row.extraPackets.map((packet) => ({
-          multiContractNumber: packet.multiContractNumber,
-          contractorName: row.contractor.legalName,
-          vendorCode: row.contractor.vendorCode,
-          routes: packet.routeNumber ? [packet.routeNumber] : [],
-          addendumNumbers: [] as string[],
-          hostDistrictName: row.hostDistrict?.name,
-          jointDistrict: row.joinerDistricts,
-          receivedDate: row.receivedDate,
-        })),
-      ]),
+      rows: group.flatMap((row) => {
+        const contractorName = formatCompanyNames([
+          row.parentName || row.contractor.legalName,
+          ...row.extraContractors.map((link) => link.contractor.legalName),
+        ]);
+        return [
+          {
+            multiContractNumber: row.multiContractNumber,
+            contractorName,
+            parentName: row.parentName,
+            vendorCode: row.contractor.vendorCode,
+            routes: row.routes.map((route) => route.number),
+            addendumNumbers: row.routes.flatMap((route) =>
+              route.addenda.map((addendum, index) => addendum.reason || String(index + 1))
+            ),
+            hostDistrictName: row.hostDistrict?.name,
+            jointDistrict: row.joinerDistricts,
+            receivedDate: row.receivedDate,
+          },
+          ...row.extraPackets.map((packet) => ({
+            multiContractNumber: packet.multiContractNumber,
+            contractorName,
+            parentName: row.parentName,
+            vendorCode: row.contractor.vendorCode,
+            routes: packet.routeNumber ? [packet.routeNumber] : [],
+            addendumNumbers: [] as string[],
+            hostDistrictName: row.hostDistrict?.name,
+            jointDistrict: row.joinerDistricts,
+            receivedDate: row.receivedDate,
+          })),
+        ];
+      }),
     });
     const buf = fillDocx(await templateBuffer(kind, lead.type), fields);
     const hostBit =

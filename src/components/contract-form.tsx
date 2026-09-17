@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
+import { allowsMultipleCompanies, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { checklistDefinition } from "@/lib/checklists";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
 
@@ -20,6 +21,7 @@ export function ContractForm({
   contract,
   routes,
   extraPackets,
+  additionalContractorIds,
   linkedRouteIds,
   currentUserId,
 }: {
@@ -33,12 +35,15 @@ export function ContractForm({
   contract?: Contract;
   routes?: Route[];
   extraPackets?: ExtraPacket[];
+  additionalContractorIds?: string[];
   linkedRouteIds?: string[];
   currentUserId?: string;
 }) {
   const [type, setType] = useState(contract?.type ?? "original");
   const [contractorList, setContractorList] = useState(contractors);
-  const [contractorId, setContractorId] = useState(contract?.contractorId ?? "");
+  const [contractorIds, setContractorIds] = useState(
+    [contract?.contractorId, ...(additionalContractorIds ?? [])].filter((id): id is string => Boolean(id))
+  );
   const [addingContractor, setAddingContractor] = useState(false);
   const [newContractorName, setNewContractorName] = useState("");
   const [contractorError, setContractorError] = useState("");
@@ -46,6 +51,7 @@ export function ContractForm({
     extraPackets?.map((packet) => ({
       multiContractNumber: packet.multiContractNumber,
       routeNumber: packet.routeNumber,
+      renewalNumber: packet.renewalNumber ?? "",
     })) ?? []
   );
   const ownSecondReview =
@@ -79,7 +85,7 @@ export function ContractForm({
       setContractorList((current) =>
         [...current, row].sort((a, b) => a.legalName.localeCompare(b.legalName))
       );
-      setContractorId(row.id);
+      setContractorIds((current) => (current.length ? [...current, row.id] : [row.id]));
       setNewContractorName("");
       setAddingContractor(false);
     } catch (error) {
@@ -105,24 +111,48 @@ export function ContractForm({
             ))}
           </select>
         </Field>
-        <Field
-          label="Contractor"
-          hint="If this packet has a contractor we have not filed yet, add the name only. It stays red until someone fills in the contractor tab."
-        >
-          <select
-            className={inputClass}
-            name="contractorId"
-            required={type !== "addendum"}
-            value={contractorId}
-            onChange={(e) => setContractorId(e.target.value)}
+        {usesParentName(type) ? (
+          <Field label="Parent name">
+            <input className={inputClass} name="parentName" required defaultValue={contract?.parentName ?? ""} />
+          </Field>
+        ) : (
+          <Field
+            label="Contractor"
+            hint="If this packet has a contractor we have not filed yet, add the name only. It stays red until someone fills in the contractor tab."
+            className={allowsMultipleCompanies(type) ? "md:col-span-2" : undefined}
           >
-            <option value="">Choose a contractor</option>
-            {contractorList.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.incomplete ? `${c.legalName} (needs details)` : c.legalName}
-              </option>
+            {(contractorIds.length ? contractorIds : [""]).map((value, index) => (
+              <select
+                key={`${value}-${index}`}
+                className={inputClass + (index ? " mt-2" : "")}
+                name="contractorId"
+                required={index === 0 && type !== "addendum"}
+                value={value}
+                onChange={(e) =>
+                  setContractorIds((current) => {
+                    const next = current.length ? [...current] : [""];
+                    next[index] = e.target.value;
+                    return next;
+                  })
+                }
+              >
+                <option value="">Choose a contractor</option>
+                {contractorList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.incomplete ? `${c.legalName} (needs details)` : c.legalName}
+                  </option>
+                ))}
+              </select>
             ))}
-          </select>
+            {allowsMultipleCompanies(type) ? (
+              <button
+                type="button"
+                className="mt-2 mr-3 text-sm text-teal hover:underline"
+                onClick={() => setContractorIds((current) => [...(current.length ? current : [""]), ""])}
+              >
+                Add another bus company
+              </button>
+            ) : null}
           {addingContractor ? (
             <div className="mt-2 space-y-2">
               <input
@@ -159,6 +189,22 @@ export function ContractForm({
             </button>
           )}
         </Field>
+        )}
+        {usesHostJoiner(type) ? (
+          <>
+            <Field label="Host district">
+              <select className={inputClass} name="hostDistrictId" defaultValue={contract?.hostDistrictId ?? ""}>
+                <option value="">Choose the host</option>
+                {districts.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Joiner district(s)">
+              <input className={inputClass} name="joinerDistricts" defaultValue={contract?.joinerDistricts ?? ""} placeholder="Names of joiner districts" />
+            </Field>
+          </>
+        ) : null}
         <Field label="School year">
           <input className={inputClass} name="schoolYear" required defaultValue={contract?.schoolYear ?? schoolYear} />
         </Field>
@@ -177,6 +223,12 @@ export function ContractForm({
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
+        </Field>
+        <Field label="Bid number">
+          <input className={inputClass} name="bidNumber" defaultValue={contract?.bidNumber ?? ""} />
+        </Field>
+        <Field label="Renewal number">
+          <input className={inputClass} name="renewalNumber" defaultValue={contract?.renewalNumber ?? ""} />
         </Field>
         <Field
           label="Multi-contract number"
@@ -206,7 +258,7 @@ export function ContractForm({
               A renewal can cover more than one multi-contract number. Each extra number needs the route number that goes with it.
             </p>
             {extras.map((packet, index) => (
-              <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+              <div key={index} className="grid gap-3 md:grid-cols-3">
                 <Field label="Multi-contract number">
                   <input
                     className={inputClass}
@@ -233,9 +285,21 @@ export function ContractForm({
                     }
                   />
                 </Field>
+                <Field label="Renewal number">
+                  <input
+                    className={inputClass}
+                    name="extraRenewalNumber"
+                    value={packet.renewalNumber}
+                    onChange={(e) =>
+                      setExtras((current) =>
+                        current.map((row, i) => (i === index ? { ...row, renewalNumber: e.target.value } : row))
+                      )
+                    }
+                  />
+                </Field>
                 <button
                   type="button"
-                  className="self-end pb-1 text-sm text-rose"
+                  className="text-sm text-rose md:col-span-3"
                   onClick={() => setExtras((current) => current.filter((_, i) => i !== index))}
                 >
                   Remove
@@ -245,7 +309,7 @@ export function ContractForm({
             <button
               type="button"
               className="text-sm text-teal hover:underline"
-              onClick={() => setExtras((current) => [...current, { multiContractNumber: "", routeNumber: "" }])}
+              onClick={() => setExtras((current) => [...current, { multiContractNumber: "", routeNumber: "", renewalNumber: "" }])}
             >
               Add another multi-contract number
             </button>
@@ -306,22 +370,6 @@ export function ContractForm({
               <Field label="Prior-year cost" hint="Used only on renewals to check the CPI increase." className="md:col-span-2">
                 <input className={inputClass} name="priorYearCost" defaultValue={contract?.priorYearCost ?? ""} />
               </Field>
-            ) : null}
-
-            {type === "joint" ? (
-              <>
-                <Field label="Host district">
-                  <select className={inputClass} name="hostDistrictId" defaultValue={contract?.hostDistrictId ?? ""}>
-                    <option value="">Choose the host</option>
-                    {districts.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Joiner district(s)">
-                  <input className={inputClass} name="joinerDistricts" defaultValue={contract?.joinerDistricts ?? ""} placeholder="Names of joiner districts" />
-                </Field>
-              </>
             ) : null}
 
             {type === "original" ? (

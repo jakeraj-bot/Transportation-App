@@ -116,6 +116,7 @@ model Contractor {
   deletedAt       DateTime?
 
   contracts       Contract[]
+  extraContracts  ContractContractor[]
   annualCerts     AnnualCert[]
   insurance       InsuranceCertificate[]
   emergencyQuotes EmergencyQuote[]
@@ -150,6 +151,8 @@ model Contract {
   type                 String
   multiContractNumber  String
   bidNumber            String?
+  renewalNumber        String?
+  parentName           String?
   cost                 Float?
   priorYearCost        Float?
   bondAmount           Float?
@@ -189,7 +192,19 @@ model Contract {
   routes          Route[]
   routeLinks      ContractRouteDescription[]
   extraPackets    ExtraPacket[]
+  extraContractors ContractContractor[]
   comments        ContractComment[]
+}
+
+model ContractContractor {
+  id           String @id @default(cuid())
+  contractId   String
+  contractorId String
+  sortOrder    Int    @default(0)
+  contract     Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, contractorId])
 }
 
 model ExtraPacket {
@@ -197,6 +212,7 @@ model ExtraPacket {
   contractId          String
   multiContractNumber String
   routeNumber         String
+  renewalNumber       String?
   sortOrder           Int      @default(0)
   contract            Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 }
@@ -229,6 +245,8 @@ model RouteAddendum {
   costChange       Float?
   boardMeetingDate DateTime?
   receivedDate     DateTime?
+  bidNumber        String?
+  renewalNumber    String?
   notes            String?
   createdAt        DateTime  @default(now())
   deletedAt        DateTime?

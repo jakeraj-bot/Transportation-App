@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
-import { importContractors, saveCurrentContract } from "@/app/actions";
+import { importContractors } from "@/app/actions";
+import { ContractIntakeForm } from "@/components/contract-intake-form";
+import { ContractTypePicker } from "@/components/contract-type-picker";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { getSession } from "@/lib/auth";
+import { isIntakeType } from "@/lib/contract-intake";
 import { activeContractors, activeDistricts, getSchoolYear, getStatuses } from "@/lib/data";
-import { NJ_COUNTIES } from "@/lib/nj-counties";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
-import { CONTRACT_TYPES } from "@/lib/utils";
 
 export default async function CurrentRecordsPage({
   searchParams,
@@ -18,6 +19,7 @@ export default async function CurrentRecordsPage({
     updated?: string;
     certs?: string;
     error?: string;
+    type?: string;
   }>;
 }) {
   const session = await getSession();
@@ -39,7 +41,7 @@ export default async function CurrentRecordsPage({
       <PageHeader
         title="Bring in current records"
         backHref="/settings"
-        hint="Super Admin only. Use this while we copy contractors and contracts from the current office system. Incoming packets should still use New contract. Tell us when the move is done and we can take this page out."
+        hint="Super Admin only. Use this while we copy contractors and contracts from the current office system. Choose the contract type first, the same way as New contract. Parentals and joint agreements ask for their own fields. Addendums have to be linked to a multi-contract number and route already on file."
       />
 
       {q.error ? (
@@ -48,10 +50,12 @@ export default async function CurrentRecordsPage({
           <p className="mt-1 text-sm">You can also copy the tracker rows in Excel and paste them in the box below.</p>
         </Card>
       ) : null}
-      {q.saved === "contract" ? (
+      {q.saved === "contract" || q.saved === "addendum" ? (
         <Card className="bg-teal-soft">
-          <p className="font-medium">Saved {q.number || "the contract"}.</p>
-          <p className="mt-1 text-sm text-muted">The form below is blank so you can enter the next one. It also appears in Contracts.</p>
+          <p className="font-medium">
+            {q.saved === "addendum" ? `Linked addendum to ${q.number || "the contract"}.` : `Saved ${q.number || "the contract"}.`}
+          </p>
+          <p className="mt-1 text-sm text-muted">The form below is ready for the next one. It also appears in Contracts.</p>
         </Card>
       ) : null}
       {q.imported || q.updated || q.certs ? (
@@ -95,95 +99,23 @@ export default async function CurrentRecordsPage({
 
       <Card>
         <h2 className="serif mb-2 text-2xl">Enter a current contract</h2>
-        <p className="mb-4 text-muted">
-          For packets already in the current system. This does not change New contract. Upload the tracker first so the bus company list is filled in.
-        </p>
-        <form action={saveCurrentContract} className="grid gap-4 md:grid-cols-2">
-          <Field label="Date received">
-            <input className={inputClass} type="date" name="receivedDate" />
-          </Field>
-          <Field label="School year">
-            <input className={inputClass} name="schoolYear" required defaultValue={schoolYear} />
-          </Field>
-          <Field label="District">
-            <select className={inputClass} name="districtId" required defaultValue="">
-              <option value="">Choose a district</option>
-              {districts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Bus company" hint="Choose one from the tracker, or type a new name below.">
-            <select className={inputClass} name="contractorId" defaultValue="">
-              <option value="">Choose a bus company</option>
-              {contractors.map((c) => (
-                <option key={c.id} value={c.id}>{c.legalName}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Or type a new bus company">
-            <input className={inputClass} name="newContractorName" placeholder="Only if it is not in the list yet" />
-          </Field>
-          <Field label="County for a new bus company">
-            <select className={inputClass} name="newContractorCounty" defaultValue="">
-              <option value="">Choose a county</option>
-              {NJ_COUNTIES.map((county) => (
-                <option key={county} value={county}>{county}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Type">
-            <select className={inputClass} name="type" required defaultValue="original">
-              {CONTRACT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Multi-contract number">
-            <input className={inputClass} name="multiContractNumber" required />
-          </Field>
-          <Field label="Route number(s)" hint="One per line, or separated by commas.">
-            <textarea className={inputClass} name="routes" rows={3} />
-          </Field>
-          <Field label="Bid number">
-            <input className={inputClass} name="bidNumber" />
-          </Field>
-          <Field label="Status">
-            <select className={inputClass} name="statusName" defaultValue="Need Review">
-              {statuses.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="1st reviewer">
-            <select className={inputClass} name="firstReviewerId" defaultValue="">
-              <option value="">Not recorded</option>
-              {reviewers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="2nd reviewer">
-            <select className={inputClass} name="secondReviewerId" defaultValue="">
-              <option value="">Not recorded</option>
-              {reviewers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Date sent to district">
-            <input className={inputClass} type="date" name="sentToDistrictAt" />
-          </Field>
-          <Field label="Insurance expiration date" hint="Filed on this contractor and district. You can add the certificate file later under Insurance.">
-            <input className={inputClass} type="date" name="insuranceExpiresAt" />
-          </Field>
-          <Field label="Notes" className="md:col-span-2">
-            <textarea className={inputClass} name="notes" rows={2} />
-          </Field>
-          <div>
-            <Button type="submit">Save current contract</Button>
-          </div>
-        </form>
+        {isIntakeType(q.type) ? (
+          <ContractIntakeForm
+            source="current"
+            type={q.type}
+            schoolYear={schoolYear}
+            districts={districts}
+            contractors={contractors}
+            statuses={statuses}
+            reviewers={reviewers}
+            changeTypeHref="/settings/current-records"
+          />
+        ) : (
+          <ContractTypePicker
+            basePath="/settings/current-records"
+            hint="Choose the type first. Parentals ask for the parent name. Joints ask for host and joiner. Addendums find an existing multi-contract number and ask before they link."
+          />
+        )}
       </Card>
     </div>
   );

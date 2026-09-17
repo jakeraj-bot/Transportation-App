@@ -156,6 +156,7 @@ export function districtMergeFields(district?: DistrictAddressInput | null) {
 export type ContractLetterRowInput = {
   multiContractNumber: string;
   contractorName: string;
+  parentName?: string | null;
   vendorCode?: string | null;
   routes: string[];
   addendumNumbers?: string[];
@@ -177,7 +178,7 @@ export function contractLetterRow(input: ContractLetterRowInput) {
   return {
     multiContractNumber: input.multiContractNumber,
     contractor: input.contractorName,
-    parentName: input.contractorName,
+    parentName: input.parentName?.trim() || input.contractorName,
     vendorCode: input.vendorCode || "—",
     routes,
     routeNumber: routes,

@@ -20,6 +20,7 @@ import { isSuperAdmin } from "@/lib/roles";
 import { checklistDefinition } from "@/lib/checklists";
 import { sameLetterGroup } from "@/lib/letter-groups";
 import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
+import { formatCompanyNames } from "@/lib/contract-intake";
 
 export default async function ContractDetailPage({
   params,
@@ -38,6 +39,7 @@ export default async function ContractDetailPage({
       contractor: { include: { annualCerts: true } },
       routes: { include: { addenda: { where: { deletedAt: null } } } },
       extraPackets: { orderBy: { sortOrder: "asc" } },
+      extraContractors: { include: { contractor: true }, orderBy: { sortOrder: "asc" } },
       comments: { include: { user: true }, orderBy: { createdAt: "desc" } },
       bidSpec: true,
       routePacket: true,
@@ -108,6 +110,10 @@ export default async function ContractDetailPage({
       : null;
   const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
   const addendumTotal = contract.routes.reduce((sum, route) => sum + route.addenda.length, 0);
+  const companyNames = formatCompanyNames([
+    contract.parentName || contract.contractor.legalName,
+    ...contract.extraContractors.map((link) => link.contractor.legalName),
+  ]);
   const superAdmin = isSuperAdmin(session?.role);
   const checklistDef = checklistDefinition("contract", contract.type);
   const currentLetterGroup = {
@@ -129,7 +135,7 @@ export default async function ContractDetailPage({
       <PageHeader
         title={contract.multiContractNumber}
         backHref="/contracts"
-        hint={`${contract.district.name} · ${contract.contractor.legalName} · ${contractTypeLabel(contract.type)}`}
+        hint={`${contract.type === "joint" && contract.hostDistrict ? `Host ${contract.hostDistrict.name}` : contract.district.name}${contract.joinerDistricts ? ` · Joiner ${contract.joinerDistricts}` : ""} · ${companyNames} · ${contractTypeLabel(contract.type)}`}
         actions={
           <>
             <LabelButton contractId={contract.id} />
@@ -281,6 +287,7 @@ export default async function ContractDetailPage({
               {contract.extraPackets.map((packet) => (
                 <li key={packet.id}>
                   {packet.multiContractNumber} · route {packet.routeNumber}
+                  {packet.renewalNumber ? ` · renewal ${packet.renewalNumber}` : ""}
                 </li>
               ))}
             </ul>
@@ -326,6 +333,7 @@ export default async function ContractDetailPage({
               contract={contract}
               routes={contract.routes}
               extraPackets={contract.extraPackets}
+              additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
               linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
               currentUserId={session?.id}
             />

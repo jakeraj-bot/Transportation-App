@@ -86,14 +86,15 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     blocks: [
       {
         heading: "When a packet first arrives",
-        body: "Click New contract. Enter only what identifies the packet:",
+        body: "Click New contract. Choose the type first — renewals, originals, quotes, parentals, joint agreements, or addendums. The next screen only asks for the fields that type needs:",
         steps: [
-          "District, contractor, school year, and date received.",
-          "Type of contract, multi-contract number, and every route number (one per line).",
-          "Status (usually Need Review) and any notes.",
-          "Save. You can print the folder tab and labels from the contract page.",
+          "Date received, school year, and status.",
+          "Originals, renewals, quotes: district, bus company (add a new name if it is not on the list; originals, renewals, and joints can have more than one company), multi-contract number, and route numbers. Originals and renewals also ask for a bid number. Renewals also ask for a renewal number on each multi-contract number.",
+          "Parentals: district, parent name, multi-contract number, and route numbers. There is no bus company on a parental.",
+          "Joint agreements: host district, joiner district, bus company, multi-contract number, and route numbers.",
+          "Addendums: find the existing multi-contract number first. We show the contract we found and ask you to confirm before linking. Then pick a route that is already on that contract, plus bid number and renewal number if you have them.",
         ],
-        note: "Do not enter cost, bonds, insurance amounts, or links on this first screen. Those wait until someone starts the review.",
+        note: "Do not enter cost, bonds, insurance amounts, or links on this first screen. Those wait until someone starts the review. 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration are only on Bring in records for old packets.",
       },
       {
         heading: "When you review",
@@ -102,9 +103,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Original / bid: link the approved route descriptions and the bid spec.",
           "Renewal: prior-year cost (used to check the CPI increase) and any extra multi-contract numbers.",
           "Quote: link the emergency quote packet.",
-          "Joint agreement: host district and joiner district(s).",
+          "Joint agreement: host district and joiner district are entered when the packet arrives; during review also check the shared cost fields.",
           "Addendum: if the cost increased, the bond amount has to increase too.",
-          "Parental: the shared review fields only, plus the parental checklist.",
+          "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
         ],
       },
       {
@@ -131,7 +132,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Routes and addendums",
-        body: "Addendums belong to a route, not the multi-contract number. Click a route number to see what changed and why. Add a new addendum on that route page.",
+        body: "Addendums belong to a route that is already on a contract, not a new multi-contract number. On New contract, choose Addendums, find the account, and confirm before we link it. You can also click a route number on the contract page to add an addendum there.",
       },
       {
         heading: "Folder tab and labels",
@@ -250,7 +251,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Super Admin only. This page is for copying contractors and contracts that already exist in the current office system. It does not change how New contract works for packets that arrive from now on.",
+        body: "Super Admin only. This page is for copying contractors and contracts that already exist in the current office system. Choose the contract type first, the same way as New contract. Parentals ask for the parent name. Joints ask for host and joiner. Addendums find an existing multi-contract number and ask before they link.",
       },
       {
         heading: "Certification tracker",
@@ -264,7 +265,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Current contracts",
-        body: "Use Enter a current contract for packets already on file. Fill date received, district, bus company, type, multi-contract number, route number, bid number, status, 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration. After you save, the form clears so you can enter the next one. When the move is finished, tell us and we can remove this page.",
+        body: "Choose the type, then fill the fields for that type. Old packets also ask for 1st reviewer, 2nd reviewer, date sent to district, insurance expiration, and notes. After you save, pick a type again for the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },
