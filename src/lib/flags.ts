@@ -31,6 +31,17 @@ export function insuranceCoverage(input: {
     !input.namedDistrict.toLowerCase().includes(input.districtName.toLowerCase()) &&
     !input.districtName.toLowerCase().includes(input.namedDistrict.toLowerCase());
 
+  if (!input.contractStart && !input.contractEnd) {
+    if (!input.insEnd) {
+      return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
+    }
+    return {
+      kind: "pending" as const,
+      label: "Insurance dates are on file. Enter the contract dates during review to check the full run.",
+      gapStart: null,
+      gapEnd: null,
+    };
+  }
   if (!input.insEnd) {
     return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
   }

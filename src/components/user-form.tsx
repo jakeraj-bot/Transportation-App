@@ -17,6 +17,7 @@ export function UserForm({
     role: string;
     permissions: string[];
     districtIds: string[];
+    adminSetPassword?: string | null;
   };
   districts: Array<{ id: string; name: string }>;
 }) {
@@ -39,8 +40,16 @@ export function UserForm({
       <Field label="Email">
         <input className={inputClass} name="email" type="email" required defaultValue={user?.email} />
       </Field>
-      <Field label={user ? "New password (leave blank to keep)" : "Password"} hint={!user ? "If you leave this blank, the starter password is Passaic2026!" : undefined}>
-        <input className={inputClass} name="password" type="password" />
+      {user?.adminSetPassword ? (
+        <Field label="Password on file" hint="This is the password you last saved for them. Only Super Admin can see it.">
+          <input className={inputClass} readOnly value={user.adminSetPassword} />
+        </Field>
+      ) : null}
+      <Field
+        label={user ? "New password (leave blank to keep)" : "Password"}
+        hint={!user ? "If you leave this blank, the starter password is Passaic2026!" : user?.adminSetPassword ? "Type a new password here if you need to change it. It will replace the one on file." : "The current password is hidden because it was set before this screen could show it. Type a new one to keep a copy here."}
+      >
+        <input className={inputClass} name="password" type="text" autoComplete="new-password" />
       </Field>
       <Field label="What they do in the office">
         <select className={inputClass} name="role" value={role} onChange={(e) => changeRole(e.target.value)}>

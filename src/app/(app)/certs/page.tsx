@@ -1,33 +1,55 @@
-import Link from "next/link";
-import { Button, Card, EmptyState, PageHeader, StatusChip } from "@/components/ui";
-import { getSchoolYear } from "@/lib/data";
+import { CertList } from "@/components/cert-list";
+import { Button, EmptyState, PageHeader } from "@/components/ui";
+import { getSchoolYear, getStatuses } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
+import { formatDate } from "@/lib/utils";
+import { sortCerts } from "@/lib/cert-list";
 
-export default async function CertsPage() {
-  const schoolYear = await getSchoolYear();
-  const rows = await prisma.annualCert.findMany({
+export default async function CertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; county?: string; open?: string }>;
+}) {
+  const { q = "", status = "", county = "", open } = await searchParams;
+  const [schoolYear, statuses] = await Promise.all([getSchoolYear(), getStatuses("cert")]);
+  const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));
+  const found = await prisma.annualCert.findMany({
     where: { deletedAt: null, schoolYear },
     include: { contractor: true },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ contractor: { legalName: "asc" } }, { county: "asc" }],
   });
+  const rows = sortCerts(
+    found.map((c) => ({
+      id: c.id,
+      statusName: c.statusName,
+      statusColor: statusColor[c.statusName],
+      notes: c.notes,
+      receivedDateLabel: formatDate(c.receivedDate),
+      contractorName: c.contractor.legalName,
+      dba: c.contractor.dba,
+      ospCode: c.contractor.ospCode,
+      vendorCode: c.contractor.vendorCode,
+      county: c.county || c.contractor.county,
+    }))
+  );
   return (
     <div>
       <PageHeader
         title="Annual certifications"
-        hint={`Status only for ${schoolYear}. Driver packets stay in the paper file. Due August 15.`}
+        hint={`Status only for ${schoolYear}. Listed A–Z by bus company. Search by name or OSP code, or filter by status and county. Driver packets stay in the paper file. Due August 15.`}
         actions={<Button href="/certs/new">New annual cert</Button>}
       />
       {rows.length === 0 ? (
         <EmptyState title="No certs entered this year" body="Add a contractor’s cert status when the packet arrives." action={<Button href="/certs/new">New annual cert</Button>} />
       ) : (
-        <Card className="divide-y divide-line p-0">
-          {rows.map((c) => (
-            <Link key={c.id} href={`/certs/${c.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-teal-soft/40">
-              <span>{c.contractor.legalName} · {c.contractor.vendorCode || "no code"}</span>
-              <StatusChip name={c.statusName} />
-            </Link>
-          ))}
-        </Card>
+        <CertList
+          initialQ={q}
+          initialStatus={status}
+          initialCounty={county}
+          initialOpen={open === "1" || open === "true"}
+          statuses={statuses.map((row) => ({ name: row.name, color: row.color }))}
+          rows={rows}
+        />
       )}
     </div>
   );
