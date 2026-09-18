@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { StatusChip } from "@/components/ui";
 import { contractTypeLabel, formatCurrency, formatDate } from "@/lib/utils";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -16,14 +15,12 @@ export function ContractSnapshot({
   contract,
   companyNames,
   routes,
-  statusColor,
 }: {
   contractId: string;
   contract: {
     multiContractNumber: string;
     schoolYear: string;
     type: string;
-    statusName: string;
     district: { id: string; name: string };
     contractorId: string;
     parentName: string | null;
@@ -37,7 +34,6 @@ export function ContractSnapshot({
     bondAmount: number | null;
     bondType: string;
     insuranceAmount: number | null;
-    notes: string | null;
   };
   companyNames: string;
   routes: Array<{
@@ -46,7 +42,6 @@ export function ContractSnapshot({
     cancelledAt: Date | null;
     addenda: Array<{ id: string; reason: string }>;
   }>;
-  statusColor?: string;
 }) {
   const districtLabel =
     contract.type === "joint" && contract.hostDistrict
@@ -55,13 +50,10 @@ export function ContractSnapshot({
 
   return (
     <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="serif text-xl">{contract.multiContractNumber}</span>
-          <span className="text-sm text-muted">{contractTypeLabel(contract.type)}</span>
-          <span className="text-sm text-muted">{contract.schoolYear}</span>
-        </div>
-        <StatusChip name={contract.statusName} color={statusColor} />
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-3">
+        <span className="serif text-xl">{contract.multiContractNumber}</span>
+        <span className="text-sm text-muted">{contractTypeLabel(contract.type)}</span>
+        <span className="text-sm text-muted">{contract.schoolYear}</span>
       </div>
 
       <div className="mt-3 grid gap-x-5 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -104,7 +96,7 @@ export function ContractSnapshot({
         {routes.length === 0 ? (
           <p className="mt-1 text-sm text-muted">No routes yet</p>
         ) : (
-          <ul className="mt-1.5 space-y-1.5">
+          <ul className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
             {routes.map((route) => (
               <li key={route.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
                 <Link
@@ -138,9 +130,6 @@ export function ContractSnapshot({
         )}
       </div>
 
-      {contract.notes ? (
-        <p className="mt-3 border-t border-line pt-2 text-xs text-muted whitespace-pre-wrap">{contract.notes}</p>
-      ) : null}
     </div>
   );
 }

@@ -739,6 +739,7 @@ export async function saveContract(form: FormData) {
     }
   }
 
+  await syncIntakeNoteComment(row.id, user.id, formString(form, "notes"));
   await ensureChecklist("contract", row.id, row.type);
   await refreshContractFlags(row.id);
   await writeAudit({
@@ -819,6 +820,7 @@ export async function saveCurrentContract(form: FormData) {
     });
   }
 
+  await syncIntakeNoteComment(row.id, user.id, formString(form, "notes"));
   await ensureChecklist("contract", row.id, row.type);
   await refreshContractFlags(row.id);
   await writeAudit({
@@ -1723,6 +1725,18 @@ export async function saveSignedApprovalLetter(form: FormData) {
     summary: "Uploaded a signed approval letter",
   });
   revalidateAll();
+}
+
+async function syncIntakeNoteComment(contractId: string, userId: string, notesFromForm: string | null) {
+  const body = notesFromForm?.trim();
+  if (!body) return;
+  const existing = await prisma.contractComment.findFirst({
+    where: { contractId, body },
+  });
+  if (existing) return;
+  await prisma.contractComment.create({
+    data: { contractId, userId, body },
+  });
 }
 
 export async function addContractComment(form: FormData) {

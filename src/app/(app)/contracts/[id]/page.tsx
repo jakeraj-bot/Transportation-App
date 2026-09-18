@@ -12,7 +12,7 @@ import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
 import { ContractRoutesPanel } from "@/components/contract-routes-panel";
-import { Button, Field, Flag, PageHeader, inputClass } from "@/components/ui";
+import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
@@ -152,6 +152,29 @@ export default async function ContractDetailPage({
     ? `${formatDate(insurance.startsOn)} – ${formatDate(insurance.expiresAt)}`
     : "No certificate on file yet";
   const superAdmin = isSuperAdmin(session?.role);
+  const defaultIntakeNote = "Entered from the current-system list.";
+  const displayComments = [
+    ...contract.comments.map((comment) => ({
+      id: comment.id,
+      body: comment.body,
+      userName: comment.user.name,
+      createdAt: comment.createdAt,
+      canDelete: superAdmin,
+    })),
+    ...(contract.notes?.trim() &&
+    contract.notes !== defaultIntakeNote &&
+    !contract.comments.some((comment) => comment.body.trim() === contract.notes!.trim())
+      ? [
+          {
+            id: "intake-notes",
+            body: contract.notes,
+            userName: "Intake notes",
+            createdAt: contract.createdAt,
+            canDelete: false,
+          },
+        ]
+      : []),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const checklistDef = checklistDefinition("contract", contract.type);
   const currentLetterGroup = {
     type: contract.type,
@@ -194,39 +217,56 @@ export default async function ContractDetailPage({
         </Flag>
       ) : null}
 
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <p className="text-sm text-muted">Status</p>
+          <div className="mt-2"><StatusChip name={contract.statusName} color={statusColor} /></div>
+          {contract.statusName === "2nd review" ? (
+            <p className="mt-2 text-sm text-muted">
+              Waiting {Math.max(1, Math.round(secondHours))} hours
+              {firstReviewerLabel ? ` · first review by ${firstReviewerLabel}` : ""}
+              {secondReviewerLabel ? ` · second review by ${secondReviewerLabel}` : ""}
+            </p>
+          ) : (
+            <>
+              {firstReviewerLabel ? (
+                <p className="mt-2 text-sm text-muted">1st reviewer: {firstReviewerLabel}</p>
+              ) : null}
+              {secondReviewerLabel ? (
+                <p className="mt-2 text-sm text-muted">2nd reviewer: {secondReviewerLabel}</p>
+              ) : null}
+            </>
+          )}
+          {contract.bidNumber ? (
+            <p className="mt-2 text-sm text-muted">Bid number {contract.bidNumber}</p>
+          ) : null}
+          {contract.sentToDistrictAt ? (
+            <p className="mt-2 text-sm text-muted">Letter sent {formatDate(contract.sentToDistrictAt)}</p>
+          ) : null}
+        </Card>
+        <Card>
+          <p className="text-sm text-muted">Annual certification</p>
+          <p className="mt-2 font-medium">{cert?.statusName ?? "No cert record this year"}</p>
+          {cert ? <Link className="text-sm text-teal" href={`/certs/${cert.id}`}>Open cert</Link> : <Link className="text-sm text-teal" href="/certs/new">Add cert</Link>}
+        </Card>
+        <Card>
+          <p className="text-sm text-muted">Vendor / OSP</p>
+          <p className="mt-2 font-medium">{contract.contractor.vendorCode || "Vendor not on file"}</p>
+          <p className="text-sm text-muted">OSP {contract.contractor.ospCode || "not on file"}</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-muted">Business registration</p>
+          <p className="mt-2 font-medium">{contract.contractor.brcStatus}</p>
+          <Link className="text-sm text-teal" href={`/contractors/${contract.contractorId}`}>Open BRC search from contractor</Link>
+        </Card>
+      </div>
+
       <ContractSnapshot
         contractId={contract.id}
         contract={contract}
         companyNames={companyNames}
         routes={snapshotRoutes}
-        statusColor={statusColor}
       />
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-        {contract.statusName === "2nd review" ? (
-          <span>
-            Waiting {Math.max(1, Math.round(secondHours))} hours in 2nd review
-            {firstReviewerLabel ? ` · 1st ${firstReviewerLabel}` : ""}
-            {secondReviewerLabel ? ` · 2nd ${secondReviewerLabel}` : ""}
-          </span>
-        ) : (
-          <>
-            {firstReviewerLabel ? <span>1st reviewer: {firstReviewerLabel}</span> : null}
-            {secondReviewerLabel ? <span>2nd reviewer: {secondReviewerLabel}</span> : null}
-          </>
-        )}
-        {cert ? (
-          <span>
-            Cert: {cert.statusName} · <Link className="text-teal hover:underline" href={`/certs/${cert.id}`}>open</Link>
-          </span>
-        ) : (
-          <Link className="text-teal hover:underline" href="/certs/new">Add cert</Link>
-        )}
-        <span>Vendor {contract.contractor.vendorCode || "—"} · OSP {contract.contractor.ospCode || "—"}</span>
-        <span>BRC {contract.contractor.brcStatus}</span>
-        {contract.bidNumber ? <span>Bid {contract.bidNumber}</span> : null}
-        {contract.sentToDistrictAt ? <span>Letter sent {formatDate(contract.sentToDistrictAt)}</span> : null}
-      </div>
 
       <div className="space-y-2">
         {contract.contractor.debarred ? (
@@ -400,20 +440,20 @@ export default async function ContractDetailPage({
             compact
             title="Comments"
             hint={
-              contract.comments.length
-                ? `${contract.comments.length} comment${contract.comments.length === 1 ? "" : "s"}`
+              displayComments.length
+                ? `${displayComments.length} comment${displayComments.length === 1 ? "" : "s"}`
                 : "Review notes from anyone on this contract"
             }
           >
             <div className="space-y-3">
-              {contract.comments.length === 0 ? <p className="text-muted">No comments yet.</p> : null}
-              {contract.comments.map((comment) => (
+              {displayComments.length === 0 ? <p className="text-muted">No comments yet.</p> : null}
+              {displayComments.map((comment) => (
                 <div key={comment.id} className="rounded-xl border border-line px-4 py-3">
                   <p className="text-sm text-muted">
-                    {comment.user.name} · {formatDate(comment.createdAt)} {comment.createdAt.toLocaleTimeString()}
+                    {comment.userName} · {formatDate(comment.createdAt)} {comment.createdAt.toLocaleTimeString()}
                   </p>
                   <p className="mt-1 whitespace-pre-wrap">{comment.body}</p>
-                  {superAdmin ? (
+                  {comment.canDelete ? (
                     <form action={deleteContractComment} className="mt-2">
                       <input type="hidden" name="id" value={comment.id} />
                       <button className="text-sm text-rose" type="submit">Delete comment</button>
