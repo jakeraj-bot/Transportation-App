@@ -65,7 +65,7 @@ export default async function ContractDetailPage({
   const firstReviewerLabel = reviewerLabel(contract.firstReviewer?.name, contract.firstReviewerName);
   const secondReviewerLabel = reviewerLabel(contract.secondReviewer?.name, contract.secondReviewerName);
 
-  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts] =
+  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4] =
     await Promise.all([
       getSchoolYear(),
       activeDistricts(),
@@ -95,7 +95,14 @@ export default async function ContractDetailPage({
         include: { contractor: true, hostDistrict: true },
         orderBy: { multiContractNumber: "asc" },
       }),
+      prisma.letter.findFirst({
+        where: { entityType: "contract", entityId: contract.id, kind: "pt4" },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
+  const existingPt4Url = latestPt4
+    ? `/api/files?path=${encodeURIComponent(latestPt4.filePath)}`
+    : undefined;
 
   const cert =
     contract.contractor.annualCerts.find(
@@ -424,13 +431,18 @@ export default async function ContractDetailPage({
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection compact title="Send PT-4" hint="Create the PT-4, then copy the email into your work Outlook">
+          <CollapsibleSection
+            compact
+            title="Send PT-4"
+            hint={existingPt4Url ? "PT-4 on file · create a new one or copy the email into Outlook" : "Create the PT-4, then copy the email into your work Outlook"}
+          >
             <Pt4Form
               entityType="contract"
               entityId={contract.id}
               defaultTo={contract.district.email || ""}
               districtName={contract.district.name}
               canSend={outlookConfigured()}
+              existingPt4Url={existingPt4Url}
             />
           </CollapsibleSection>
         </div>

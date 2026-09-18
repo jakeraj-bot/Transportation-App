@@ -1727,6 +1727,37 @@ export async function saveSignedApprovalLetter(form: FormData) {
   revalidateAll();
 }
 
+export async function saveUploadedPt4(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "upload_files") && !can(user, "edit") && !can(user, "create")) {
+    throw new Error("You do not have permission.");
+  }
+  const contractId = formString(form, "contractId");
+  const file = form.get("file") as File | null;
+  if (!file || file.size === 0) return;
+  const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const filePath = `pt4/${name}`;
+  await saveStoredFile(filePath, Buffer.from(await file.arrayBuffer()));
+  await prisma.letter.create({
+    data: {
+      entityType: "contract",
+      entityId: contractId,
+      kind: "pt4",
+      letterDate: new Date(),
+      filePath,
+      createdById: user.id,
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: contractId,
+    summary: "Uploaded a PT-4 file",
+  });
+  revalidateAll();
+}
+
 async function syncIntakeNoteComment(contractId: string, userId: string, notesFromForm: string | null) {
   const body = notesFromForm?.trim();
   if (!body) return;

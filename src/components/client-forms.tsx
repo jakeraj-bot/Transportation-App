@@ -6,6 +6,7 @@ import {
   generateContractLetter,
   generatePrintPacket,
   generatePt4AndEmail,
+  saveUploadedPt4,
   updateChecklistItem,
 } from "@/app/actions";
 import { groupByLetter, type LetterGroupInput } from "@/lib/letter-groups";
@@ -228,12 +229,14 @@ export function Pt4Form({
   defaultTo,
   districtName,
   canSend,
+  existingPt4Url,
 }: {
   entityType: string;
   entityId: string;
   defaultTo?: string;
   districtName?: string;
   canSend?: boolean;
+  existingPt4Url?: string;
 }) {
   const subject = districtName
     ? `PT-4 additional information needed — ${districtName}`
@@ -246,6 +249,36 @@ export function Pt4Form({
 
   return (
     <div className="space-y-5">
+      {entityType === "contract" ? (
+        <form action={saveUploadedPt4} className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <input type="hidden" name="contractId" value={entityId} />
+          <Field
+            label="Upload existing PT-4"
+            hint={
+              existingPt4Url
+                ? "A PT-4 is already on file. Upload another to add a newer copy."
+                : "Already have a PT-4 from outside this app? Upload the Word or PDF file here."
+            }
+          >
+            <input
+              className={inputClass}
+              type="file"
+              name="file"
+              accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+            />
+          </Field>
+          <Button type="submit" variant="secondary">
+            Save PT-4 file
+          </Button>
+        </form>
+      ) : null}
+      {existingPt4Url ? (
+        <p className="text-sm">
+          <a className="text-teal hover:underline" href={existingPt4Url}>
+            Open PT-4 on file
+          </a>
+        </p>
+      ) : null}
       <form
         className="space-y-3"
         onSubmit={async (e) => {
