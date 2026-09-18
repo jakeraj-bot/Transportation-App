@@ -10,6 +10,7 @@ import {
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
+import { ContractSnapshot } from "@/components/contract-snapshot";
 import { ContractRoutesOverview, ContractRoutesPanel } from "@/components/contract-routes-panel";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
@@ -133,6 +134,10 @@ export default async function ContractDetailPage({
     contract.parentName || contract.contractor.legalName,
     ...contract.extraContractors.map((link) => link.contractor.legalName),
   ]);
+  const routeLabels = sortedRoutes
+    .map((route) => `${route.number}${route.cancelledAt ? " (cancelled)" : ""}`)
+    .join(", ");
+  const statusColor = statuses.find((s) => s.name === contract.statusName)?.color;
   const superAdmin = isSuperAdmin(session?.role);
   const checklistDef = checklistDefinition("contract", contract.type);
   const currentLetterGroup = {
@@ -176,6 +181,15 @@ export default async function ContractDetailPage({
           <Link className="underline" href={`/contractors/${contract.contractorId}`}>contractor tab</Link> so it is no longer highlighted in red.
         </Flag>
       ) : null}
+
+      <ContractSnapshot
+        contract={contract}
+        companyNames={companyNames}
+        routeLabels={routeLabels}
+        statusColor={statusColor}
+        firstReviewerLabel={firstReviewerLabel}
+        secondReviewerLabel={secondReviewerLabel}
+      />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -256,6 +270,213 @@ export default async function ContractDetailPage({
         ) : null}
       </div>
 
+      <Card>
+        <h2 className="serif mb-3 text-2xl">Routes</h2>
+        {contract.routes.length ? (
+          <p className="mb-3 text-sm text-muted">
+            {activeRouteCount} active route{activeRouteCount === 1 ? "" : "s"}
+            {contract.routes.length !== activeRouteCount
+              ? ` · ${contract.routes.length - activeRouteCount} cancelled`
+              : ""}
+            {addendumTotal ? ` · ${addendumTotal} addendum${addendumTotal === 1 ? "" : "s"}` : ""}
+          </p>
+        ) : null}
+        <ContractRoutesOverview
+          contractId={contract.id}
+          routes={sortedRoutes.map((route) => ({
+            id: route.id,
+            number: route.number,
+            cancelledAt: route.cancelledAt,
+            cancelNote: route.cancelNote,
+            addendaCount: route.addenda.length,
+          }))}
+          extraPackets={contract.extraPackets}
+        />
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <h2 className="serif mb-4 text-2xl">Review and decide</h2>
+          <p className="mb-3 text-sm text-muted">
+            Generating a letter moves the status to Approved or Disapproved while you wait for a signature. After the signed letter is sent, mark the date it went to the district. Uploading the signed letter is optional.
+          </p>
+          <LetterButtons
+            kind="contract"
+            id={contract.id}
+            contractTypeLabel={contractTypeLabel(contract.type)}
+            contractType={contract.type}
+            letterGroup={currentLetterGroup}
+            sameTypeContracts={sameTypeContracts.map((row) => ({
+              id: row.id,
+              multiContractNumber: row.multiContractNumber,
+              contractorName: row.contractor.legalName,
+              hostName: row.hostDistrict?.name,
+              joinerDistricts: row.joinerDistricts,
+              receivedDateLabel: formatDate(row.receivedDate),
+              letterGroup: {
+                type: row.type,
+                districtId: row.districtId,
+                schoolYear: row.schoolYear,
+                hostDistrictId: row.hostDistrictId,
+                joinerDistricts: row.joinerDistricts,
+                receivedDate: row.receivedDate,
+              },
+              sameLetterGroup: sameLetterGroup(currentLetterGroup, {
+                type: row.type,
+                districtId: row.districtId,
+                schoolYear: row.schoolYear,
+                hostDistrictId: row.hostDistrictId,
+                joinerDistricts: row.joinerDistricts,
+                receivedDate: row.receivedDate,
+              }),
+            }))}
+          />
+          {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
+            <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <input type="hidden" name="id" value={contract.id} />
+              <Field label="Date sent to district">
+                <input className={inputClass} type="date" name="sentToDistrictAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </Field>
+              <Button type="submit">Mark signed letter sent</Button>
+            </form>
+          ) : null}
+          <form action={saveSignedApprovalLetter} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <input type="hidden" name="id" value={contract.id} />
+            <Field
+              label="Signed approval letter (optional)"
+              hint={contract.signedApprovalLetterPath ? "A signed letter is already on file. Upload another to replace it." : "You do not have to upload this."}
+            >
+              <input className={inputClass} type="file" name="file" />
+            </Field>
+            <Button type="submit" variant="secondary">Save signed letter</Button>
+          </form>
+          {contract.signedApprovalLetterPath ? (
+            <p className="mt-2 text-sm">
+              <a className="text-teal" href={`/api/files?path=${encodeURIComponent(contract.signedApprovalLetterPath)}`}>
+                Open signed letter
+              </a>
+            </p>
+          ) : null}
+        </Card>
+        <Card>
+          <h2 className="serif mb-4 text-2xl">Insurance for this district</h2>
+          <p className="mb-3 text-sm text-muted">
+            We do not approve insurance. Keep the policy dates so we can tell when it expires. Uploading the file is optional.
+          </p>
+          {insurance ? (
+            <p className="mb-3">
+              Named: {insurance.namedDistrict || "—"} · {formatDate(insurance.startsOn)} – {formatDate(insurance.expiresAt)}{" "}
+              {insurance.filePath ? (
+                <a className="text-teal" href={`/api/files?path=${encodeURIComponent(insurance.filePath)}`}>Open file</a>
+              ) : (
+                <span className="text-muted">(no file uploaded)</span>
+              )}
+            </p>
+          ) : (
+            <p className="mb-3 text-muted">No certificate on file that names {contract.district.name}.</p>
+          )}
+          <Link className="text-teal" href={`/insurance/new?contractorId=${contract.contractorId}&districtId=${contract.districtId}`}>
+            Add insurance dates for this district
+          </Link>
+          {ins.kind !== "covers" && ins.kind !== "pending" ? (
+            <div className="mt-4">
+              <SimpleEmailForm
+                districtId={contract.districtId}
+                defaultTo={contract.district.email || ""}
+                kind="insurance"
+                subject={`Updated insurance needed — ${contract.district.name}`}
+                body={`Hello,\n\nPlease send an updated certificate of insurance for ${contract.contractor.legalName} that names ${contract.district.name} as an additional insured${ins.gapStart && ins.gapEnd ? ` and covers ${formatDate(ins.gapStart)} through ${formatDate(ins.gapEnd)}` : ""}.\n\nThank you,\nPassaic County Transportation`}
+                canSend={outlookConfigured()}
+              />
+            </div>
+          ) : null}
+        </Card>
+      </div>
+
+      {contract.rationaleNeeded ? (
+        <Card>
+          <h2 className="serif mb-4 text-2xl">Ask for a rationale letter</h2>
+          <SimpleEmailForm
+            districtId={contract.districtId}
+            defaultTo={contract.district.email || ""}
+            kind="rationale"
+            subject={`Rationale letter needed — ${contract.multiContractNumber}`}
+            body={`Hello,\n\nThis contract was received by the county office 30 or more days after the board meeting that awarded it. Please send a rationale letter so we can continue the review.\n\nMulti-contract: ${contract.multiContractNumber}\nBoard meeting: ${formatDate(contract.boardMeetingDate)}\nDate received: ${formatDate(contract.receivedDate)}\n\nThank you,\nPassaic County Transportation`}
+            canSend={outlookConfigured()}
+          />
+        </Card>
+      ) : null}
+
+      <Card>
+        <h2 className="serif mb-2 text-2xl">{checklistDef?.name ?? "Checklist"}</h2>
+        <p className="mb-4 text-muted">
+          Only the items this type of contract needs. Comment on anything missing — those comments become the PT-4.
+        </p>
+        <div className="space-y-3">
+          {checklist.length === 0 ? <p className="text-muted">No checklist items for this type.</p> : null}
+          {checklist.map((item) => (
+            <ChecklistRow key={item.id} item={item} />
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="serif mb-4 text-2xl">Send PT-4</h2>
+        <Pt4Form
+          entityType="contract"
+          entityId={contract.id}
+          defaultTo={contract.district.email || ""}
+          districtName={contract.district.name}
+          canSend={outlookConfigured()}
+        />
+      </Card>
+
+      {contract.bidSpec ? (
+        <Card>
+          <h2 className="serif mb-2 text-2xl">Linked bid spec</h2>
+          <p>
+            <Link className="text-teal" href={`/bid-specs/${contract.bidSpec.id}`}>{contract.bidSpec.title}</Link>
+            {contract.bidSpec.insuranceAmount ? ` · Insurance $${contract.bidSpec.insuranceAmount.toLocaleString()}` : ""}
+            {contract.bidSpec.bondType ? ` · Bond ${contract.bidSpec.bondType}` : ""}
+          </p>
+        </Card>
+      ) : null}
+
+      {contract.routePacket ? (
+        <Card>
+          <h2 className="serif mb-2 text-2xl">Linked route packet</h2>
+          <Link className="text-teal" href={`/route-descriptions/${contract.routePacket.id}`}>
+            {contract.routePacket.destination || contract.routePacket.title}
+          </Link>
+        </Card>
+      ) : null}
+
+      <Card>
+        <h2 className="serif mb-2 text-2xl">Review details</h2>
+        <p className="mb-4 text-muted">
+          Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow this type of packet.
+        </p>
+        {canEdit ? (
+          <ContractForm
+            mode="review"
+            schoolYear={schoolYear}
+            districts={districts}
+            contractors={contractors}
+            statuses={statuses}
+            bidSpecs={bidSpecs}
+            routePackets={routePackets}
+            contract={contract}
+            routes={sortedRoutes}
+            extraPackets={contract.extraPackets}
+            additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
+            linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
+            currentUserId={session?.id}
+          />
+        ) : (
+          <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
+        )}
+      </Card>
+
       <CollapsibleSection
         title="Comments"
         hint={
@@ -288,239 +509,6 @@ export default async function ContractDetailPage({
             <Button type="submit">Save comment</Button>
           </form>
         </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Routes"
-        defaultOpen
-        hint={
-          contract.routes.length
-            ? `${activeRouteCount} active route${activeRouteCount === 1 ? "" : "s"}${contract.routes.length !== activeRouteCount ? ` · ${contract.routes.length - activeRouteCount} cancelled` : ""}${addendumTotal ? ` · ${addendumTotal} addendum${addendumTotal === 1 ? "" : "s"}` : ""}`
-            : "Add route numbers when the packet is entered or reviewed"
-        }
-      >
-        <ContractRoutesOverview
-          contractId={contract.id}
-          routes={sortedRoutes.map((route) => ({
-            id: route.id,
-            number: route.number,
-            cancelledAt: route.cancelledAt,
-            cancelNote: route.cancelNote,
-            addendaCount: route.addenda.length,
-          }))}
-          extraPackets={contract.extraPackets}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Review process"
-        defaultOpen
-        hint={`${checklistDef?.name ?? "Review details"}, then the checklist, then review and decide`}
-      >
-        <div className="space-y-8">
-          <div>
-            <h3 className="serif mb-2 text-xl">Review details</h3>
-            <p className="mb-4 text-muted">
-              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow this type of packet.
-            </p>
-            {canEdit ? (
-              <ContractForm
-                mode="review"
-                schoolYear={schoolYear}
-                districts={districts}
-                contractors={contractors}
-                statuses={statuses}
-                bidSpecs={bidSpecs}
-                routePackets={routePackets}
-                contract={contract}
-                routes={sortedRoutes}
-                extraPackets={contract.extraPackets}
-                additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
-                linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
-                currentUserId={session?.id}
-              />
-            ) : (
-              <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
-            )}
-          </div>
-          {contract.bidSpec ? (
-            <div>
-              <h3 className="serif mb-2 text-xl">Linked bid spec</h3>
-              <p>
-                <Link className="text-teal" href={`/bid-specs/${contract.bidSpec.id}`}>{contract.bidSpec.title}</Link>
-                {contract.bidSpec.insuranceAmount ? ` · Insurance $${contract.bidSpec.insuranceAmount.toLocaleString()}` : ""}
-                {contract.bidSpec.bondType ? ` · Bond ${contract.bidSpec.bondType}` : ""}
-              </p>
-            </div>
-          ) : null}
-          {contract.routePacket ? (
-            <div>
-              <h3 className="serif mb-2 text-xl">Linked route packet</h3>
-              <Link className="text-teal" href={`/route-descriptions/${contract.routePacket.id}`}>
-                {contract.routePacket.destination || contract.routePacket.title}
-              </Link>
-            </div>
-          ) : null}
-          {contract.rationaleNeeded ? (
-            <div>
-              <h3 className="serif mb-2 text-xl">Ask for a rationale letter</h3>
-              <SimpleEmailForm
-                districtId={contract.districtId}
-                defaultTo={contract.district.email || ""}
-                kind="rationale"
-                subject={`Rationale letter needed — ${contract.multiContractNumber}`}
-                body={`Hello,\n\nThis contract was received by the county office 30 or more days after the board meeting that awarded it. Please send a rationale letter so we can continue the review.\n\nMulti-contract: ${contract.multiContractNumber}\nBoard meeting: ${formatDate(contract.boardMeetingDate)}\nDate received: ${formatDate(contract.receivedDate)}\n\nThank you,\nPassaic County Transportation`}
-                canSend={outlookConfigured()}
-              />
-            </div>
-          ) : null}
-          <div>
-            <h3 className="serif mb-2 text-xl">{checklistDef?.name ?? "Checklist"}</h3>
-            <p className="mb-4 text-muted">
-              Only the items this type of contract needs. Comment on anything missing — those comments become the PT-4.
-            </p>
-            <div className="space-y-3">
-              {checklist.length === 0 ? <p className="text-muted">No checklist items for this type.</p> : null}
-              {checklist.map((item) => (
-                <ChecklistRow key={item.id} item={item} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="serif mb-2 text-xl">Review and decide</h3>
-            <p className="mb-3 text-sm text-muted">
-              Generating a letter moves the status to Approved or Disapproved while you wait for a signature. After the signed letter is sent, mark the date it went to the district. Uploading the signed letter is optional.
-            </p>
-            <LetterButtons
-              kind="contract"
-              id={contract.id}
-              contractTypeLabel={contractTypeLabel(contract.type)}
-              contractType={contract.type}
-              letterGroup={currentLetterGroup}
-              sameTypeContracts={sameTypeContracts.map((row) => ({
-                id: row.id,
-                multiContractNumber: row.multiContractNumber,
-                contractorName: row.contractor.legalName,
-                hostName: row.hostDistrict?.name,
-                joinerDistricts: row.joinerDistricts,
-                receivedDateLabel: formatDate(row.receivedDate),
-                letterGroup: {
-                  type: row.type,
-                  districtId: row.districtId,
-                  schoolYear: row.schoolYear,
-                  hostDistrictId: row.hostDistrictId,
-                  joinerDistricts: row.joinerDistricts,
-                  receivedDate: row.receivedDate,
-                },
-                sameLetterGroup: sameLetterGroup(currentLetterGroup, {
-                  type: row.type,
-                  districtId: row.districtId,
-                  schoolYear: row.schoolYear,
-                  hostDistrictId: row.hostDistrictId,
-                  joinerDistricts: row.joinerDistricts,
-                  receivedDate: row.receivedDate,
-                }),
-              }))}
-            />
-            {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
-              <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                <input type="hidden" name="id" value={contract.id} />
-                <Field label="Date sent to district">
-                  <input className={inputClass} type="date" name="sentToDistrictAt" defaultValue={new Date().toISOString().slice(0, 10)} />
-                </Field>
-                <Button type="submit">Mark signed letter sent</Button>
-              </form>
-            ) : null}
-            <form action={saveSignedApprovalLetter} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-              <input type="hidden" name="id" value={contract.id} />
-              <Field
-                label="Signed approval letter (optional)"
-                hint={contract.signedApprovalLetterPath ? "A signed letter is already on file. Upload another to replace it." : "You do not have to upload this."}
-              >
-                <input className={inputClass} type="file" name="file" />
-              </Field>
-              <Button type="submit" variant="secondary">Save signed letter</Button>
-            </form>
-            {contract.signedApprovalLetterPath ? (
-              <p className="mt-2 text-sm">
-                <a className="text-teal" href={`/api/files?path=${encodeURIComponent(contract.signedApprovalLetterPath)}`}>
-                  Open signed letter
-                </a>
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Send PT-4" hint="Create the PT-4, then copy the email into your work Outlook">
-        <Pt4Form
-          entityType="contract"
-          entityId={contract.id}
-          defaultTo={contract.district.email || ""}
-          districtName={contract.district.name}
-          canSend={outlookConfigured()}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Insurance for this district" hint={insurance ? `${formatDate(insurance.startsOn)} – ${formatDate(insurance.expiresAt)}` : "No certificate on file yet"}>
-        <p className="mb-3 text-sm text-muted">
-          We do not approve insurance. Keep the policy dates so we can tell when it expires. Uploading the file is optional.
-        </p>
-        {insurance ? (
-          <p className="mb-3">
-            Named: {insurance.namedDistrict || "—"} · {formatDate(insurance.startsOn)} – {formatDate(insurance.expiresAt)}{" "}
-            {insurance.filePath ? (
-              <a className="text-teal" href={`/api/files?path=${encodeURIComponent(insurance.filePath)}`}>Open file</a>
-            ) : (
-              <span className="text-muted">(no file uploaded)</span>
-            )}
-          </p>
-        ) : (
-          <p className="mb-3 text-muted">No certificate on file that names {contract.district.name}.</p>
-        )}
-        <Link className="text-teal" href={`/insurance/new?contractorId=${contract.contractorId}&districtId=${contract.districtId}`}>
-          Add insurance dates for this district
-        </Link>
-        {ins.kind !== "covers" && ins.kind !== "pending" && (
-          <div className="mt-4">
-            <SimpleEmailForm
-              districtId={contract.districtId}
-              defaultTo={contract.district.email || ""}
-              kind="insurance"
-              subject={`Updated insurance needed — ${contract.district.name}`}
-              body={`Hello,\n\nPlease send an updated certificate of insurance for ${contract.contractor.legalName} that names ${contract.district.name} as an additional insured${ins.gapStart && ins.gapEnd ? ` and covers ${formatDate(ins.gapStart)} through ${formatDate(ins.gapEnd)}` : ""}.\n\nThank you,\nPassaic County Transportation`}
-              canSend={outlookConfigured()}
-            />
-          </div>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Edit contract"
-        hint="Change district, bus company, status, dates, costs, bonds, and other review fields"
-      >
-        <p className="mb-4 text-muted">
-          Open this only when you need to change contract details. The same fields are also in Review details above.
-        </p>
-        {canEdit ? (
-          <ContractForm
-            mode="review"
-            schoolYear={schoolYear}
-            districts={districts}
-            contractors={contractors}
-            statuses={statuses}
-            bidSpecs={bidSpecs}
-            routePackets={routePackets}
-            contract={contract}
-            routes={sortedRoutes}
-            extraPackets={contract.extraPackets}
-            additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
-            linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
-            currentUserId={session?.id}
-          />
-        ) : (
-          <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
-        )}
       </CollapsibleSection>
 
       <CollapsibleSection
