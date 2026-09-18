@@ -2,25 +2,24 @@ import Link from "next/link";
 import { StatusChip } from "@/components/ui";
 import { contractTypeLabel, formatCurrency, formatDate } from "@/lib/utils";
 
-function SnapshotField({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-0.5 text-sm font-medium break-words">{value || "—"}</p>
+      <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
+      <div className="mt-0.5 text-sm font-medium break-words">{children || "—"}</div>
     </div>
   );
 }
 
 export function ContractSnapshot({
+  contractId,
   contract,
   companyNames,
-  routeLabels,
+  routes,
   statusColor,
-  firstReviewerLabel,
-  secondReviewerLabel,
 }: {
+  contractId: string;
   contract: {
-    id: string;
     multiContractNumber: string;
     schoolYear: string;
     type: string;
@@ -35,101 +34,112 @@ export function ContractSnapshot({
     startsOn: Date | null;
     endsOn: Date | null;
     cost: number | null;
-    priorYearCost: number | null;
     bondAmount: number | null;
     bondType: string;
     insuranceAmount: number | null;
-    bidNumber: string | null;
-    renewalNumber: string | null;
-    sentToDistrictAt: Date | null;
     notes: string | null;
   };
   companyNames: string;
-  routeLabels: string;
+  routes: Array<{
+    id: string;
+    number: string;
+    cancelledAt: Date | null;
+    addenda: Array<{ id: string; reason: string }>;
+  }>;
   statusColor?: string;
-  firstReviewerLabel: string;
-  secondReviewerLabel: string;
 }) {
   const districtLabel =
     contract.type === "joint" && contract.hostDistrict
-      ? `${contract.hostDistrict.name}${contract.joinerDistricts ? ` · Joiners ${contract.joinerDistricts}` : ""}`
+      ? `${contract.hostDistrict.name}${contract.joinerDistricts ? ` · ${contract.joinerDistricts}` : ""}`
       : contract.district.name;
 
   return (
-    <div className="rounded-2xl bg-card px-5 py-4 shadow-[0_1px_0_rgba(44,58,71,0.04),0_12px_32px_rgba(44,58,71,0.06)]">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted">Packet on file</p>
-          <p className="serif mt-1 text-2xl">{contract.multiContractNumber}</p>
+    <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="serif text-xl">{contract.multiContractNumber}</span>
+          <span className="text-sm text-muted">{contractTypeLabel(contract.type)}</span>
+          <span className="text-sm text-muted">{contract.schoolYear}</span>
         </div>
         <StatusChip name={contract.statusName} color={statusColor} />
       </div>
-      <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <SnapshotField
-          label="District"
-          value={
-            <Link className="text-teal hover:underline" href={`/districts/${contract.district.id}`}>
-              {districtLabel}
+
+      <div className="mt-3 grid gap-x-5 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <Field label="District">
+          <Link className="text-teal hover:underline" href={`/districts/${contract.district.id}`}>
+            {districtLabel}
+          </Link>
+        </Field>
+        <Field label="Date received">{formatDate(contract.receivedDate)}</Field>
+        <Field label="Contractor">
+          {contract.parentName ? (
+            contract.parentName
+          ) : (
+            <Link className="text-teal hover:underline" href={`/contractors/${contract.contractorId}`}>
+              {companyNames}
             </Link>
-          }
-        />
-        <SnapshotField label="Type" value={contractTypeLabel(contract.type)} />
-        <SnapshotField label="School year" value={contract.schoolYear} />
-        <SnapshotField
-          label={contract.parentName ? "Parent" : "Bus company"}
-          value={
-            contract.parentName ? (
-              contract.parentName
-            ) : (
-              <Link className="text-teal hover:underline" href={`/contractors/${contract.contractorId}`}>
-                {companyNames}
-              </Link>
-            )
-          }
-        />
-        <SnapshotField label="Routes" value={routeLabels || "None yet"} />
-        <SnapshotField label="Date received" value={formatDate(contract.receivedDate)} />
-        <SnapshotField label="Board meeting" value={formatDate(contract.boardMeetingDate)} />
-        <SnapshotField
-          label="Contract dates"
-          value={
-            contract.startsOn || contract.endsOn
-              ? `${formatDate(contract.startsOn)} – ${formatDate(contract.endsOn)}`
-              : ""
-          }
-        />
-        <SnapshotField
-          label="Contract cost"
-          value={contract.cost != null ? `$${formatCurrency(contract.cost)}` : ""}
-        />
-        {contract.type === "renewal" ? (
-          <SnapshotField
-            label="Prior-year cost"
-            value={contract.priorYearCost != null ? `$${formatCurrency(contract.priorYearCost)}` : ""}
-          />
-        ) : null}
-        <SnapshotField
-          label="Bond"
-          value={
-            contract.bondAmount != null || contract.bondType !== "none"
-              ? `${contract.bondType !== "none" ? contract.bondType : "None"}${contract.bondAmount != null ? ` · $${formatCurrency(contract.bondAmount)}` : ""}`
-              : ""
-          }
-        />
-        <SnapshotField
-          label="Insurance amount"
-          value={contract.insuranceAmount != null ? `$${formatCurrency(contract.insuranceAmount)}` : ""}
-        />
-        {contract.bidNumber ? <SnapshotField label="Bid number" value={contract.bidNumber} /> : null}
-        {contract.renewalNumber ? <SnapshotField label="Renewal number" value={contract.renewalNumber} /> : null}
-        {firstReviewerLabel ? <SnapshotField label="1st reviewer" value={firstReviewerLabel} /> : null}
-        {secondReviewerLabel ? <SnapshotField label="2nd reviewer" value={secondReviewerLabel} /> : null}
-        {contract.sentToDistrictAt ? (
-          <SnapshotField label="Letter sent" value={formatDate(contract.sentToDistrictAt)} />
-        ) : null}
+          )}
+        </Field>
+        <Field label="Board meeting">{formatDate(contract.boardMeetingDate)}</Field>
+        <Field label="Contract dates">
+          {contract.startsOn || contract.endsOn
+            ? `${formatDate(contract.startsOn)} – ${formatDate(contract.endsOn)}`
+            : null}
+        </Field>
+        <Field label="Cost">
+          {contract.cost != null ? `$${formatCurrency(contract.cost)}` : null}
+        </Field>
+        <Field label="Bond">
+          {contract.bondAmount != null || contract.bondType !== "none"
+            ? `${contract.bondType !== "none" ? contract.bondType : "None"}${contract.bondAmount != null ? ` · $${formatCurrency(contract.bondAmount)}` : ""}`
+            : null}
+        </Field>
+        <Field label="Insurance">
+          {contract.insuranceAmount != null ? `$${formatCurrency(contract.insuranceAmount)}` : null}
+        </Field>
       </div>
+
+      <div className="mt-3 border-t border-line pt-3">
+        <p className="text-[11px] uppercase tracking-wide text-muted">Routes</p>
+        {routes.length === 0 ? (
+          <p className="mt-1 text-sm text-muted">No routes yet</p>
+        ) : (
+          <ul className="mt-1.5 space-y-1.5">
+            {routes.map((route) => (
+              <li key={route.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                <Link
+                  className={`font-medium hover:underline ${route.cancelledAt ? "text-muted line-through" : "text-teal"}`}
+                  href={`/contracts/${contractId}/routes/${route.id}`}
+                >
+                  {route.number}
+                </Link>
+                {route.cancelledAt ? <span className="text-xs text-rose">cancelled</span> : null}
+                {route.addenda.length > 0 ? (
+                  <span className="text-muted">
+                    ·{" "}
+                    {route.addenda.map((addendum, index) => (
+                      <span key={addendum.id}>
+                        {index > 0 ? ", " : ""}
+                        <Link
+                          className="text-teal hover:underline"
+                          href={`/contracts/${contractId}/routes/${route.id}`}
+                        >
+                          {addendum.reason}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted">· no addendum</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {contract.notes ? (
-        <p className="mt-4 border-t border-line pt-3 text-sm text-muted whitespace-pre-wrap">{contract.notes}</p>
+        <p className="mt-3 border-t border-line pt-2 text-xs text-muted whitespace-pre-wrap">{contract.notes}</p>
       ) : null}
     </div>
   );

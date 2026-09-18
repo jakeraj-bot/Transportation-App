@@ -47,24 +47,28 @@ export function CollapsibleSection({
   hint,
   children,
   defaultOpen = false,
+  compact = false,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  compact?: boolean;
 }) {
   const ref = useRememberOpen(title, defaultOpen);
   return (
     <Card className="overflow-hidden p-0">
       <details ref={ref}>
-        <summary className="collapse-summary flex cursor-pointer items-start justify-between gap-4 px-6 py-5">
-          <div>
-            <h2 className="serif text-2xl">{title}</h2>
-            {hint ? <p className="mt-1 text-sm text-muted">{hint}</p> : null}
+        <summary
+          className={`collapse-summary flex cursor-pointer items-start justify-between gap-3 ${compact ? "px-4 py-3" : "gap-4 px-6 py-5"}`}
+        >
+          <div className="min-w-0">
+            <h2 className={`serif ${compact ? "text-lg" : "text-2xl"}`}>{title}</h2>
+            {hint ? <p className={`text-muted ${compact ? "mt-0.5 text-xs" : "mt-1 text-sm"}`}>{hint}</p> : null}
           </div>
           <Chevron />
         </summary>
-        <div className="border-t border-line px-6 py-5">{children}</div>
+        <div className={`border-t border-line ${compact ? "px-4 py-4" : "px-6 py-5"}`}>{children}</div>
       </details>
     </Card>
   );
