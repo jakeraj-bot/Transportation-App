@@ -96,9 +96,9 @@ export function ContractSnapshot({
         {routes.length === 0 ? (
           <p className="mt-1 text-sm text-muted">No routes yet</p>
         ) : (
-          <ul className="mt-1.5 grid w-full gap-x-6 gap-y-2 grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]">
+          <ul className="mt-1.5 grid w-full grid-cols-2 gap-x-8 gap-y-2">
             {routes.map((route) => (
-              <li key={route.id} className="min-w-0 text-sm leading-snug">
+              <li key={route.id} className="min-w-0 w-full text-sm leading-snug">
                 <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                   <Link
                     className={`font-medium hover:underline ${route.cancelledAt ? "text-muted line-through" : "text-teal"}`}
