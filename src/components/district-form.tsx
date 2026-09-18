@@ -1,4 +1,5 @@
 import { saveDistrict } from "@/app/actions";
+import { CountySelect } from "@/components/county-select";
 import { Button, Field, inputClass } from "@/components/ui";
 
 type DistrictValues = {
@@ -15,6 +16,7 @@ type DistrictValues = {
   zip: string | null;
   addressBlock: string | null;
   notes: string | null;
+  county: string | null;
 };
 
 export function DistrictForm({
@@ -55,6 +57,12 @@ export function DistrictForm({
           <Field label="Code">
             <input className={inputClass} name="code" defaultValue={district?.code ?? ""} {...inputProps} />
           </Field>
+          <CountySelect
+            name="county"
+            label="County"
+            hint="Passaic County districts stay Passaic. Out-of-county districts pick their county."
+            defaultValue={district?.county ?? "Passaic"}
+          />
           <Field label="Notes" className="md:col-span-2">
             <textarea className={inputClass} name="notes" rows={3} defaultValue={district?.notes ?? ""} {...inputProps} />
           </Field>
@@ -67,6 +75,7 @@ export function DistrictForm({
           <input type="hidden" name="email" value={district.email ?? ""} />
           <input type="hidden" name="phone" value={district.phone ?? ""} />
           <input type="hidden" name="code" value={district.code ?? ""} />
+          <input type="hidden" name="county" value={district.county ?? "Passaic"} />
           <input type="hidden" name="notes" value={district.notes ?? ""} />
         </>
       ) : null}

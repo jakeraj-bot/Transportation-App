@@ -94,7 +94,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Joint agreements: host district, joiner district, bus company, multi-contract number, and route numbers.",
           "Addendums: find the existing multi-contract number first. We show the contract we found and ask you to confirm before linking. Then pick a route that is already on that contract, plus bid number and renewal number if you have them.",
         ],
-        note: "Do not enter cost, bonds, insurance amounts, or links on this first screen. Those wait until someone starts the review. 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration are only on Bring in records for old packets.",
+        note: "Do not enter cost, bonds, insurance amounts, or links on this first screen. Those wait until someone starts the review. You can add a district that is not on the list yet, including out-of-county districts. 1st reviewer, 2nd reviewer, date sent to district, and insurance expiration are only on Bring in records for old packets.",
       },
       {
         heading: "When you review",
@@ -265,7 +265,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Current contracts",
-        body: "Choose the type, then fill the fields for that type. Old packets also ask for 1st reviewer, 2nd reviewer, date sent to district, insurance expiration, and notes. After you save, pick a type again for the next one. When the move is finished, tell us and we can remove this page.",
+        body: "Choose the type, then fill the fields for that type. Old packets also ask for 1st reviewer, 2nd reviewer, date sent to district, insurance expiration, and notes. Pick a login user, choose a saved name, or type a reviewer name when they do not have a username. After you save, the contract appears in Contracts for the same school year. Pick a type again for the next one. When the move is finished, tell us and we can remove this page.",
       },
     ],
   },
@@ -275,7 +275,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     group: "using",
     blocks: [
       {
-        body: "Every Passaic County district we review packets for lives here. Click a district to open it, then click again to close it. You can rename a district (for example if Passaic County Educational Services Commission has a new name), add the letter contact, and enter the street, city, state, and ZIP — or paste one letter-ready block if the letter needs a suite or attention line. Letters use that district’s name and address — not a shared county address. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
+        body: "Districts we review packets for live here, including Passaic County districts and any out-of-county districts you add. NRESC is the name on file for the former Passaic County Educational Services Commission. Click a district to open it, then click again to close it. You can rename a district, set its county, add the letter contact, and enter the street, city, state, and ZIP — or paste one letter-ready block if the letter needs a suite or attention line. You can also add a new district while entering a contract. Letters use that district’s name and address — not a shared county address. Add the transportation email so PT-4s and insurance follow-up can send to the right person.",
       },
       {
         note: "To assign which districts you review, do not edit the district. Go to Settings → Users and permissions, open your name, check Your districts, save, then sign out and sign back in.",

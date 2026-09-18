@@ -25,13 +25,17 @@ export default async function CurrentRecordsPage({
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/");
   const q = await searchParams;
-  const [schoolYear, districts, contractors, statuses, reviewers] = await Promise.all([
+  const [schoolYear, districts, contractors, statuses, reviewers, reviewerNames] = await Promise.all([
     getSchoolYear(),
     activeDistricts(),
     activeContractors(),
     getStatuses("contract"),
     prisma.user.findMany({
       where: { deletedAt: null, active: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.reviewerName.findMany({
+      where: { deletedAt: null },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -108,6 +112,7 @@ export default async function CurrentRecordsPage({
             contractors={contractors}
             statuses={statuses}
             reviewers={reviewers}
+            reviewerNames={reviewerNames}
             changeTypeHref="/settings/current-records"
           />
         ) : (

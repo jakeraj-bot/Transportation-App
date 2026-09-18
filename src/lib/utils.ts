@@ -5,6 +5,27 @@ export function currentSchoolYear(date = new Date()) {
   return `${start}-${start + 1}`;
 }
 
+/** Keep contract lists and settings on the same school-year format. */
+export function normalizeSchoolYear(raw?: string | null, fallback?: string) {
+  const value = String(raw ?? "").trim();
+  if (!value) return fallback ?? currentSchoolYear();
+  const full = value.match(/^(\d{4})\s*[-/]\s*(\d{2,4})$/);
+  if (full) {
+    const start = Number(full[1]);
+    const endPart = full[2];
+    const end = endPart.length === 4 ? Number(endPart) : start - (start % 100) + Number(endPart);
+    return `${start}-${end}`;
+  }
+  const short = value.match(/^(\d{2})\s*[-/]\s*(\d{2})$/);
+  if (short) {
+    const century = new Date().getFullYear() - (new Date().getFullYear() % 100);
+    const start = century + Number(short[1]);
+    const end = century + Number(short[2]);
+    return `${start}-${end < start ? end + 100 : end}`;
+  }
+  return value;
+}
+
 export function formatDate(value?: Date | string | null) {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;

@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
 import { statusFillStyle } from "@/lib/status-color";
+import { reviewerLabel } from "@/lib/reviewers";
 import { cn, formatDate } from "@/lib/utils";
 
 const HOME_STATUSES = [
@@ -27,6 +28,7 @@ type SecondReviewRow = {
   secondReviewStartedAt: Date | null;
   district: { name: string };
   firstReviewer: { name: string } | null;
+  firstReviewerName: string | null;
 };
 
 type RecentRow = {
@@ -245,7 +247,9 @@ function SecondReviewSection({ rows, compact }: { rows: SecondReviewRow[]; compa
                       </Link>
                     </td>
                     <td className="px-5 py-3">{c.district.name}</td>
-                    {compact ? null : <td className="px-5 py-3">{c.firstReviewer?.name ?? "—"}</td>}
+                    {compact ? null : (
+                      <td className="px-5 py-3">{reviewerLabel(c.firstReviewer?.name, c.firstReviewerName) || "—"}</td>
+                    )}
                     <td className="px-5 py-3">{waiting}</td>
                   </tr>
                 );

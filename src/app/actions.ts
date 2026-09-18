@@ -15,12 +15,14 @@ import {
   contractTypeLabel,
   letterTemplateLookups,
   nameControlFrom,
+  normalizeSchoolYear,
   parseDate,
   parseMoney,
   parsePercent,
   schoolYearDates,
   splitRoutes,
 } from "@/lib/utils";
+import { parseReviewerChoice } from "@/lib/reviewers";
 import {
   describeSpreadsheet,
   mapContractType,
@@ -44,7 +46,6 @@ import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
 import {
   formatCompanyNames,
   intakeTypeLabel,
-  parseJoinerDistricts,
   parsePacketRows,
   primaryAndExtraPackets,
   usesHostJoiner,
@@ -86,6 +87,7 @@ export async function saveDistrict(form: FormData) {
     zip: formString(form, "zip") || null,
     addressBlock: formString(form, "addressBlock") || null,
     notes: formString(form, "notes") || null,
+    county: matchNjCounty(formString(form, "county") || null),
   };
   const row = id
     ? await prisma.district.update({ where: { id }, data })
@@ -145,6 +147,45 @@ export async function saveContractor(form: FormData) {
   });
   revalidateAll();
   redirect(`/contractors/${row.id}`);
+}
+
+export async function addQuickDistrict(name: string, county?: string) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Enter the district name.");
+  const existing = await prisma.district.findFirst({ where: { name: trimmed, deletedAt: null } });
+  if (existing) {
+    return { id: existing.id, name: existing.name, county: existing.county };
+  }
+  const row = await prisma.district.create({
+    data: {
+      name: trimmed,
+      email: "",
+      county: matchNjCounty(county || null) || "Passaic",
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "create",
+    entityType: "district",
+    entityId: row.id,
+    summary: `Added district ${row.name}${row.county && row.county !== "Passaic" ? ` (${row.county})` : ""}`,
+  });
+  revalidateAll();
+  return { id: row.id, name: row.name, county: row.county };
+}
+
+export async function addQuickReviewerName(name: string) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Enter the reviewer name.");
+  const existing = await prisma.reviewerName.findFirst({ where: { name: trimmed, deletedAt: null } });
+  if (existing) return { name: existing.name };
+  const row = await prisma.reviewerName.create({ data: { name: trimmed } });
+  revalidateAll();
+  return { name: row.name };
 }
 
 export async function addQuickContractor(legalName: string, county?: string) {
@@ -284,6 +325,71 @@ function intakeErrorPath(form: FormData, type: string, message: string) {
   return `${base}?type=${encodeURIComponent(type)}&error=${encodeURIComponent(message)}`;
 }
 
+async function ensureDistrictByName(name: string, county?: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const existing = await prisma.district.findFirst({ where: { name: trimmed, deletedAt: null } });
+  if (existing) return existing;
+  return prisma.district.create({
+    data: {
+      name: trimmed,
+      email: "",
+      county: matchNjCounty(county || null) || "Passaic",
+    },
+  });
+}
+
+async function resolveDistrictIdFromForm(form: FormData, field = "districtId") {
+  const selected = formString(form, field);
+  if (selected) return selected;
+  const prefix = field === "hostDistrictId" ? "newHostDistrict" : "newDistrict";
+  const newName = formString(form, `${prefix}Name`);
+  if (!newName) return "";
+  const row = await ensureDistrictByName(newName, formString(form, `${prefix}County`) || undefined);
+  return row?.id ?? "";
+}
+
+async function resolveJoinerDistrictsFromForm(form: FormData) {
+  const selected = form.getAll("joinerDistrictName").map((value) => String(value ?? "").trim());
+  const typed = form.getAll("newJoinerName").map((value) => String(value ?? "").trim());
+  const counties = form.getAll("newJoinerCounty").map((value) => String(value ?? "").trim());
+  const names: string[] = [];
+  const length = Math.max(selected.length, typed.length);
+  for (let index = 0; index < length; index += 1) {
+    const name = typed[index] || selected[index];
+    if (!name) continue;
+    await ensureDistrictByName(name, counties[index] || undefined);
+    names.push(name);
+  }
+  return names.join("; ") || String(form.get("joinerDistricts") ?? "").trim() || null;
+}
+
+function parseReviewersFromForm(form: FormData) {
+  const first = parseReviewerChoice(
+    formString(form, "firstReviewerChoice"),
+    formString(form, "firstReviewerTyped")
+  );
+  const second = parseReviewerChoice(
+    formString(form, "secondReviewerChoice"),
+    formString(form, "secondReviewerTyped")
+  );
+  return {
+    firstReviewerId: first.userId,
+    firstReviewerName: first.name,
+    secondReviewerId: second.userId,
+    secondReviewerName: second.name,
+  };
+}
+
+async function rememberReviewerNames(names: Array<string | null | undefined>) {
+  for (const name of names) {
+    const trimmed = (name ?? "").trim();
+    if (!trimmed) continue;
+    const existing = await prisma.reviewerName.findFirst({ where: { name: trimmed, deletedAt: null } });
+    if (!existing) await prisma.reviewerName.create({ data: { name: trimmed } });
+  }
+}
+
 export async function findContractForAddendum({
   schoolYear,
   multiContractNumber,
@@ -377,15 +483,17 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
     });
   }
   const statusName = formString(form, "statusName");
-  const firstReviewerId = formString(form, "firstReviewerId") || null;
-  const secondReviewerId = formString(form, "secondReviewerId") || null;
+  const reviewers = parseReviewersFromForm(form);
   const sentToDistrictAt = parseDate(formString(form, "sentToDistrictAt")) || parseFlexibleDate(formString(form, "sentToDistrictAt"));
+  await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
   await prisma.contract.update({
     where: { id: existing.id },
     data: {
       ...(statusName ? { statusName } : {}),
-      ...(firstReviewerId ? { firstReviewerId } : {}),
-      ...(secondReviewerId ? { secondReviewerId } : {}),
+      firstReviewerId: reviewers.firstReviewerId,
+      firstReviewerName: reviewers.firstReviewerName,
+      secondReviewerId: reviewers.secondReviewerId,
+      secondReviewerName: reviewers.secondReviewerName,
       ...(sentToDistrictAt ? { sentToDistrictAt } : {}),
     },
   });
@@ -457,8 +565,8 @@ export async function saveContract(form: FormData) {
   const id = formString(form, "id");
   const mode = formString(form, "mode") || "intake";
   const statusName = formString(form, "statusName") || "Need Review";
-  const schoolYear = formString(form, "schoolYear");
-  const type = formString(form, "type");
+  const schoolYear = normalizeSchoolYear(formString(form, "schoolYear"), await getSchoolYear());
+  const type = mapContractType(formString(form, "type"));
   const packets = primaryAndExtraPackets(parsePacketRows(form));
   const routes = packets.routeNumbers.length ? packets.routeNumbers : splitRoutes(formString(form, "routes"));
 
@@ -473,8 +581,10 @@ export async function saveContract(form: FormData) {
     redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
   }
 
-  const hostDistrictId = usesHostJoiner(type) ? formString(form, "hostDistrictId") || null : null;
-  const districtId = usesHostJoiner(type) ? hostDistrictId || formString(form, "districtId") : formString(form, "districtId");
+  const hostDistrictId = usesHostJoiner(type) ? (await resolveDistrictIdFromForm(form, "hostDistrictId")) || null : null;
+  const districtId = usesHostJoiner(type)
+    ? hostDistrictId || (await resolveDistrictIdFromForm(form))
+    : await resolveDistrictIdFromForm(form);
   if (!districtId) {
     redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
   }
@@ -494,7 +604,7 @@ export async function saveContract(form: FormData) {
     ...(usesHostJoiner(type)
       ? {
           hostDistrictId,
-          joinerDistricts: parseJoinerDistricts(form),
+          joinerDistricts: await resolveJoinerDistrictsFromForm(form),
         }
       : {}),
   };
@@ -566,7 +676,7 @@ export async function saveCurrentContract(form: FormData) {
   if (type === "addendum") {
     await linkAddendumFromForm(form, user.id);
   }
-  const schoolYear = formString(form, "schoolYear");
+  const schoolYear = normalizeSchoolYear(formString(form, "schoolYear"), await getSchoolYear());
   const defaults = schoolYearDates(schoolYear);
   const packets = primaryAndExtraPackets(parsePacketRows(form));
   const routes = packets.routeNumbers.length ? packets.routeNumbers : splitRoutes(formString(form, "routes"));
@@ -577,13 +687,15 @@ export async function saveCurrentContract(form: FormData) {
   if (!contractorIds.length) {
     redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
   }
-  const hostDistrictId = usesHostJoiner(type) ? formString(form, "hostDistrictId") || null : null;
-  const districtId = usesHostJoiner(type) ? hostDistrictId || formString(form, "districtId") : formString(form, "districtId");
+  const hostDistrictId = usesHostJoiner(type) ? (await resolveDistrictIdFromForm(form, "hostDistrictId")) || null : null;
+  const districtId = usesHostJoiner(type)
+    ? hostDistrictId || (await resolveDistrictIdFromForm(form))
+    : await resolveDistrictIdFromForm(form);
   if (!districtId) {
     redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
   }
-  const firstReviewerId = formString(form, "firstReviewerId") || null;
-  const secondReviewerId = formString(form, "secondReviewerId") || null;
+  const reviewers = parseReviewersFromForm(form);
+  await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
   const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
   const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
 
@@ -598,11 +710,13 @@ export async function saveCurrentContract(form: FormData) {
       renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
       parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
       hostDistrictId,
-      joinerDistricts: usesHostJoiner(type) ? parseJoinerDistricts(form) : null,
+      joinerDistricts: usesHostJoiner(type) ? await resolveJoinerDistrictsFromForm(form) : null,
       receivedDate: parseFlexibleDate(formString(form, "receivedDate")),
       statusName,
-      firstReviewerId,
-      secondReviewerId,
+      firstReviewerId: reviewers.firstReviewerId,
+      firstReviewerName: reviewers.firstReviewerName,
+      secondReviewerId: reviewers.secondReviewerId,
+      secondReviewerName: reviewers.secondReviewerName,
       sentToDistrictAt,
       secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
       startsOn: defaults.start,

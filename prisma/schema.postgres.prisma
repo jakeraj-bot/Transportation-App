@@ -81,6 +81,7 @@ model District {
   zip          String?
   addressBlock String?
   notes        String?
+  county       String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -93,6 +94,13 @@ model District {
   emergencyQuotes      EmergencyQuote[]
   emails               EmailLog[]
   assignedUsers        UserDistrict[]
+}
+
+model ReviewerName {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 }
 
 model Contractor {
@@ -171,6 +179,8 @@ model Contract {
   sentToDistrictAt     DateTime?
   firstReviewerId      String?
   secondReviewerId     String?
+  firstReviewerName    String?
+  secondReviewerName   String?
   secondReviewStartedAt DateTime?
   letterDate           DateTime?
   rationaleNeeded      Boolean   @default(false)

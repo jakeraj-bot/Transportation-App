@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { addQuickContractor, findContractForAddendum, saveContract, saveCurrentContract } from "@/app/actions";
+import { DistrictPickerField, JoinerDistrictFields } from "@/components/district-picker-fields";
+import { ReviewerFields } from "@/components/reviewer-fields";
 import { Button, Field, inputClass } from "@/components/ui";
+import { districtOptionLabel } from "@/lib/districts";
 import {
   allowsMultipleCompanies,
   allowsMultiplePackets,
@@ -18,8 +21,9 @@ import { NJ_COUNTIES } from "@/lib/nj-counties";
 import type { Status } from "@prisma/client";
 
 type ContractorOption = { id: string; legalName: string; incomplete?: boolean };
-type DistrictOption = { id: string; name: string };
+type DistrictOption = { id: string; name: string; county?: string | null };
 type ReviewerOption = { id: string; name: string };
+type ReviewerNameOption = { name: string };
 type CompanyRow = { contractorId: string; newName: string; newCounty: string };
 type PacketRowState = { multiContractNumber: string; routeNumber: string; renewalNumber: string };
 type AddendumMatch = {
@@ -46,6 +50,7 @@ export function ContractIntakeForm({
   contractors,
   statuses,
   reviewers = [],
+  reviewerNames = [],
   changeTypeHref,
 }: {
   source: "incoming" | "current";
@@ -55,6 +60,7 @@ export function ContractIntakeForm({
   contractors: ContractorOption[];
   statuses: Status[];
   reviewers?: ReviewerOption[];
+  reviewerNames?: ReviewerNameOption[];
   changeTypeHref: string;
 }) {
   const current = source === "current";
@@ -64,7 +70,6 @@ export function ContractIntakeForm({
   const [packets, setPackets] = useState<PacketRowState[]>([
     { multiContractNumber: "", routeNumber: "", renewalNumber: "" },
   ]);
-  const [joiners, setJoiners] = useState<string[]>([""]);
   const [findYear, setFindYear] = useState(schoolYear);
   const [findMulti, setFindMulti] = useState("");
   const [findDistrictId, setFindDistrictId] = useState("");
@@ -215,22 +220,7 @@ export function ContractIntakeForm({
     if (!current) return null;
     return (
       <>
-        <Field label="1st reviewer">
-          <select className={inputClass} name="firstReviewerId" defaultValue="">
-            <option value="">Not recorded</option>
-            {reviewers.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="2nd reviewer">
-          <select className={inputClass} name="secondReviewerId" defaultValue="">
-            <option value="">Not recorded</option>
-            {reviewers.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </Field>
+        <ReviewerFields reviewers={reviewers} reviewerNames={reviewerNames} />
         <Field label="Date sent to district">
           <input className={inputClass} type="date" name="sentToDistrictAt" />
         </Field>
@@ -259,7 +249,7 @@ export function ContractIntakeForm({
             <select className={inputClass} value={findDistrictId} onChange={(e) => setFindDistrictId(e.target.value)}>
               <option value="">Any district</option>
               {districts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+                <option key={d.id} value={d.id}>{districtOptionLabel(d.name, d.county)}</option>
               ))}
             </select>
           </Field>
@@ -385,53 +375,17 @@ export function ContractIntakeForm({
 
         {usesHostJoiner(type) ? (
           <>
-            <Field label="Host district" hint="The host is the district this joint is filed under.">
-              <select className={inputClass} name="hostDistrictId" required defaultValue="">
-                <option value="">Choose the host</option>
-                {districts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </Field>
-            <div className="space-y-3">
-              {joiners.map((value, index) => (
-                <Field key={index} label={index === 0 ? "Joiner district" : `Joiner district ${index + 1}`}>
-                  <select
-                    className={inputClass}
-                    name="joinerDistrictName"
-                    required={index === 0}
-                    value={value}
-                    onChange={(e) =>
-                      setJoiners((currentJoiners) =>
-                        currentJoiners.map((item, i) => (i === index ? e.target.value : item))
-                      )
-                    }
-                  >
-                    <option value="">Choose a joiner</option>
-                    {districts.map((d) => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                </Field>
-              ))}
-              <button
-                type="button"
-                className="text-sm text-teal hover:underline"
-                onClick={() => setJoiners((currentJoiners) => [...currentJoiners, ""])}
-              >
-                Add another joiner district
-              </button>
-            </div>
+            <DistrictPickerField
+              label="Host district"
+              hint="The host is the district this joint is filed under."
+              name="hostDistrictId"
+              districts={districts}
+              required
+            />
+            <JoinerDistrictFields districts={districts} />
           </>
         ) : (
-          <Field label="District">
-            <select className={inputClass} name="districtId" required defaultValue="">
-              <option value="">Choose a district</option>
-              {districts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </Field>
+          <DistrictPickerField label="District" name="districtId" districts={districts} required />
         )}
 
         {usesParentName(type) ? (

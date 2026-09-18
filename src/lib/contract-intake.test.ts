@@ -73,8 +73,10 @@ describe("packet and company parsing", () => {
     form.append("contractorId", "b");
     form.append("joinerDistrictName", "Clifton");
     form.append("joinerDistrictName", "Paterson");
+    form.append("newJoinerName", "");
+    form.append("newJoinerName", "Ridgewood");
     assert.deepEqual(parseContractorIds(form), ["a", "b"]);
-    assert.equal(parseJoinerDistricts(form), "Clifton; Paterson");
+    assert.equal(parseJoinerDistricts(form), "Clifton; Ridgewood");
   });
 
   it("lists company names in plain English", () => {

@@ -111,10 +111,14 @@ export function parseContractorIds(form: FormData) {
 }
 
 export function parseJoinerDistricts(form: FormData) {
-  const names = form
-    .getAll("joinerDistrictName")
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
+  const selected = form.getAll("joinerDistrictName").map((value) => String(value ?? "").trim());
+  const typed = form.getAll("newJoinerName").map((value) => String(value ?? "").trim());
+  const names: string[] = [];
+  const length = Math.max(selected.length, typed.length);
+  for (let index = 0; index < length; index += 1) {
+    const name = typed[index] || selected[index];
+    if (name) names.push(name);
+  }
   return names.join("; ") || String(form.get("joinerDistricts") ?? "").trim() || null;
 }
 

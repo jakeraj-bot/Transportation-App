@@ -17,7 +17,7 @@ const DISTRICTS = [
   "North Haledon",
   "Passaic",
   "Passaic County Vocational (PCTI)",
-  "Passaic County Educational Services Commission",
+  "NRESC",
   "Passaic Valley Regional",
   "Paterson",
   "Pompton Lakes",
@@ -125,14 +125,23 @@ async function main() {
     data: { deletedAt: new Date() },
   });
 
+  await prisma.district.updateMany({
+    where: { name: "Passaic County Educational Services Commission", deletedAt: null },
+    data: { name: "NRESC" },
+  });
+
   for (const name of DISTRICTS) {
     const existing = await prisma.district.findFirst({ where: { name, deletedAt: null } });
     if (!existing) {
       await prisma.district.create({
-        data: { name, email: "" },
+        data: { name, email: "", county: "Passaic" },
       });
     }
   }
+  await prisma.district.updateMany({
+    where: { name: { in: DISTRICTS }, deletedAt: null, county: null },
+    data: { county: "Passaic" },
+  });
 
   await syncChecklistTemplates();
 

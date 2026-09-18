@@ -21,6 +21,7 @@ import { checklistDefinition } from "@/lib/checklists";
 import { sameLetterGroup } from "@/lib/letter-groups";
 import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
+import { reviewerLabel } from "@/lib/reviewers";
 
 export default async function ContractDetailPage({
   params,
@@ -50,6 +51,9 @@ export default async function ContractDetailPage({
     },
   });
   if (!contract) notFound();
+
+  const firstReviewerLabel = reviewerLabel(contract.firstReviewer?.name, contract.firstReviewerName);
+  const secondReviewerLabel = reviewerLabel(contract.secondReviewer?.name, contract.secondReviewerName);
 
   const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts] =
     await Promise.all([
@@ -165,16 +169,16 @@ export default async function ContractDetailPage({
           {contract.statusName === "2nd review" ? (
             <p className="mt-2 text-sm text-muted">
               Waiting {Math.max(1, Math.round(secondHours))} hours
-              {contract.firstReviewer ? ` · first review by ${contract.firstReviewer.name}` : ""}
-              {contract.secondReviewer ? ` · second review by ${contract.secondReviewer.name}` : ""}
+              {firstReviewerLabel ? ` · first review by ${firstReviewerLabel}` : ""}
+              {secondReviewerLabel ? ` · second review by ${secondReviewerLabel}` : ""}
             </p>
           ) : (
             <>
-              {contract.firstReviewer ? (
-                <p className="mt-2 text-sm text-muted">1st reviewer: {contract.firstReviewer.name}</p>
+              {firstReviewerLabel ? (
+                <p className="mt-2 text-sm text-muted">1st reviewer: {firstReviewerLabel}</p>
               ) : null}
-              {contract.secondReviewer ? (
-                <p className="mt-2 text-sm text-muted">2nd reviewer: {contract.secondReviewer.name}</p>
+              {secondReviewerLabel ? (
+                <p className="mt-2 text-sm text-muted">2nd reviewer: {secondReviewerLabel}</p>
               ) : null}
             </>
           )}

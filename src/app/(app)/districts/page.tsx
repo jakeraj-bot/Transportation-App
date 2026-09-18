@@ -10,6 +10,7 @@ import { canEditDistricts } from "@/lib/roles";
 
 function addressPreview(district: {
   name: string;
+  county: string | null;
   street: string | null;
   city: string | null;
   state: string | null;
@@ -17,7 +18,8 @@ function addressPreview(district: {
   addressBlock: string | null;
 }) {
   const formatted = formatDistrictAddress(district).split("\n").join(" · ");
-  return formatted || "No letter address yet";
+  const county = district.county && district.county !== "Passaic" ? `${district.county} County` : "Passaic County";
+  return formatted ? `${county} · ${formatted}` : county;
 }
 
 export default async function DistrictsPage() {
@@ -34,7 +36,7 @@ export default async function DistrictsPage() {
         title="Districts"
         hint={
           canEdit
-            ? "Click a district to change its name, letter contact, or mailing address. Click it again to close it."
+            ? "Click a district to change its name, county, letter contact, or mailing address. Click it again to close it. Add out-of-county districts from here or while entering a contract."
             : "You can view district information here. Changes are only allowed if Super Admin gives you permission."
         }
         actions={canEdit ? <Button href="/districts/new">Add district</Button> : undefined}

@@ -33,7 +33,11 @@ export default async function ContractsPage({
     <div>
       <PageHeader
         title="Contracts"
-        hint="Every packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches."
+        hint={
+          showMine
+            ? `Showing ${schoolYear} contracts for your assigned districts. Use View all if a saved contract is missing. Addendums attach to an existing contract instead of creating a new row.`
+            : `Every ${schoolYear} packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
+        }
         actions={
           <>
             {assigned.length ? (
