@@ -273,6 +273,7 @@ export default async function ContractDetailPage({
         contract={contract}
         companyNames={companyNames}
         routes={snapshotRoutes}
+        canEdit={canEdit}
       />
 
       <div className="space-y-2">

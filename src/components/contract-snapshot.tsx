@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { contractTypeLabel, formatCurrency, formatDate } from "@/lib/utils";
+import { saveContractDates } from "@/app/actions";
+import { Button, inputClass } from "@/components/ui";
+import { contractTypeLabel, formatCurrency, formatDate, toInputDate } from "@/lib/utils";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -15,6 +17,7 @@ export function ContractSnapshot({
   contract,
   companyNames,
   routes,
+  canEdit = false,
 }: {
   contractId: string;
   contract: {
@@ -42,6 +45,7 @@ export function ContractSnapshot({
     cancelledAt: Date | null;
     addenda: Array<{ id: string; reason: string }>;
   }>;
+  canEdit?: boolean;
 }) {
   const districtLabel =
     contract.type === "joint" && contract.hostDistrict
@@ -73,11 +77,38 @@ export function ContractSnapshot({
           )}
         </Field>
         <Field label="Board meeting">{formatDate(contract.boardMeetingDate)}</Field>
-        <Field label="Contract dates">
-          {contract.startsOn || contract.endsOn
-            ? `${formatDate(contract.startsOn)} – ${formatDate(contract.endsOn)}`
-            : null}
-        </Field>
+        <div className="min-w-0 sm:col-span-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted">Contract dates</p>
+          {canEdit ? (
+            <form action={saveContractDates} className="mt-1 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="contractId" value={contractId} />
+              <input
+                className={inputClass + " w-auto min-w-[9.5rem]"}
+                type="date"
+                name="startsOn"
+                defaultValue={toInputDate(contract.startsOn)}
+                aria-label="Contract start date"
+              />
+              <span className="pb-2 text-sm text-muted">–</span>
+              <input
+                className={inputClass + " w-auto min-w-[9.5rem]"}
+                type="date"
+                name="endsOn"
+                defaultValue={toInputDate(contract.endsOn)}
+                aria-label="Contract end date"
+              />
+              <Button type="submit" variant="secondary" className="py-2 text-sm">
+                Save dates
+              </Button>
+            </form>
+          ) : (
+            <p className="mt-0.5 text-sm font-medium">
+              {contract.startsOn || contract.endsOn
+                ? `${formatDate(contract.startsOn)} – ${formatDate(contract.endsOn)}`
+                : "—"}
+            </p>
+          )}
+        </div>
         <Field label="Cost">
           {contract.cost != null ? `$${formatCurrency(contract.cost)}` : null}
         </Field>
@@ -130,7 +161,6 @@ export function ContractSnapshot({
           </ul>
         )}
       </div>
-
     </div>
   );
 }

@@ -216,6 +216,22 @@ export function ContractIntakeForm({
     );
   }
 
+  function contractDateFields() {
+    return (
+      <>
+        <Field
+          label="Contract start date"
+          hint="Each contract can have different dates. Leave blank on a new packet if you do not know yet."
+        >
+          <input className={inputClass} type="date" name="startsOn" />
+        </Field>
+        <Field label="Contract end date" hint="Used to check insurance coverage for the full contract run.">
+          <input className={inputClass} type="date" name="endsOn" />
+        </Field>
+      </>
+    );
+  }
+
   function currentExtras() {
     if (!current) return null;
     return (
@@ -369,6 +385,7 @@ export function ContractIntakeForm({
         <Field label="Date received">
           <input className={inputClass} type="date" name="receivedDate" />
         </Field>
+        {contractDateFields()}
         <Field label="School year">
           <input className={inputClass} name="schoolYear" required defaultValue={schoolYear} />
         </Field>

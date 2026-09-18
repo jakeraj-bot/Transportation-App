@@ -681,6 +681,8 @@ export async function saveContract(form: FormData) {
     renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
     parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
     receivedDate: parseDate(formString(form, "receivedDate")),
+    startsOn: parseDate(formString(form, "startsOn")),
+    endsOn: parseDate(formString(form, "endsOn")),
     statusName,
     notes: formString(form, "notes") || null,
     ...(usesHostJoiner(type)
@@ -698,8 +700,6 @@ export async function saveContract(form: FormData) {
           bondType: formString(form, "bondType") || "none",
           insuranceAmount: parseMoney(formString(form, "insuranceAmount")),
           boardMeetingDate: parseDate(formString(form, "boardMeetingDate")),
-          startsOn: parseDate(formString(form, "startsOn")),
-          endsOn: parseDate(formString(form, "endsOn")),
           sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
           ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
           ...(type === "original" ? { bidSpecId: formString(form, "bidSpecId") || null } : {}),
@@ -723,7 +723,7 @@ export async function saveContract(form: FormData) {
 
   const row = id
     ? await prisma.contract.update({ where: { id }, data })
-    : await prisma.contract.create({ data: intake });
+    : await prisma.contract.create({ data });
 
   await syncRoutes(row.id, routes);
   await syncExtraPackets(row.id, packets.extras);
@@ -781,6 +781,8 @@ export async function saveCurrentContract(form: FormData) {
   await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
   const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
   const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
+  const startsOn = parseFlexibleDate(formString(form, "startsOn")) ?? defaults.start;
+  const endsOn = parseFlexibleDate(formString(form, "endsOn")) ?? defaults.end;
 
   const row = await prisma.contract.create({
     data: {
@@ -802,8 +804,8 @@ export async function saveCurrentContract(form: FormData) {
       secondReviewerName: reviewers.secondReviewerName,
       sentToDistrictAt,
       secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
-      startsOn: defaults.start,
-      endsOn: defaults.end,
+      startsOn,
+      endsOn,
       notes: formString(form, "notes") || "Entered from the current-system list.",
     },
   });
@@ -1723,6 +1725,28 @@ export async function saveSignedApprovalLetter(form: FormData) {
     entityType: "contract",
     entityId: id,
     summary: "Uploaded a signed approval letter",
+  });
+  revalidateAll();
+}
+
+export async function saveContractDates(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const contractId = formString(form, "contractId");
+  await prisma.contract.update({
+    where: { id: contractId },
+    data: {
+      startsOn: parseDate(formString(form, "startsOn")),
+      endsOn: parseDate(formString(form, "endsOn")),
+    },
+  });
+  await refreshContractFlags(contractId);
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: contractId,
+    summary: "Updated contract dates",
   });
   revalidateAll();
 }

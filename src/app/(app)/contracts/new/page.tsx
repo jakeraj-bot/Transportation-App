@@ -23,7 +23,7 @@ export default async function NewContractPage({
       <PageHeader
         title="New contract"
         backHref="/contracts"
-        hint="Choose the type of packet first. Then enter only what identifies it. Cost, insurance amounts, bonds, and dates are added when someone starts the review."
+        hint="Choose the type of packet first. Enter what identifies it, including contract dates when you know them. Cost, insurance amounts, and bonds are added during review."
       />
       {error ? <Flag tone="rose">{error}</Flag> : null}
       <Card>

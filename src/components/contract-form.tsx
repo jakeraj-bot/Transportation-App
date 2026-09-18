@@ -322,6 +322,16 @@ export function ContractForm({
             ))}
           </select>
         </Field>
+        {mode === "intake" ? (
+          <>
+            <Field label="Contract start date" hint="Each contract can have different dates.">
+              <input className={inputClass} type="date" name="startsOn" defaultValue={toInputDate(contract?.startsOn)} />
+            </Field>
+            <Field label="Contract end date" hint="Used to check insurance coverage for the full run.">
+              <input className={inputClass} type="date" name="endsOn" defaultValue={toInputDate(contract?.endsOn)} />
+            </Field>
+          </>
+        ) : null}
         <Field label="Notes or comments" className={mode === "intake" ? "md:col-span-2" : undefined}>
           <textarea className={inputClass} name="notes" rows={3} defaultValue={contract?.notes ?? ""} />
         </Field>
