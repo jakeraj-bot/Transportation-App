@@ -96,19 +96,20 @@ export function ContractSnapshot({
         {routes.length === 0 ? (
           <p className="mt-1 text-sm text-muted">No routes yet</p>
         ) : (
-          <ul className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          <ul className="mt-1.5 grid w-full gap-x-6 gap-y-2 grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]">
             {routes.map((route) => (
-              <li key={route.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-                <Link
-                  className={`font-medium hover:underline ${route.cancelledAt ? "text-muted line-through" : "text-teal"}`}
-                  href={`/contracts/${contractId}/routes/${route.id}`}
-                >
-                  {route.number}
-                </Link>
-                {route.cancelledAt ? <span className="text-xs text-rose">cancelled</span> : null}
+              <li key={route.id} className="min-w-0 text-sm leading-snug">
+                <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                  <Link
+                    className={`font-medium hover:underline ${route.cancelledAt ? "text-muted line-through" : "text-teal"}`}
+                    href={`/contracts/${contractId}/routes/${route.id}`}
+                  >
+                    {route.number}
+                  </Link>
+                  {route.cancelledAt ? <span className="text-xs text-rose">cancelled</span> : null}
+                </div>
                 {route.addenda.length > 0 ? (
-                  <span className="text-muted">
-                    ·{" "}
+                  <p className="mt-0.5 text-xs text-muted break-words">
                     {route.addenda.map((addendum, index) => (
                       <span key={addendum.id}>
                         {index > 0 ? ", " : ""}
@@ -120,9 +121,9 @@ export function ContractSnapshot({
                         </Link>
                       </span>
                     ))}
-                  </span>
+                  </p>
                 ) : (
-                  <span className="text-xs text-muted">· no addendum</span>
+                  <p className="mt-0.5 text-xs text-muted">No addendum</p>
                 )}
               </li>
             ))}
