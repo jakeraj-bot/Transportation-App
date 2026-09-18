@@ -11,6 +11,73 @@ type RouteRow = {
   addendaCount: number;
 };
 
+export function ContractRoutesOverview({
+  contractId,
+  routes,
+  extraPackets,
+}: {
+  contractId: string;
+  routes: RouteRow[];
+  extraPackets: Array<{ id: string; multiContractNumber: string; routeNumber: string; renewalNumber: string | null }>;
+}) {
+  const active = routes.filter((route) => !route.cancelledAt);
+  const cancelled = routes.filter((route) => route.cancelledAt);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-muted">Click a route to see addendums. Addendums belong to the route, not the multi-contract number.</p>
+      {extraPackets.length ? (
+        <div className="rounded-xl bg-cream px-4 py-3">
+          <p className="font-medium">Additional multi-contract numbers on this renewal</p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {extraPackets.map((packet) => (
+              <li key={packet.id}>
+                {packet.multiContractNumber} · route {packet.routeNumber}
+                {packet.renewalNumber ? ` · renewal ${packet.renewalNumber}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {routes.length === 0 ? (
+        <p className="text-muted">No route numbers yet. Add them when you review or when the packet is entered.</p>
+      ) : (
+        <div className="space-y-2">
+          {active.map((route) => (
+            <Link
+              key={route.id}
+              href={`/contracts/${contractId}/routes/${route.id}`}
+              className="flex items-center justify-between rounded-xl border border-line px-4 py-3 hover:bg-teal-soft/40"
+            >
+              <span className="font-medium">{route.number}</span>
+              <span className="text-sm text-muted">
+                {route.addendaCount
+                  ? `${route.addendaCount} addendum${route.addendaCount === 1 ? "" : "s"}`
+                  : "No addendum"}
+              </span>
+            </Link>
+          ))}
+          {cancelled.map((route) => (
+            <Link
+              key={route.id}
+              href={`/contracts/${contractId}/routes/${route.id}`}
+              className="flex items-center justify-between rounded-xl border border-rose/20 bg-rose-soft/30 px-4 py-3 hover:bg-rose-soft/50"
+            >
+              <span className="font-medium line-through text-muted">{route.number}</span>
+              <span className="text-sm text-rose">
+                Cancelled {formatDate(route.cancelledAt)}
+                {route.addendaCount
+                  ? ` · ${route.addendaCount} addendum${route.addendaCount === 1 ? "" : "s"}`
+                  : ""}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContractRoutesPanel({
   contractId,
   routes,

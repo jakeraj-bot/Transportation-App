@@ -10,7 +10,7 @@ import {
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
-import { ContractRoutesPanel } from "@/components/contract-routes-panel";
+import { ContractRoutesOverview, ContractRoutesPanel } from "@/components/contract-routes-panel";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
@@ -291,42 +291,15 @@ export default async function ContractDetailPage({
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Edit contract"
-        hint="Change district, bus company, status, dates, costs, bonds, and other review fields"
-      >
-        <p className="mb-4 text-muted">
-          Save changes here any time after the packet is entered. To add or cancel individual routes without reopening the whole form, use the Routes section below.
-        </p>
-        {canEdit ? (
-          <ContractForm
-            mode="review"
-            schoolYear={schoolYear}
-            districts={districts}
-            contractors={contractors}
-            statuses={statuses}
-            bidSpecs={bidSpecs}
-            routePackets={routePackets}
-            contract={contract}
-            routes={sortedRoutes}
-            extraPackets={contract.extraPackets}
-            additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
-            linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
-            currentUserId={session?.id}
-          />
-        ) : (
-          <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection
         title="Routes"
+        defaultOpen
         hint={
           contract.routes.length
             ? `${activeRouteCount} active route${activeRouteCount === 1 ? "" : "s"}${contract.routes.length !== activeRouteCount ? ` · ${contract.routes.length - activeRouteCount} cancelled` : ""}${addendumTotal ? ` · ${addendumTotal} addendum${addendumTotal === 1 ? "" : "s"}` : ""}`
             : "Add route numbers when the packet is entered or reviewed"
         }
       >
-        <ContractRoutesPanel
+        <ContractRoutesOverview
           contractId={contract.id}
           routes={sortedRoutes.map((route) => ({
             id: route.id,
@@ -336,17 +309,40 @@ export default async function ContractDetailPage({
             addendaCount: route.addenda.length,
           }))}
           extraPackets={contract.extraPackets}
-          canEdit={canEdit}
-          saved={{
-            added: linked.routesAdded === "1",
-            cancelled: linked.routeCancelled,
-            restored: linked.routeRestored,
-          }}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Review process" hint={`${checklistDef?.name ?? "Checklist"}, PT-4, and letters`}>
+      <CollapsibleSection
+        title="Review process"
+        defaultOpen
+        hint={`${checklistDef?.name ?? "Review details"}, then the checklist, then review and decide`}
+      >
         <div className="space-y-8">
+          <div>
+            <h3 className="serif mb-2 text-xl">Review details</h3>
+            <p className="mb-4 text-muted">
+              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow this type of packet.
+            </p>
+            {canEdit ? (
+              <ContractForm
+                mode="review"
+                schoolYear={schoolYear}
+                districts={districts}
+                contractors={contractors}
+                statuses={statuses}
+                bidSpecs={bidSpecs}
+                routePackets={routePackets}
+                contract={contract}
+                routes={sortedRoutes}
+                extraPackets={contract.extraPackets}
+                additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
+                linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
+                currentUserId={session?.id}
+              />
+            ) : (
+              <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
+            )}
+          </div>
           {contract.bidSpec ? (
             <div>
               <h3 className="serif mb-2 text-xl">Linked bid spec</h3>
@@ -497,6 +493,57 @@ export default async function ContractDetailPage({
             />
           </div>
         )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Edit contract"
+        hint="Change district, bus company, status, dates, costs, bonds, and other review fields"
+      >
+        <p className="mb-4 text-muted">
+          Open this only when you need to change contract details. The same fields are also in Review details above.
+        </p>
+        {canEdit ? (
+          <ContractForm
+            mode="review"
+            schoolYear={schoolYear}
+            districts={districts}
+            contractors={contractors}
+            statuses={statuses}
+            bidSpecs={bidSpecs}
+            routePackets={routePackets}
+            contract={contract}
+            routes={sortedRoutes}
+            extraPackets={contract.extraPackets}
+            additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
+            linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
+            currentUserId={session?.id}
+          />
+        ) : (
+          <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Edit routes"
+        hint="Add route numbers or cancel one route while keeping the others active"
+      >
+        <ContractRoutesPanel
+          contractId={contract.id}
+          routes={sortedRoutes.map((route) => ({
+            id: route.id,
+            number: route.number,
+            cancelledAt: route.cancelledAt,
+            cancelNote: route.cancelNote,
+            addendaCount: route.addenda.length,
+          }))}
+          extraPackets={contract.extraPackets}
+          canEdit={canEdit}
+          saved={{
+            added: linked.routesAdded === "1",
+            cancelled: linked.routeCancelled,
+            restored: linked.routeRestored,
+          }}
+        />
       </CollapsibleSection>
     </div>
   );
