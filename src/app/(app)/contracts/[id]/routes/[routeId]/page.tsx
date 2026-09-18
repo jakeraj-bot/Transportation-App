@@ -25,8 +25,17 @@ export default async function RouteAddendumPage({
       <PageHeader
         title={`Route ${route.number}`}
         backHref={`/contracts/${id}`}
-        hint={`${route.contract.district.name} · ${route.contract.multiContractNumber} · ${route.contract.contractor.legalName}`}
+        hint={`${route.contract.district.name} · ${route.contract.multiContractNumber} · ${route.contract.contractor.legalName}${route.cancelledAt ? ` · Cancelled ${formatDate(route.cancelledAt)}` : ""}`}
       />
+      {route.cancelledAt ? (
+        <Card className="bg-rose-soft">
+          <p className="font-medium text-rose">This route was cancelled by the district.</p>
+          {route.cancelNote ? <p className="mt-1 text-sm">{route.cancelNote}</p> : null}
+          <p className="mt-2 text-sm text-muted">
+            <Link className="text-teal hover:underline" href={`/contracts/${id}`}>Back to the contract</Link> to mark it active again if needed.
+          </p>
+        </Card>
+      ) : null}
       {route.addenda.length === 0 ? (
         <Card>
           <p className="text-muted">This route does not have an addendum yet. Addendums are corrections to a route, not to the multi-contract number.</p>

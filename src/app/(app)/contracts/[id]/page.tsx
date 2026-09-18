@@ -10,9 +10,10 @@ import {
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
+import { ContractRoutesPanel } from "@/components/contract-routes-panel";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
-import { getSession } from "@/lib/auth";
+import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
@@ -28,11 +29,19 @@ export default async function ContractDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ addendumLinked?: string; addendumCount?: string; routeCount?: string }>;
+  searchParams: Promise<{
+    addendumLinked?: string;
+    addendumCount?: string;
+    routeCount?: string;
+    routesAdded?: string;
+    routeCancelled?: string;
+    routeRestored?: string;
+  }>;
 }) {
   const { id } = await params;
   const linked = await searchParams;
   const session = await getSession();
+  const canEdit = can(session, "create") || can(session, "edit");
   const contract = await prisma.contract.findFirst({
     where: { id, deletedAt: null },
     include: {
@@ -113,6 +122,12 @@ export default async function ContractDetailPage({
       ? contract.priorYearCost * (1 + Number(cpi) / 100)
       : null;
   const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
+  const sortedRoutes = [...contract.routes].sort((a, b) => {
+    if (a.cancelledAt && !b.cancelledAt) return 1;
+    if (!a.cancelledAt && b.cancelledAt) return -1;
+    return a.number.localeCompare(b.number, undefined, { numeric: true });
+  });
+  const activeRouteCount = sortedRoutes.filter((route) => !route.cancelledAt).length;
   const addendumTotal = contract.routes.reduce((sum, route) => sum + route.addenda.length, 0);
   const companyNames = formatCompanyNames([
     contract.parentName || contract.contractor.legalName,
@@ -276,72 +291,62 @@ export default async function ContractDetailPage({
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Routes"
-        hint={
-          contract.routes.length
-            ? `${contract.routes.length} route${contract.routes.length === 1 ? "" : "s"}${addendumTotal ? ` · ${addendumTotal} addendum${addendumTotal === 1 ? "" : "s"}` : ""}`
-            : "Add route numbers when the packet is entered or reviewed"
-        }
+        title="Edit contract"
+        hint="Change district, bus company, status, dates, costs, bonds, and other review fields"
       >
-        <p className="mb-3 text-muted">Click a route to see addendums. Addendums belong to the route, not the multi-contract number.</p>
-        {contract.extraPackets.length ? (
-          <div className="mb-4 rounded-xl bg-cream px-4 py-3">
-            <p className="font-medium">Additional multi-contract numbers on this renewal</p>
-            <ul className="mt-2 space-y-1 text-sm">
-              {contract.extraPackets.map((packet) => (
-                <li key={packet.id}>
-                  {packet.multiContractNumber} · route {packet.routeNumber}
-                  {packet.renewalNumber ? ` · renewal ${packet.renewalNumber}` : ""}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {contract.routes.length === 0 ? (
-          <p className="text-muted">No route numbers yet. Add them when you review or when the packet is entered.</p>
+        <p className="mb-4 text-muted">
+          Save changes here any time after the packet is entered. To add or cancel individual routes without reopening the whole form, use the Routes section below.
+        </p>
+        {canEdit ? (
+          <ContractForm
+            mode="review"
+            schoolYear={schoolYear}
+            districts={districts}
+            contractors={contractors}
+            statuses={statuses}
+            bidSpecs={bidSpecs}
+            routePackets={routePackets}
+            contract={contract}
+            routes={sortedRoutes}
+            extraPackets={contract.extraPackets}
+            additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
+            linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
+            currentUserId={session?.id}
+          />
         ) : (
-          <div className="space-y-2">
-            {contract.routes.map((route) => (
-              <Link
-                key={route.id}
-                href={`/contracts/${contract.id}/routes/${route.id}`}
-                className="flex items-center justify-between rounded-xl border border-line px-4 py-3 hover:bg-teal-soft/40"
-              >
-                <span className="font-medium">{route.number}</span>
-                <span className="text-sm text-muted">
-                  {route.addenda.length
-                    ? `${route.addenda.length} addendum${route.addenda.length === 1 ? "" : "s"}`
-                    : "No addendum"}
-                </span>
-              </Link>
-            ))}
-          </div>
+          <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Review process" hint={`${checklistDef?.name ?? "Review details"}, then the checklist, then review and decide`}>
+      <CollapsibleSection
+        title="Routes"
+        hint={
+          contract.routes.length
+            ? `${activeRouteCount} active route${activeRouteCount === 1 ? "" : "s"}${contract.routes.length !== activeRouteCount ? ` · ${contract.routes.length - activeRouteCount} cancelled` : ""}${addendumTotal ? ` · ${addendumTotal} addendum${addendumTotal === 1 ? "" : "s"}` : ""}`
+            : "Add route numbers when the packet is entered or reviewed"
+        }
+      >
+        <ContractRoutesPanel
+          contractId={contract.id}
+          routes={sortedRoutes.map((route) => ({
+            id: route.id,
+            number: route.number,
+            cancelledAt: route.cancelledAt,
+            cancelNote: route.cancelNote,
+            addendaCount: route.addenda.length,
+          }))}
+          extraPackets={contract.extraPackets}
+          canEdit={canEdit}
+          saved={{
+            added: linked.routesAdded === "1",
+            cancelled: linked.routeCancelled,
+            restored: linked.routeRestored,
+          }}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Review process" hint={`${checklistDef?.name ?? "Checklist"}, PT-4, and letters`}>
         <div className="space-y-8">
-          <div>
-            <h3 className="serif mb-2 text-xl">Review details</h3>
-            <p className="mb-4 text-muted">
-              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow this type of packet.
-            </p>
-            <ContractForm
-              mode="review"
-              schoolYear={schoolYear}
-              districts={districts}
-              contractors={contractors}
-              statuses={statuses}
-              bidSpecs={bidSpecs}
-              routePackets={routePackets}
-              contract={contract}
-              routes={contract.routes}
-              extraPackets={contract.extraPackets}
-              additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
-              linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
-              currentUserId={session?.id}
-            />
-          </div>
           {contract.bidSpec ? (
             <div>
               <h3 className="serif mb-2 text-xl">Linked bid spec</h3>

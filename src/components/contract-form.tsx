@@ -246,7 +246,7 @@ export function ContractForm({
           hint={
             type === "addendum"
               ? "Enter the existing route number. The addendum will attach to that route and you will see how many addendums it already has."
-              : "Enter each route on its own line. Addendums attach to these routes, not the multi-contract number."
+              : "Enter each route on its own line. To add routes later or cancel one route while keeping the others, use the Routes section on this contract page."
           }
         >
           <textarea className={inputClass} name="routes" rows={4} defaultValue={routes?.map((r) => r.number).join("\n")} />

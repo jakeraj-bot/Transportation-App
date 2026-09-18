@@ -220,15 +220,97 @@ async function syncRoutes(contractId: string, numbers: string[]) {
   });
   const wanted = new Set(numbers);
   for (const route of existing) {
-    if (!wanted.has(route.number) && route.addenda.length === 0) {
-      await prisma.route.delete({ where: { id: route.id } });
-    }
+    if (wanted.has(route.number)) continue;
+    if (route.addenda.length > 0 || route.cancelledAt) continue;
+    await prisma.route.delete({ where: { id: route.id } });
   }
   for (const number of numbers) {
     if (!existing.some((r) => r.number === number)) {
       await prisma.route.create({ data: { contractId, number } });
     }
   }
+}
+
+export async function addContractRoutes(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const contractId = formString(form, "contractId");
+  const numbers = splitRoutes(formString(form, "routes"));
+  if (!contractId) throw new Error("That contract is missing.");
+  if (!numbers.length) throw new Error("Enter at least one route number.");
+  const contract = await prisma.contract.findFirst({ where: { id: contractId, deletedAt: null } });
+  if (!contract) throw new Error("That contract is no longer on file.");
+  const existing = await prisma.route.findMany({ where: { contractId } });
+  const added: string[] = [];
+  for (const number of numbers) {
+    if (existing.some((route) => route.number === number)) continue;
+    await prisma.route.create({ data: { contractId, number } });
+    added.push(number);
+  }
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: contractId,
+    summary: added.length
+      ? `Added route${added.length === 1 ? "" : "s"} ${added.join(", ")} to ${contract.multiContractNumber}`
+      : `No new routes added to ${contract.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${contractId}?routesAdded=1`);
+}
+
+export async function cancelContractRoute(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "edit")) throw new Error("You do not have permission.");
+  const contractId = formString(form, "contractId");
+  const routeId = formString(form, "routeId");
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, contractId },
+    include: { contract: true },
+  });
+  if (!route) throw new Error("That route is no longer on file.");
+  await prisma.route.update({
+    where: { id: route.id },
+    data: {
+      cancelledAt: parseDate(formString(form, "cancelledAt")) || parseFlexibleDate(formString(form, "cancelledAt")) || new Date(),
+      cancelNote: formString(form, "cancelNote") || null,
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: contractId,
+    summary: `Cancelled route ${route.number} on ${route.contract.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${contractId}?routeCancelled=${encodeURIComponent(route.number)}`);
+}
+
+export async function restoreContractRoute(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "edit")) throw new Error("You do not have permission.");
+  const contractId = formString(form, "contractId");
+  const routeId = formString(form, "routeId");
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, contractId },
+    include: { contract: true },
+  });
+  if (!route) throw new Error("That route is no longer on file.");
+  await prisma.route.update({
+    where: { id: route.id },
+    data: { cancelledAt: null, cancelNote: null },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: contractId,
+    summary: `Restored route ${route.number} on ${route.contract.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${contractId}?routeRestored=${encodeURIComponent(route.number)}`);
 }
 
 async function syncExtraPackets(

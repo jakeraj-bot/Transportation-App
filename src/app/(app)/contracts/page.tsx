@@ -88,6 +88,7 @@ export default async function ContractsPage({
               id: r.id,
               number: r.number,
               hasAddendum: r.addenda.length > 0,
+              cancelled: Boolean(r.cancelledAt),
             })),
           }))}
         />

@@ -131,8 +131,13 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         ],
       },
       {
-        heading: "Routes and addendums",
-        body: "Addendums belong to a route that is already on a contract, not a new multi-contract number. On New contract, choose Addendums, find the account, and confirm before we link it. You can also click a route number on the contract page to add an addendum there.",
+        heading: "Edit a contract and manage routes",
+        bullets: [
+          "Open the contract and expand Edit contract to change district, bus company, status, dates, costs, bonds, and other review fields.",
+          "Expand Routes to add more route numbers any time.",
+          "If the district cancels one route but keeps the others, use Cancel this route only on that route. The route stays on the contract for the record; other routes stay active.",
+          "Addendums belong to a route that is already on a contract. Click a route number to add or edit addendums there.",
+        ],
       },
       {
         heading: "Folder tab and labels",

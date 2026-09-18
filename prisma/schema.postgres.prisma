@@ -240,11 +240,13 @@ model ContractComment {
 }
 
 model Route {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   contractId  String
   number      String
   destination String?
   description String?
+  cancelledAt DateTime?
+  cancelNote  String?
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   addenda     RouteAddendum[]
 }

@@ -26,7 +26,7 @@ export type ContractListRow = {
   receivedDate?: string | null;
   receivedDateLabel?: string | null;
   schoolYear?: string;
-  routes: Array<{ id: string; number: string; hasAddendum: boolean }>;
+  routes: Array<{ id: string; number: string; hasAddendum: boolean; cancelled?: boolean }>;
 };
 
 export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; canApprove: boolean }) {
@@ -159,10 +159,11 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                 <td className="px-5 py-3">{c.typeLabel}</td>
                 <td className="px-5 py-3">
                   {c.routes.map((r, index) => (
-                    <span key={r.id}>
+                    <span key={r.id} className={r.cancelled ? "text-muted line-through" : undefined}>
                       <Link className="text-teal hover:underline" href={`/contracts/${c.id}/routes/${r.id}`}>
                         {r.number}
                       </Link>
+                      {r.cancelled ? " · cancelled" : ""}
                       {r.hasAddendum ? " · addendum" : ""}
                       {index < c.routes.length - 1 ? ", " : ""}
                     </span>
