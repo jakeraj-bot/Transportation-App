@@ -71,28 +71,34 @@ export type PacketRow = {
   multiContractNumber: string;
   routeNumber: string;
   renewalNumber: string;
+  bidNumber: string;
 };
 
 export function parsePacketRows(form: FormData): PacketRow[] {
-  const packets = zipFields(form, ["packetMulti", "packetRoute", "packetRenewal"]).map(([multi, route, renewal]) => ({
-    multiContractNumber: multi,
-    routeNumber: route,
-    renewalNumber: renewal,
-  }));
-  if (packets.some((row) => row.multiContractNumber || row.routeNumber || row.renewalNumber)) {
-    return packets.filter((row) => row.multiContractNumber);
-  }
-  const extras = zipFields(form, ["extraMultiContractNumber", "extraRouteNumber", "extraRenewalNumber"]).map(
-    ([multi, route, renewal]) => ({
+  const packets = zipFields(form, ["packetMulti", "packetRoute", "packetRenewal", "packetBid"]).map(
+    ([multi, route, renewal, bid]) => ({
       multiContractNumber: multi,
       routeNumber: route,
       renewalNumber: renewal,
+      bidNumber: bid,
+    })
+  );
+  if (packets.some((row) => row.multiContractNumber || row.routeNumber || row.renewalNumber || row.bidNumber)) {
+    return packets.filter((row) => row.multiContractNumber);
+  }
+  const extras = zipFields(form, ["extraMultiContractNumber", "extraRouteNumber", "extraRenewalNumber", "extraBidNumber"]).map(
+    ([multi, route, renewal, bid]) => ({
+      multiContractNumber: multi,
+      routeNumber: route,
+      renewalNumber: renewal,
+      bidNumber: bid,
     })
   );
   const primary: PacketRow = {
     multiContractNumber: String(form.get("multiContractNumber") ?? "").trim(),
     routeNumber: String(form.get("routes") ?? "").trim(),
     renewalNumber: String(form.get("renewalNumber") ?? "").trim(),
+    bidNumber: String(form.get("bidNumber") ?? "").trim(),
   };
   return [primary, ...extras].filter((row) => row.multiContractNumber);
 }
@@ -100,7 +106,7 @@ export function parsePacketRows(form: FormData): PacketRow[] {
 export function primaryAndExtraPackets(rows: PacketRow[]) {
   const [primary, ...rest] = rows;
   return {
-    primary: primary ?? { multiContractNumber: "", routeNumber: "", renewalNumber: "" },
+    primary: primary ?? { multiContractNumber: "", routeNumber: "", renewalNumber: "", bidNumber: "" },
     extras: rest.filter((row) => row.multiContractNumber && row.routeNumber),
     routeNumbers: rows.flatMap((row) => splitRoutes(row.routeNumber)),
   };
@@ -134,10 +140,8 @@ export function intakeTypeLabel(type: string) {
   return INTAKE_TYPES.find((row) => row.value === type)?.title ?? CONTRACT_TYPES.find((row) => row.value === type)?.label ?? type;
 }
 
-function zipFields(form: FormData, names: [string, string, string]) {
-  const a = form.getAll(names[0]).map((value) => String(value ?? "").trim());
-  const b = form.getAll(names[1]).map((value) => String(value ?? "").trim());
-  const c = form.getAll(names[2]).map((value) => String(value ?? "").trim());
-  const length = Math.max(a.length, b.length, c.length);
-  return Array.from({ length }, (_, index) => [a[index] ?? "", b[index] ?? "", c[index] ?? ""] as const);
+function zipFields(form: FormData, names: string[]) {
+  const arrays = names.map((name) => form.getAll(name).map((value) => String(value ?? "").trim()));
+  const length = Math.max(0, ...arrays.map((row) => row.length));
+  return Array.from({ length }, (_, index) => arrays.map((row) => row[index] ?? "") as string[]);
 }

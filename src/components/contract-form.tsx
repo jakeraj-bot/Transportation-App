@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
-import { allowsMultipleCompanies, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
+import { allowsMultipleCompanies, showsBidNumber, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { checklistDefinition } from "@/lib/checklists";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
 
@@ -52,6 +52,7 @@ export function ContractForm({
       multiContractNumber: packet.multiContractNumber,
       routeNumber: packet.routeNumber,
       renewalNumber: packet.renewalNumber ?? "",
+      bidNumber: packet.bidNumber ?? "",
     })) ?? []
   );
   const ownSecondReview =
@@ -224,9 +225,14 @@ export function ContractForm({
             ))}
           </select>
         </Field>
-        <Field label="Bid number">
-          <input className={inputClass} name="bidNumber" defaultValue={contract?.bidNumber ?? ""} />
-        </Field>
+        {showsBidNumber(type) ? (
+          <Field
+            label="Bid number"
+            hint={type === "renewal" ? "Bid number for the primary multi-contract number on this renewal." : undefined}
+          >
+            <input className={inputClass} name="bidNumber" defaultValue={contract?.bidNumber ?? ""} />
+          </Field>
+        ) : null}
         <Field label="Renewal number">
           <input className={inputClass} name="renewalNumber" defaultValue={contract?.renewalNumber ?? ""} />
         </Field>
@@ -258,7 +264,7 @@ export function ContractForm({
               A renewal can cover more than one multi-contract number. Each extra number needs the route number that goes with it.
             </p>
             {extras.map((packet, index) => (
-              <div key={index} className="grid gap-3 md:grid-cols-3">
+              <div key={index} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Multi-contract number">
                   <input
                     className={inputClass}
@@ -297,9 +303,21 @@ export function ContractForm({
                     }
                   />
                 </Field>
+                <Field label="Bid number">
+                  <input
+                    className={inputClass}
+                    name="extraBidNumber"
+                    value={packet.bidNumber}
+                    onChange={(e) =>
+                      setExtras((current) =>
+                        current.map((row, i) => (i === index ? { ...row, bidNumber: e.target.value } : row))
+                      )
+                    }
+                  />
+                </Field>
                 <button
                   type="button"
-                  className="text-sm text-rose md:col-span-3"
+                  className="text-sm text-rose md:col-span-2 xl:col-span-4"
                   onClick={() => setExtras((current) => current.filter((_, i) => i !== index))}
                 >
                   Remove
@@ -309,7 +327,12 @@ export function ContractForm({
             <button
               type="button"
               className="text-sm text-teal hover:underline"
-              onClick={() => setExtras((current) => [...current, { multiContractNumber: "", routeNumber: "", renewalNumber: "" }])}
+              onClick={() =>
+                setExtras((current) => [
+                  ...current,
+                  { multiContractNumber: "", routeNumber: "", renewalNumber: "", bidNumber: "" },
+                ])
+              }
             >
               Add another multi-contract number
             </button>

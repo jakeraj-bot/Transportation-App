@@ -315,7 +315,7 @@ export async function restoreContractRoute(form: FormData) {
 
 async function syncExtraPackets(
   contractId: string,
-  packets: Array<{ multiContractNumber: string; routeNumber: string; renewalNumber?: string }>
+  packets: Array<{ multiContractNumber: string; routeNumber: string; renewalNumber?: string; bidNumber?: string }>
 ) {
   await prisma.extraPacket.deleteMany({ where: { contractId } });
   const rows = packets.filter((p) => p.multiContractNumber && p.routeNumber);
@@ -326,6 +326,7 @@ async function syncExtraPackets(
       multiContractNumber: packet.multiContractNumber,
       routeNumber: packet.routeNumber,
       renewalNumber: packet.renewalNumber || null,
+      bidNumber: packet.bidNumber || null,
       sortOrder,
     })),
   });
@@ -677,7 +678,7 @@ export async function saveContract(form: FormData) {
     schoolYear,
     type,
     multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
-    bidNumber: formString(form, "bidNumber") || null,
+    bidNumber: packets.primary.bidNumber || formString(form, "bidNumber") || null,
     renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
     parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
     receivedDate: parseDate(formString(form, "receivedDate")),
@@ -791,7 +792,7 @@ export async function saveCurrentContract(form: FormData) {
       schoolYear,
       type,
       multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
-      bidNumber: formString(form, "bidNumber") || null,
+      bidNumber: packets.primary.bidNumber || formString(form, "bidNumber") || null,
       renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
       parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
       hostDistrictId,

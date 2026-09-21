@@ -18,7 +18,7 @@ export function ContractRoutesOverview({
 }: {
   contractId: string;
   routes: RouteRow[];
-  extraPackets: Array<{ id: string; multiContractNumber: string; routeNumber: string; renewalNumber: string | null }>;
+  extraPackets: Array<{ id: string; multiContractNumber: string; routeNumber: string; renewalNumber: string | null; bidNumber: string | null }>;
 }) {
   const active = routes.filter((route) => !route.cancelledAt);
   const cancelled = routes.filter((route) => route.cancelledAt);
@@ -34,6 +34,7 @@ export function ContractRoutesOverview({
               <li key={packet.id}>
                 {packet.multiContractNumber} · route {packet.routeNumber}
                 {packet.renewalNumber ? ` · renewal ${packet.renewalNumber}` : ""}
+                {packet.bidNumber ? ` · bid ${packet.bidNumber}` : ""}
               </li>
             ))}
           </ul>
@@ -87,7 +88,7 @@ export function ContractRoutesPanel({
 }: {
   contractId: string;
   routes: RouteRow[];
-  extraPackets: Array<{ id: string; multiContractNumber: string; routeNumber: string; renewalNumber: string | null }>;
+  extraPackets: Array<{ id: string; multiContractNumber: string; routeNumber: string; renewalNumber: string | null; bidNumber: string | null }>;
   canEdit: boolean;
   saved?: { added?: boolean; cancelled?: string; restored?: string };
 }) {
@@ -113,6 +114,7 @@ export function ContractRoutesPanel({
               <li key={packet.id}>
                 {packet.multiContractNumber} · route {packet.routeNumber}
                 {packet.renewalNumber ? ` · renewal ${packet.renewalNumber}` : ""}
+                {packet.bidNumber ? ` · bid ${packet.bidNumber}` : ""}
               </li>
             ))}
           </ul>

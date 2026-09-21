@@ -25,7 +25,7 @@ type DistrictOption = { id: string; name: string; county?: string | null };
 type ReviewerOption = { id: string; name: string };
 type ReviewerNameOption = { name: string };
 type CompanyRow = { contractorId: string; newName: string; newCounty: string };
-type PacketRowState = { multiContractNumber: string; routeNumber: string; renewalNumber: string };
+type PacketRowState = { multiContractNumber: string; routeNumber: string; renewalNumber: string; bidNumber: string };
 type AddendumMatch = {
   id: string;
   type: string;
@@ -68,7 +68,7 @@ export function ContractIntakeForm({
   const [companies, setCompanies] = useState<CompanyRow[]>([emptyCompany()]);
   const [companyError, setCompanyError] = useState("");
   const [packets, setPackets] = useState<PacketRowState[]>([
-    { multiContractNumber: "", routeNumber: "", renewalNumber: "" },
+    { multiContractNumber: "", routeNumber: "", renewalNumber: "", bidNumber: "" },
   ]);
   const [findYear, setFindYear] = useState(schoolYear);
   const [findMulti, setFindMulti] = useState("");
@@ -417,10 +417,10 @@ export function ContractIntakeForm({
           <div className="md:col-span-2 space-y-3 rounded-xl border border-line bg-cream px-4 py-3">
             <p className="font-medium">Multi-contract numbers</p>
             <p className="text-sm text-muted">
-              Add each multi-contract number on this renewal, with the route number and renewal number that go with it.
+              Add each multi-contract number on this renewal, with the route number, renewal number, and bid number that go with it.
             </p>
             {packets.map((packet, index) => (
-              <div key={index} className="grid gap-3 md:grid-cols-3">
+              <div key={index} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Multi-contract number">
                   <input
                     className={inputClass}
@@ -461,10 +461,22 @@ export function ContractIntakeForm({
                     }
                   />
                 </Field>
+                <Field label="Bid number">
+                  <input
+                    className={inputClass}
+                    name="packetBid"
+                    value={packet.bidNumber}
+                    onChange={(e) =>
+                      setPackets((currentPackets) =>
+                        currentPackets.map((row, i) => (i === index ? { ...row, bidNumber: e.target.value } : row))
+                      )
+                    }
+                  />
+                </Field>
                 {index > 0 ? (
                   <button
                     type="button"
-                    className="text-sm text-rose md:col-span-3"
+                    className="text-sm text-rose md:col-span-2 xl:col-span-4"
                     onClick={() => setPackets((currentPackets) => currentPackets.filter((_, i) => i !== index))}
                   >
                     Remove this multi-contract number
@@ -478,7 +490,7 @@ export function ContractIntakeForm({
               onClick={() =>
                 setPackets((currentPackets) => [
                   ...currentPackets,
-                  { multiContractNumber: "", routeNumber: "", renewalNumber: "" },
+                  { multiContractNumber: "", routeNumber: "", renewalNumber: "", bidNumber: "" },
                 ])
               }
             >
@@ -496,7 +508,7 @@ export function ContractIntakeForm({
           </>
         )}
 
-        {showsBidNumber(type) ? (
+        {showsBidNumber(type) && !allowsMultiplePackets(type) ? (
           <Field label="Bid number">
             <input className={inputClass} name="bidNumber" />
           </Field>

@@ -44,15 +44,19 @@ describe("packet and company parsing", () => {
     form.append("packetMulti", "MC-1");
     form.append("packetRoute", "R1, R2");
     form.append("packetRenewal", "1");
+    form.append("packetBid", "BID-1");
     form.append("packetMulti", "MC-2");
     form.append("packetRoute", "R9");
     form.append("packetRenewal", "2");
+    form.append("packetBid", "BID-2");
     const parsed = primaryAndExtraPackets(parsePacketRows(form));
     assert.equal(parsed.primary.multiContractNumber, "MC-1");
     assert.equal(parsed.primary.renewalNumber, "1");
+    assert.equal(parsed.primary.bidNumber, "BID-1");
     assert.deepEqual(parsed.routeNumbers, ["R1", "R2", "R9"]);
     assert.equal(parsed.extras.length, 1);
     assert.equal(parsed.extras[0].multiContractNumber, "MC-2");
+    assert.equal(parsed.extras[0].bidNumber, "BID-2");
   });
 
   it("falls back to the single multi-contract fields", () => {
