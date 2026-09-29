@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { Button, Card, EmptyState, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 
 export default async function BidSpecsPage() {
+  noStore();
   const rows = await prisma.bidSpec.findMany({
     where: { deletedAt: null },
     include: { district: true },
@@ -10,7 +12,7 @@ export default async function BidSpecsPage() {
   });
   return (
     <div>
-      <PageHeader title="Bid specifications" hint="Review specs before advertisement. Scan them so insurance and bond type can be highlighted." actions={<Button href="/bid-specs/new">New bid spec</Button>} />
+      <PageHeader title="Bid specifications" hint="One shared office list — specs added by any user with access show up for everyone. Review specs before advertisement. Scan them so insurance and bond type can be highlighted." actions={<Button href="/bid-specs/new">New bid spec</Button>} />
       {rows.length === 0 ? (
         <EmptyState title="No bid specs yet" body="Add a spec when a district sends it for review." action={<Button href="/bid-specs/new">New bid spec</Button>} />
       ) : (

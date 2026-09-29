@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { CertList } from "@/components/cert-list";
 import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { getSchoolYear, getStatuses } from "@/lib/data";
@@ -10,6 +11,7 @@ export default async function CertsPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string; county?: string; open?: string }>;
 }) {
+  noStore();
   const { q = "", status = "", county = "", open } = await searchParams;
   const [schoolYear, statuses] = await Promise.all([getSchoolYear(), getStatuses("cert")]);
   const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));

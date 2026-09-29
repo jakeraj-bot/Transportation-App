@@ -31,6 +31,7 @@ import {
   parseSpreadsheetFile,
 } from "@/lib/import-records";
 import { findContractorByLegalName, findOrCreateContractorByLegalName } from "@/lib/contractors";
+import { findDistrictByName, findOrCreateDistrictByName } from "@/lib/districts";
 import { matchNjCounty, resolveCertCounty } from "@/lib/nj-counties";
 import { buildLabelPdf, mergePdfs, type LabelKind } from "@/lib/labels";
 import {
@@ -173,24 +174,17 @@ export async function addQuickDistrict(name: string, county?: string) {
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Enter the district name.");
-  const existing = await prisma.district.findFirst({ where: { name: trimmed, deletedAt: null } });
-  if (existing) {
-    return { id: existing.id, name: existing.name, county: existing.county };
+  const before = await findDistrictByName(trimmed);
+  const row = await findOrCreateDistrictByName(trimmed, county);
+  if (!before) {
+    await writeAudit({
+      userId: user.id,
+      action: "create",
+      entityType: "district",
+      entityId: row.id,
+      summary: `Added district ${row.name}${row.county && row.county !== "Passaic" ? ` (${row.county})` : ""}`,
+    });
   }
-  const row = await prisma.district.create({
-    data: {
-      name: trimmed,
-      email: "",
-      county: matchNjCounty(county || null) || "Passaic",
-    },
-  });
-  await writeAudit({
-    userId: user.id,
-    action: "create",
-    entityType: "district",
-    entityId: row.id,
-    summary: `Added district ${row.name}${row.county && row.county !== "Passaic" ? ` (${row.county})` : ""}`,
-  });
   revalidateAll();
   return { id: row.id, name: row.name, county: row.county };
 }
@@ -395,15 +389,7 @@ function intakeErrorPath(form: FormData, type: string, message: string) {
 async function ensureDistrictByName(name: string, county?: string) {
   const trimmed = name.trim();
   if (!trimmed) return null;
-  const existing = await prisma.district.findFirst({ where: { name: trimmed, deletedAt: null } });
-  if (existing) return existing;
-  return prisma.district.create({
-    data: {
-      name: trimmed,
-      email: "",
-      county: matchNjCounty(county || null) || "Passaic",
-    },
-  });
+  return findOrCreateDistrictByName(trimmed, county);
 }
 
 async function resolveDistrictIdFromForm(form: FormData, field = "districtId") {

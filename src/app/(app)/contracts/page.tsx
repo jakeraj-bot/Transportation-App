@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { Button, EmptyState, PageHeader } from "@/components/ui";
 import { ContractList } from "@/components/contract-list";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ export default async function ContractsPage({
 }: {
   searchParams: Promise<{ flag?: string; status?: string; view?: string }>;
 }) {
+  noStore();
   const { flag, status, view } = await searchParams;
   const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
