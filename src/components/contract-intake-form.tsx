@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { addQuickContractor, findContractForAddendum, saveContract, saveCurrentContract } from "@/app/actions";
 import { DistrictPickerField, JoinerDistrictFields } from "@/components/district-picker-fields";
 import { ReviewerFields } from "@/components/reviewer-fields";
@@ -80,6 +81,7 @@ export function ContractIntakeForm({
   const [routeIds, setRouteIds] = useState<string[]>([]);
   const picked = matches?.find((row) => row.id === pickedId) ?? null;
   const action = current ? saveCurrentContract : saveContract;
+  const router = useRouter();
 
   const companyHint = allowsMultipleCompanies(type)
     ? "Choose a bus company from the list, or add a new name. Some packets have more than one company on the same contract."
@@ -100,6 +102,7 @@ export function ContractIntakeForm({
           i === index ? { contractorId: created.id, newName: "", newCounty: "" } : item
         )
       );
+      router.refresh();
     } catch (error) {
       setCompanyError(error instanceof Error ? error.message : "Could not add that bus company.");
     }

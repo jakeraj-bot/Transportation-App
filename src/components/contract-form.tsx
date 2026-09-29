@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
@@ -55,6 +56,7 @@ export function ContractForm({
       bidNumber: packet.bidNumber ?? "",
     })) ?? []
   );
+  const router = useRouter();
   const ownSecondReview =
     mode === "review" &&
     contract?.statusName === "2nd review" &&
@@ -89,6 +91,7 @@ export function ContractForm({
       setContractorIds((current) => (current.length ? [...current, row.id] : [row.id]));
       setNewContractorName("");
       setAddingContractor(false);
+      router.refresh();
     } catch (error) {
       setContractorError(error instanceof Error ? error.message : "Could not add that contractor.");
     }

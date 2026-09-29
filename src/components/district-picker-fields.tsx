@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { addQuickDistrict } from "@/app/actions";
 import { CountySelect } from "@/components/county-select";
 import { Field, inputClass } from "@/components/ui";
@@ -27,6 +28,7 @@ export function DistrictPickerField({
   const [newName, setNewName] = useState("");
   const [newCounty, setNewCounty] = useState("Passaic");
   const [error, setError] = useState("");
+  const router = useRouter();
 
   async function saveDistrict() {
     setError("");
@@ -38,6 +40,7 @@ export function DistrictPickerField({
       setDistrictId(created.id);
       setNewName("");
       setNewCounty("Passaic");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add that district.");
     }
@@ -93,6 +96,7 @@ export function JoinerDistrictFields({ districts }: { districts: DistrictOption[
   const [districtList, setDistrictList] = useState(districts);
   const [joiners, setJoiners] = useState([{ districtName: "", newName: "", newCounty: "Passaic" }]);
   const [error, setError] = useState("");
+  const router = useRouter();
 
   async function saveJoiner(index: number) {
     const row = joiners[index];
@@ -107,6 +111,7 @@ export function JoinerDistrictFields({ districts }: { districts: DistrictOption[
           i === index ? { districtName: created.name, newName: "", newCounty: "Passaic" } : item
         )
       );
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add that district.");
     }

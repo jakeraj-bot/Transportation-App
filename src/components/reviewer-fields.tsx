@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { addQuickReviewerName } from "@/app/actions";
 import { Field, inputClass } from "@/components/ui";
 
@@ -18,6 +19,7 @@ export function ReviewerFields({
   const [firstTyped, setFirstTyped] = useState("");
   const [secondTyped, setSecondTyped] = useState("");
   const [error, setError] = useState("");
+  const router = useRouter();
 
   async function saveName(value: string, slot: "first" | "second") {
     setError("");
@@ -30,6 +32,7 @@ export function ReviewerFields({
       );
       if (slot === "first") setFirstTyped(row.name);
       else setSecondTyped(row.name);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that reviewer name.");
     }

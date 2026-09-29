@@ -30,6 +30,7 @@ import {
   parseFlexibleDate,
   parseSpreadsheetFile,
 } from "@/lib/import-records";
+import { findContractorByLegalName, findOrCreateContractorByLegalName } from "@/lib/contractors";
 import { matchNjCounty, resolveCertCounty } from "@/lib/nj-counties";
 import { buildLabelPdf, mergePdfs, type LabelKind } from "@/lib/labels";
 import {
@@ -62,6 +63,24 @@ function isUniqueConflict(err: unknown) {
 
 function revalidateAll() {
   revalidatePath("/", "layout");
+  const pages = [
+    "/contractors",
+    "/contracts",
+    "/contracts/new",
+    "/certs",
+    "/certs/new",
+    "/insurance",
+    "/insurance/new",
+    "/bid-specs",
+    "/route-descriptions",
+    "/emergency-quotes",
+    "/districts",
+    "/search",
+    "/settings/current-records",
+  ];
+  for (const path of pages) {
+    revalidatePath(path, "page");
+  }
 }
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -191,26 +210,19 @@ export async function addQuickReviewerName(name: string) {
 export async function addQuickContractor(legalName: string, county?: string) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
-  const name = legalName.trim();
-  if (!name) throw new Error("Enter the contractor’s name.");
-  const row = await prisma.contractor.create({
-    data: {
-      legalName: name,
-      incomplete: true,
-      brcStatus: "Not on file",
-      brcNameControl: nameControlFrom(name) || null,
-      county: matchNjCounty(county || null),
-    },
-  });
-  await writeAudit({
-    userId: user.id,
-    action: "create",
-    entityType: "contractor",
-    entityId: row.id,
-    summary: `Added contractor name ${row.legalName} (details still needed)`,
-  });
+  const before = await findContractorByLegalName(legalName);
+  const row = await findOrCreateContractorByLegalName(legalName, county);
+  if (!before) {
+    await writeAudit({
+      userId: user.id,
+      action: "create",
+      entityType: "contractor",
+      entityId: row.id,
+      summary: `Added contractor name ${row.legalName} (details still needed)`,
+    });
+  }
   revalidateAll();
-  return { id: row.id, legalName: row.legalName, incomplete: true };
+  return { id: row.id, legalName: row.legalName, incomplete: row.incomplete };
 }
 
 async function syncRoutes(contractId: string, numbers: string[]) {
@@ -353,52 +365,24 @@ async function resolveContractorIdsFromForm(form: FormData) {
       continue;
     }
     if (!names[index]) continue;
-    const created = await prisma.contractor.create({
-      data: {
-        legalName: names[index],
-        incomplete: true,
-        brcStatus: "Not on file",
-        brcNameControl: nameControlFrom(names[index]) || null,
-        county: matchNjCounty(counties[index] || null),
-      },
-    });
+    const created = await findOrCreateContractorByLegalName(names[index], counties[index] || undefined);
     ids.push(created.id);
   }
   const fromSingleName = formString(form, "newContractorName");
   const fromSingleId = formString(form, "contractorId");
   if (!ids.length && fromSingleId) ids.push(fromSingleId);
   if (!ids.length && fromSingleName && !names.length) {
-    const created = await prisma.contractor.create({
-      data: {
-        legalName: fromSingleName,
-        incomplete: true,
-        brcStatus: "Not on file",
-        brcNameControl: nameControlFrom(fromSingleName) || null,
-        county: matchNjCounty(formString(form, "newContractorCounty") || null),
-      },
-    });
+    const created = await findOrCreateContractorByLegalName(
+      fromSingleName,
+      formString(form, "newContractorCounty") || undefined
+    );
     ids.push(created.id);
   }
   return [...new Set(ids)];
 }
 
 async function resolveParentContractorId(parentName: string) {
-  const name = parentName.trim();
-  if (!name) throw new Error("Enter the parent name.");
-  const existing = await prisma.contractor.findMany({
-    where: { deletedAt: null },
-    select: { id: true, legalName: true },
-  });
-  const match = existing.find((row) => row.legalName.toLowerCase() === name.toLowerCase());
-  if (match) return match.id;
-  const created = await prisma.contractor.create({
-    data: {
-      legalName: name,
-      incomplete: true,
-      brcStatus: "Not on file",
-      brcNameControl: nameControlFrom(name) || null,
-    },
-  });
+  const created = await findOrCreateContractorByLegalName(parentName);
   return created.id;
 }
 

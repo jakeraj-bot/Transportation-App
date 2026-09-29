@@ -1,8 +1,10 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { CHECKLISTS, checklistDefinition } from "./checklists";
 import { prisma } from "./prisma";
 import { currentSchoolYear } from "./utils";
 
 export async function getSetting(key: string, fallback = "") {
+  noStore();
   const row = await prisma.setting.findUnique({ where: { key } });
   return row?.value ?? fallback;
 }
@@ -12,6 +14,7 @@ export async function getSchoolYear() {
 }
 
 export async function getStatuses(entityType: string) {
+  noStore();
   return prisma.status.findMany({
     where: { entityType, deletedAt: null },
     orderBy: { sortOrder: "asc" },
@@ -19,6 +22,7 @@ export async function getStatuses(entityType: string) {
 }
 
 export async function activeDistricts() {
+  noStore();
   return prisma.district.findMany({
     where: { deletedAt: null },
     orderBy: { name: "asc" },
@@ -26,6 +30,7 @@ export async function activeDistricts() {
 }
 
 export async function activeContractors() {
+  noStore();
   return prisma.contractor.findMany({
     where: { deletedAt: null },
     orderBy: { legalName: "asc" },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { importContractors } from "@/app/actions";
 import { Button, Card, EmptyState, Field, PageHeader, StatusChip, inputClass } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +9,7 @@ export default async function ContractorsPage({
 }: {
   searchParams: Promise<{ imported?: string; updated?: string; certs?: string; error?: string }>;
 }) {
+  noStore();
   const q = await searchParams;
   const rows = await prisma.contractor.findMany({
     where: { deletedAt: null },
@@ -18,7 +20,7 @@ export default async function ContractorsPage({
     <div className="space-y-6">
       <PageHeader
         title="Contractors"
-        hint="Vendor codes, OSP codes, county, bus locations, contacts, and Business Registration Certificates."
+        hint="One shared office list — contractors you add here or while entering a contract show up for every signed-in user. Vendor codes, OSP codes, county, bus locations, contacts, and Business Registration Certificates."
         actions={<Button href="/contractors/new">Add one contractor</Button>}
       />
       {q.error ? (
