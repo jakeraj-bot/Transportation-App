@@ -28,7 +28,7 @@ When you deploy the live office site, use a new empty database and run `npm run 
 
 Put these in `.env`:
 
-- `OPENAI_API_KEY` — fuller NJ-code answers and bid-spec reading
+- `OPENAI_API_KEY` — Ask NJ Transportation (current 6A:27 PDF + web search of nj.gov) and bid-spec reading. Optional `OPENAI_ASK_MODEL` (default tries `gpt-4o`, then `gpt-4o-mini`). Add the same key on Vercel for production.
 - `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAILBOX` — send PT-4 and follow-up email from the county Outlook mailbox (county IT registers an Azure app with application Mail.Send)
 
 Without Outlook, emails are saved as drafts and the Word/PDF files still download.
@@ -59,7 +59,8 @@ Office sign-in after empty seed: `jjacobs@doe.nj.gov` / `Passaic2026!` — chang
    - Use the database connection URI, **not** the `anon` / `service_role` API keys.
 3. [Vercel](https://vercel.com) → **Add New… → Project** → import this app (or `npx vercel login` then `npx vercel --prod`).
 4. Open [Vercel → transportation-app](https://vercel.com/yea14/transportation-app) → **Settings** → **Environment Variables**. Add all four for **Production** (enable them for the build):
-   - `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SEED_DEMO` = `0`
+- `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `SEED_DEMO` = `0`
+   - Optional: `OPENAI_API_KEY` so Ask NJ can search current nj.gov code (and `OPENAI_ASK_MODEL` if you want a specific model)
    - The two URLs must start with `postgres://` or `postgresql://`. If you see `file:./dev.db`, that is the local demo value — do not use it on Vercel.
 5. **Deployments** → newest commit → **Redeploy** with **Use existing Build Cache** turned **off**. `vercel-build` runs `node scripts/vercel-db-setup.cjs`, then `next build`. If it fails, the log line starting with `Error:` says which env var to fix.
 

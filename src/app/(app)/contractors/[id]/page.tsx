@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { softDelete } from "@/app/actions";
 import { ContractorForm } from "@/components/contractor-form";
-import { Card, PageHeader, StatusChip } from "@/components/ui";
+import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { insuranceCoverage } from "@/lib/flags";
@@ -27,9 +27,12 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       <PageHeader
         title={contractor.legalName}
         backHref="/contractors"
-        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}`}
+        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}${contractor.county ? ` · ${contractor.county} County` : ""}`}
         actions={<form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>}
       />
+      {contractor.incomplete ? (
+        <Flag tone="rose">This contractor was added by name only. Fill in the details below so contracts stop highlighting it in red.</Flag>
+      ) : null}
       <Card>
         <ContractorForm
           id={contractor.id}
@@ -38,6 +41,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
             dba: contractor.dba,
             vendorCode: contractor.vendorCode,
             ospCode: contractor.ospCode,
+            county: contractor.county,
             busLocation: contractor.busLocation,
             contactName: contractor.contactName,
             email: contractor.email,
@@ -87,10 +91,27 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">Annual certifications</h2>
-        {contractor.annualCerts.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/certs/${c.id}`}>{c.schoolYear}</Link> — {c.statusName}</p>
+        <p className="mb-3 text-sm text-muted">
+          One cert per county per school year. If this company has a terminal in another county, add another cert for that county.
+        </p>
+        {contractor.annualCerts
+          .slice()
+          .sort(
+            (a, b) =>
+              b.schoolYear.localeCompare(a.schoolYear) || (a.county || "").localeCompare(b.county || "")
+          )
+          .map((c) => (
+          <p key={c.id}>
+            <Link className="text-teal" href={`/certs/${c.id}`}>
+              {c.schoolYear}
+              {c.county || contractor.county ? ` · ${c.county || contractor.county}` : ""}
+            </Link>{" "}
+            — {c.statusName}
+          </p>
         ))}
-        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>Add annual cert</Link>
+        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>
+          Add annual cert
+        </Link>
       </Card>
     </div>
   );
