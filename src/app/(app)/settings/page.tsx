@@ -147,7 +147,7 @@ export default async function SettingsPage({
           </CollapsibleSection>
           <CollapsibleSection title="Default letters and annual certs" hint="Fallback Word files for contracts and annual certifications">
             <p className="mb-4 text-sm text-muted">
-              The default contract letters are used only when that contract type does not have its own file. Annual cert letters are used from the annual certification page — not a PT-4.
+              Each contract type already uses the Passaic County letterhead letter. Upload a Word file here only if you need to replace that letter. Annual cert letters are used from the annual certification page — not a PT-4.
             </p>
             <div className="space-y-4">
               {SHARED_TEMPLATES.filter(([key]) => key !== "pt4").map(([key, label]) => (

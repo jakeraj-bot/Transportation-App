@@ -137,11 +137,12 @@ export function formatDistrictAddress(district: DistrictAddressInput) {
 export function districtMergeFields(district?: DistrictAddressInput | null) {
   const parts = district ? normalizeDistrictAddress(district) : { street: "", city: "", state: "", zip: "", cityLine: "" };
   const name = district?.name ?? "";
+  const block = district ? formatDistrictAddress(district) : "";
   return {
     district: name,
     districtName: name,
-    // Street only. Templates also have {city}, {state}, {zipCode} on the next line.
-    districtAddress: parts.street,
+    // Street only when we also have city/state/ZIP. Otherwise the letter-ready block.
+    districtAddress: parts.street || block,
     street: parts.street,
     city: parts.city,
     state: parts.state,
@@ -274,7 +275,26 @@ function letterDecisionSentence(kind: "approved" | "disapproved", contractType?:
     : `This office has reviewed the documents submitted and cannot approve the ${noun} described above.`;
 }
 
+const COUNTY_LETTER_TYPES = new Set(["original", "renewal", "quote", "parental", "addendum", "joint"]);
+
+/** Official Passaic County letterhead .docx shipped with the app. */
+export function bundledCountyLetter(kind: "approved" | "disapproved", contractType?: string | null) {
+  const type = String(contractType || "");
+  if (!COUNTY_LETTER_TYPES.has(type)) return null;
+  const file = path.join(process.cwd(), "letter-templates", `contract_${kind}_${type}.docx`);
+  try {
+    if (!fs.existsSync(file)) return null;
+    return fs.readFileSync(file);
+  } catch {
+    return null;
+  }
+}
+
 export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", contractType?: string) {
+  if (kind !== "pt4") {
+    const county = bundledCountyLetter(kind, contractType);
+    if (county) return county;
+  }
   if (kind === "pt4") {
     return buildSimpleDocx([
       { text: "PASSAIC COUNTY OFFICE OF EDUCATION", bold: true, size: 28, center: true },

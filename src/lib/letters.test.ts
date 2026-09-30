@@ -98,13 +98,17 @@ describe("type-specific approval and disapproval letters", () => {
       decision: "approved",
       notes: "",
       missingItems: "",
+      contracts: [{ multiContractNumber: "P-1", contractor: "ABC Bus Co.", parentName: "ABC Bus Co.", routeNumber: "101", addendumNumber: "" }],
     };
     const text = documentText(fillDocx(defaultLetterDocx("approved", "parental"), fields));
-    assert.match(text, /Approval of parental transportation contract/);
+    assert.match(text, /Parental Transportation Contracts/);
+    assert.match(text, /are approved/);
+    assert.match(text, /Kesha T. Drakeford/);
     assert.match(text, /Clifton/);
     assert.match(text, /745 Clifton Avenue/);
-    assert.match(text, /Clifton, NJ 07013/);
+    assert.match(text, /07013/);
     assert.match(text, /ABC Bus Co/);
+    assert.match(text, /P-1/);
   });
 
   it("fills a letter-ready block into the disapproval letter", () => {
@@ -123,9 +127,11 @@ describe("type-specific approval and disapproval letters", () => {
       decision: "disapproved",
       notes: "Missing board minutes.",
       missingItems: "",
+      contracts: [{ multiContractNumber: "R-9", contractor: "XYZ Transit", parentName: "XYZ Transit", routeNumber: "22", addendumNumber: "" }],
     };
     const text = documentText(fillDocx(defaultLetterDocx("disapproved", "renewal"), fields));
-    assert.match(text, /Disapproval of student transportation contract renewal/);
+    assert.match(text, /Renewal Transportation Contracts/);
+    assert.match(text, /are disapproved/);
     assert.match(text, /101 Passaic Ave/);
     assert.match(text, /Office of Transportation/);
     assert.match(text, /Missing board minutes/);

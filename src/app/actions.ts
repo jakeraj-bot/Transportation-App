@@ -1436,7 +1436,7 @@ async function resolveContractTemplateBuffer(
     return {
       buffer,
       warning:
-        "Used the built-in letter because an uploaded template in Settings could not be loaded from storage. Open Settings → Letter templates and upload the .docx again.",
+        "An uploaded letter in Settings could not be opened, so the county letterhead letter for this contract type was used instead.",
     };
   }
   return { buffer };
