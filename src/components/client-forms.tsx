@@ -81,6 +81,7 @@ export function LetterButtons({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [fileUrl, setFileUrl] = useState("");
   const extras = sameTypeContracts?.filter((row) => row.id !== id) ?? [];
   const [included, setIncluded] = useState<string[]>(extras.filter((row) => row.sameLetterGroup).map((row) => row.id));
@@ -97,6 +98,7 @@ export function LetterButtons({
     }
     setBusy(true);
     setError("");
+    setWarning("");
     setFileUrl("");
     try {
       const form = new FormData();
@@ -106,10 +108,15 @@ export function LetterButtons({
       form.set("notes", notes);
       form.append("ids", id);
       for (const extraId of included) form.append("ids", extraId);
-      const url =
+      const res =
         kind === "contract" ? await generateContractLetter(form) : await generateCertLetter(form);
-      setFileUrl(url);
-      openGeneratedFile(url);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setFileUrl(res.url);
+      if (res.warning) setWarning(res.warning);
+      openGeneratedFile(res.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create that letter.");
     } finally {
@@ -201,6 +208,7 @@ export function LetterButtons({
         </button>
       </div>
       {error ? <p className="text-sm text-rose">{error}</p> : null}
+      {warning ? <p className="text-sm text-amber">{warning}</p> : null}
       {fileUrl ? (
         <p className="text-sm text-muted">
           If the letter did not open,{" "}

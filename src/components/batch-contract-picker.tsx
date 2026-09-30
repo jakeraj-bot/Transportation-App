@@ -88,9 +88,14 @@ export function BatchContractPicker({
       if (mode === "approve") {
         form.set("kind", "approved");
         form.set("letterDate", date);
-        const url = await generateContractLetter(form);
-        setFileUrl(url);
-        openGeneratedFile(url);
+        const res = await generateContractLetter(form);
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        setFileUrl(res.url);
+        if (res.warning) setError(res.warning);
+        openGeneratedFile(res.url);
       } else {
         form.set("kind", mode === "tabs" ? "tab" : "label");
         const url = await generatePrintPacket(form);

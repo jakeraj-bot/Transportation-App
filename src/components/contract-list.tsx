@@ -76,9 +76,14 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
       form.set("kind", "approved");
       form.set("letterDate", date);
       for (const row of picked) form.append("ids", row.id);
-      const url = await generateContractLetter(form);
-      setFileUrl(url);
-      openGeneratedFile(url);
+      const res = await generateContractLetter(form);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setFileUrl(res.url);
+      if (res.warning) setError(res.warning);
+      openGeneratedFile(res.url);
       setSelected([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not make that letter.");

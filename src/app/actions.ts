@@ -42,6 +42,7 @@ import {
   type DistrictAddressInput,
 } from "@/lib/docx";
 import { groupByLetter } from "@/lib/letter-groups";
+import { letterActionError, type LetterActionResult } from "@/lib/letter-action";
 import { readStoredFile, saveStoredFile } from "@/lib/storage";
 import { sendOutlookMail } from "@/lib/email";
 import { extractBidSpec, fileToText } from "@/lib/extract-bid-spec";
@@ -1406,23 +1407,39 @@ async function readTemplateFile(key: string) {
   if (!row) return null;
   const buf = await readStoredFile(row.filePath);
   if (!buf) {
-    throw new Error(
-      `The letter template “${row.originalName}” is listed in Settings but the file could not be loaded. Re-upload it under Settings → Letter templates.`
-    );
+    console.error(`Template bytes missing: key=${key} path=${row.filePath} name=${row.originalName}`);
+    return null;
   }
   return buf;
 }
 
-async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractType?: string) {
+type ResolvedTemplate = { buffer: Buffer; warning?: string };
+
+async function resolveContractTemplateBuffer(
+  key: "approved" | "disapproved" | "pt4",
+  contractType?: string
+): Promise<ResolvedTemplate> {
   if (key === "pt4") {
-    return (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4");
+    return { buffer: (await readTemplateFile("pt4")) ?? defaultLetterDocx("pt4") };
   }
   const lookups = letterTemplateLookups(key, contractType);
+  let missingUpload = false;
   for (const lookup of lookups) {
-    const buf = await readTemplateFile(lookup);
-    if (buf) return buf;
+    const row = await prisma.templateFile.findUnique({ where: { key: lookup } });
+    if (!row) continue;
+    const buf = await readStoredFile(row.filePath);
+    if (buf) return { buffer: buf };
+    missingUpload = true;
   }
-  return defaultLetterDocx(key, contractType);
+  const buffer = defaultLetterDocx(key, contractType);
+  if (missingUpload) {
+    return {
+      buffer,
+      warning:
+        "Used the built-in letter because an uploaded template in Settings could not be loaded from storage. Open Settings → Letter templates and upload the .docx again.",
+    };
+  }
+  return { buffer };
 }
 
 async function certTemplateBuffer(kind: "approved" | "disapproved") {
@@ -1430,9 +1447,10 @@ async function certTemplateBuffer(kind: "approved" | "disapproved") {
   return (await readTemplateFile(key)) ?? defaultLetterDocx(kind);
 }
 
-export async function generateContractLetter(form: FormData) {
+export async function generateContractLetter(form: FormData): Promise<LetterActionResult> {
+  try {
   const user = await requireSession();
-  if (!can(user, "approve")) throw new Error("You do not have permission.");
+  if (!can(user, "approve")) return { ok: false, error: "You do not have permission to approve or disapprove." };
   const kind = formString(form, "kind") as "approved" | "disapproved";
   const letterDate = parseDate(formString(form, "letterDate")) || new Date();
   const ids = Array.from(
@@ -1442,7 +1460,7 @@ export async function generateContractLetter(form: FormData) {
         .filter(Boolean)
     )
   );
-  if (!ids.length) throw new Error("Choose at least one contract.");
+  if (!ids.length) return { ok: false, error: "Choose at least one contract." };
   const contracts = await prisma.contract.findMany({
     where: { id: { in: ids }, deletedAt: null },
     include: {
@@ -1454,16 +1472,16 @@ export async function generateContractLetter(form: FormData) {
       routes: { include: { addenda: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } } },
     },
   });
-  if (contracts.length !== ids.length) throw new Error("One of those contracts could not be found.");
+  if (contracts.length !== ids.length) return { ok: false, error: "One of those contracts could not be found." };
   const first = contracts[0];
   if (contracts.some((row) => row.type !== first.type)) {
-    throw new Error("All contracts on one letter must be the same type.");
+    return { ok: false, error: "All contracts on one letter must be the same type." };
   }
   if (first.type !== "joint" && contracts.some((row) => row.districtId !== first.districtId)) {
-    throw new Error("All contracts on one letter must be for the same district.");
+    return { ok: false, error: "All contracts on one letter must be for the same district." };
   }
   if (contracts.some((row) => row.schoolYear !== first.schoolYear)) {
-    throw new Error("All contracts on one letter must be for the same school year.");
+    return { ok: false, error: "All contracts on one letter must be for the same school year." };
   }
   const ordered = ids.map((id) => contracts.find((row) => row.id === id)!);
   const groups = groupByLetter(ordered, (row) => ({
@@ -1477,6 +1495,7 @@ export async function generateContractLetter(form: FormData) {
   const notes = formString(form, "notes");
   const statusName = kind === "approved" ? "Approved" : "Disapproved";
   const files: Array<{ name: string; data: Buffer }> = [];
+  let warning: string | undefined;
 
   for (const group of groups) {
     const lead = group[0];
@@ -1521,7 +1540,9 @@ export async function generateContractLetter(form: FormData) {
         ];
       }),
     });
-    const buf = fillDocx(await templateBuffer(kind, lead.type), fields);
+    const resolved = await resolveContractTemplateBuffer(kind, lead.type);
+    if (resolved.warning) warning = resolved.warning;
+    const buf = fillDocx(resolved.buffer, fields);
     const hostBit =
       lead.type === "joint" ? `${lead.hostDistrict?.name || "host"}-${lead.joinerDistricts || "joiner"}` : lead.district.name;
     const fileName = `${kind}-${hostBit}-${lead.type}-${group.length}-${Date.now()}-${files.length}.docx`.replace(/\s+/g, "_");
@@ -1556,16 +1577,29 @@ export async function generateContractLetter(form: FormData) {
 
   revalidateAll();
   if (files.length === 1) {
-    return `/api/files?path=${encodeURIComponent(`letters/${files[0].name}`)}`;
+    return {
+      ok: true,
+      url: `/api/files?path=${encodeURIComponent(`letters/${files[0].name}`)}`,
+      warning,
+    };
   }
   const zipName = `${kind}-letters-${files.length}-${Date.now()}.zip`;
   await saveStoredFile(`letters/${zipName}`, zipFiles(files));
-  return `/api/files?path=${encodeURIComponent(`letters/${zipName}`)}`;
+  return {
+    ok: true,
+    url: `/api/files?path=${encodeURIComponent(`letters/${zipName}`)}`,
+    warning,
+  };
+  } catch (err) {
+    console.error("generateContractLetter failed", err);
+    return letterActionError(err, "Could not create that contract letter. Check your uploaded template in Settings.");
+  }
 }
 
-export async function generateCertLetter(form: FormData) {
+export async function generateCertLetter(form: FormData): Promise<LetterActionResult> {
+  try {
   const user = await requireSession();
-  if (!can(user, "approve")) throw new Error("You do not have permission.");
+  if (!can(user, "approve")) return { ok: false, error: "You do not have permission to approve or disapprove." };
   const id = formString(form, "id");
   const kind = formString(form, "kind") as "approved" | "disapproved";
   const letterDate = parseDate(formString(form, "letterDate")) || new Date();
@@ -1618,7 +1652,11 @@ export async function generateCertLetter(form: FormData) {
     summary: `${kind === "approved" ? "Approved" : "Disapproved"} annual cert for ${cert.contractor.legalName}`,
   });
   revalidateAll();
-  return `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}`;
+  return { ok: true, url: `/api/files?path=${encodeURIComponent(`letters/${fileName}`)}` };
+  } catch (err) {
+    console.error("generateCertLetter failed", err);
+    return letterActionError(err, "Could not create that certification letter.");
+  }
 }
 
 export async function generateLabels(contractId: string, kind: LabelKind = "both") {
@@ -1878,7 +1916,8 @@ export async function generatePt4AndEmail(form: FormData) {
       },
     ],
   });
-  const buf = fillDocx(await templateBuffer("pt4"), fields);
+  const pt4Template = await resolveContractTemplateBuffer("pt4");
+  const buf = fillDocx(pt4Template.buffer, fields);
   const fileName = `PT4-${Date.now()}.docx`;
   await saveStoredFile(`letters/${fileName}`, buf);
 

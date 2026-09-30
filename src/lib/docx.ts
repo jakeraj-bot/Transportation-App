@@ -331,18 +331,36 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", cont
   ]);
 }
 
+export function formatDocxFillError(err: unknown) {
+  const props = err as { properties?: { errors?: Array<{ message?: string; explanation?: string }> } };
+  const parts = props.properties?.errors
+    ?.map((row) => row.explanation || row.message)
+    .filter(Boolean);
+  if (parts?.length) {
+    return `The Word letter template has a placeholder problem: ${parts.join(" ")} Check Settings → Letter templates — use {fieldName} tags like {districtName} and {#contracts}…{/contracts} for table rows.`;
+  }
+  if (err instanceof Error && err.message && !err.message.includes("Server Components")) {
+    return err.message;
+  }
+  return "Could not fill the Word letter template. Check placeholders in Settings → Letter templates, or re-upload the .docx.";
+}
+
 export function fillDocx(template: Buffer, fields: Record<string, unknown>) {
-  const zip = new PizZip(template);
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-    delimiters: { start: "{", end: "}" },
-    nullGetter() {
-      return "";
-    },
-  });
-  doc.render(fields);
-  return doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
+  try {
+    const zip = new PizZip(template);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: "{", end: "}" },
+      nullGetter() {
+        return "";
+      },
+    });
+    doc.render(fields);
+    return doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
+  } catch (err) {
+    throw new Error(formatDocxFillError(err));
+  }
 }
 
 export function zipFiles(files: Array<{ name: string; data: Buffer }>) {
