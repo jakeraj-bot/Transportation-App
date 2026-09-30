@@ -21,10 +21,12 @@ export async function GET(request: Request) {
       : name.endsWith(".zip")
         ? "application/zip"
         : "application/octet-stream";
+  const download =
+    rel.startsWith("letters/") || name.endsWith(".zip") || url.searchParams.get("download") === "1";
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": type,
-      "Content-Disposition": `${name.endsWith(".zip") ? "attachment" : "inline"}; filename="${name}"`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${name}"`,
     },
   });
 }

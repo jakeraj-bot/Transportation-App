@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { generateContractLetter } from "@/app/actions";
 import { StatusChip, inputClass } from "@/components/ui";
+import { openGeneratedFile } from "@/lib/open-generated-file";
 import { groupByLetter } from "@/lib/letter-groups";
 
 export type ContractListRow = {
@@ -34,6 +35,7 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
 
   const picked = rows.filter((row) => selected.includes(row.id));
   const sameType =
@@ -68,13 +70,15 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
     if (!sameType || picked.length < 2) return;
     setBusy(true);
     setError("");
+    setFileUrl("");
     try {
       const form = new FormData();
       form.set("kind", "approved");
       form.set("letterDate", date);
       for (const row of picked) form.append("ids", row.id);
       const url = await generateContractLetter(form);
-      window.open(url, "_blank");
+      setFileUrl(url);
+      openGeneratedFile(url);
       setSelected([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not make that letter.");
@@ -105,6 +109,15 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
             </div>
           ) : null}
           {error ? <p className="mt-2 text-sm text-rose">{error}</p> : null}
+          {fileUrl ? (
+            <p className="mt-2 text-sm text-muted">
+              If nothing opened,{" "}
+              <a className="text-teal hover:underline" href={fileUrl}>
+                download the letter here
+              </a>
+              .
+            </p>
+          ) : null}
         </div>
       ) : null}
       <div className="overflow-x-auto rounded-2xl bg-card shadow-[0_1px_0_rgba(44,58,71,0.04),0_12px_32px_rgba(44,58,71,0.06)]">

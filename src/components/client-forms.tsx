@@ -11,6 +11,7 @@ import {
 } from "@/app/actions";
 import { groupByLetter, type LetterGroupInput } from "@/lib/letter-groups";
 import { EmailDraftForm } from "@/components/email-draft";
+import { openGeneratedFile } from "@/lib/open-generated-file";
 import { Button, Field, inputClass } from "./ui";
 
 export function LabelButton({ contractId }: { contractId: string }) {
@@ -20,7 +21,7 @@ export function LabelButton({ contractId }: { contractId: string }) {
     form.append("ids", contractId);
     form.set("kind", kind);
     const url = await generatePrintPacket(form);
-    window.open(url, "_blank");
+    openGeneratedFile(url);
     setMsg(kind === "tab" ? "Opened the folder tab." : kind === "label" ? "Opened the label." : "Opened the folder tab and labels.");
   }
   return (
@@ -57,12 +58,14 @@ export function LetterButtons({
   contractType,
   letterGroup,
   sameTypeContracts,
+  canApprove = true,
 }: {
   kind: "contract" | "cert";
   id: string;
   contractTypeLabel?: string;
   contractType?: string;
   letterGroup?: LetterGroupInput;
+  canApprove?: boolean;
   sameTypeContracts?: Array<{
     id: string;
     multiContractNumber: string;
@@ -77,6 +80,8 @@ export function LetterButtons({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
   const extras = sameTypeContracts?.filter((row) => row.id !== id) ?? [];
   const [included, setIncluded] = useState<string[]>(extras.filter((row) => row.sameLetterGroup).map((row) => row.id));
   const letterCount = useMemo(() => {
@@ -86,18 +91,38 @@ export function LetterButtons({
   }, [kind, letterGroup, extras, included]);
 
   async function run(decision: "approved" | "disapproved") {
+    if (!canApprove) {
+      setError("Your login does not include Approve or disapprove. Ask Super Admin to turn that on under Settings → Users, then sign out and sign in again.");
+      return;
+    }
     setBusy(true);
-    const form = new FormData();
-    form.set("id", id);
-    form.set("kind", decision);
-    form.set("letterDate", date);
-    form.set("notes", notes);
-    form.append("ids", id);
-    for (const extraId of included) form.append("ids", extraId);
-    const url =
-      kind === "contract" ? await generateContractLetter(form) : await generateCertLetter(form);
-    window.open(url, "_blank");
-    setBusy(false);
+    setError("");
+    setFileUrl("");
+    try {
+      const form = new FormData();
+      form.set("id", id);
+      form.set("kind", decision);
+      form.set("letterDate", date);
+      form.set("notes", notes);
+      form.append("ids", id);
+      for (const extraId of included) form.append("ids", extraId);
+      const url =
+        kind === "contract" ? await generateContractLetter(form) : await generateCertLetter(form);
+      setFileUrl(url);
+      openGeneratedFile(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create that letter.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!canApprove) {
+    return (
+      <p className="text-sm text-muted">
+        Your login cannot approve or print decision letters. Ask Super Admin to add Approve or disapprove under Settings → Users, then sign out and sign in again.
+      </p>
+    );
   }
 
   return (
@@ -175,6 +200,16 @@ export function LetterButtons({
             : "Disapprove and print letter"}
         </button>
       </div>
+      {error ? <p className="text-sm text-rose">{error}</p> : null}
+      {fileUrl ? (
+        <p className="text-sm text-muted">
+          If the letter did not open,{" "}
+          <a className="text-teal hover:underline" href={fileUrl}>
+            download it here
+          </a>
+          .
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -295,7 +330,7 @@ export function Pt4Form({
             const res = await generatePt4AndEmail(form);
             setFileUrl(res.fileUrl || "");
             setResult("PT-4 Word file is ready. Copy the email below and attach that file in your work Outlook.");
-            if (res.fileUrl) window.open(res.fileUrl, "_blank");
+            if (res.fileUrl) openGeneratedFile(res.fileUrl);
           } catch (err) {
             setResult(err instanceof Error ? err.message : "Could not make the PT-4.");
           } finally {

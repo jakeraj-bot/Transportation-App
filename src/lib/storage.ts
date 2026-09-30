@@ -26,6 +26,8 @@ export async function saveStoredFile(relPath: string, data: Buffer) {
 }
 
 export async function readStoredFile(relPath: string) {
+  const row = await prisma.storedFile.findUnique({ where: { path: relPath } });
+  if (row?.contents?.length) return Buffer.from(row.contents);
   const attempts = [uploadPath(relPath), tmpPath(relPath)];
   for (const full of attempts) {
     try {
@@ -34,6 +36,5 @@ export async function readStoredFile(relPath: string) {
       // keep looking
     }
   }
-  const row = await prisma.storedFile.findUnique({ where: { path: relPath } });
-  return row ? Buffer.from(row.contents) : null;
+  return null;
 }

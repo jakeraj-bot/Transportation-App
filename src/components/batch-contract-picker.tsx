@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { generateContractLetter, generatePrintPacket } from "@/app/actions";
 import { inputClass } from "@/components/ui";
+import { openGeneratedFile } from "@/lib/open-generated-file";
 import { groupByLetter } from "@/lib/letter-groups";
 import { contractTypeLabel } from "@/lib/utils";
 
@@ -35,6 +36,7 @@ export function BatchContractPicker({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
 
   const picked = rows.filter((row) => selected.includes(row.id));
   const letterCount =
@@ -79,6 +81,7 @@ export function BatchContractPicker({
     }
     setBusy(true);
     setError("");
+    setFileUrl("");
     try {
       const form = new FormData();
       for (const row of picked) form.append("ids", row.id);
@@ -86,11 +89,13 @@ export function BatchContractPicker({
         form.set("kind", "approved");
         form.set("letterDate", date);
         const url = await generateContractLetter(form);
-        window.open(url, "_blank");
+        setFileUrl(url);
+        openGeneratedFile(url);
       } else {
         form.set("kind", mode === "tabs" ? "tab" : "label");
         const url = await generatePrintPacket(form);
-        window.open(url, "_blank");
+        setFileUrl(url);
+        openGeneratedFile(url);
       }
       setSelected([]);
     } catch (err) {
@@ -140,6 +145,15 @@ export function BatchContractPicker({
           {busy ? "Working…" : button}
         </button>
         {error ? <p className="mt-2 text-sm text-rose">{error}</p> : null}
+        {fileUrl ? (
+          <p className="mt-2 text-sm text-muted">
+            If nothing opened,{" "}
+            <a className="text-teal hover:underline" href={fileUrl}>
+              download the file here
+            </a>
+            .
+          </p>
+        ) : null}
       </div>
       {grouped.map(([type, list]) => (
         <section key={type} className="overflow-hidden rounded-2xl bg-card shadow-[0_1px_0_rgba(44,58,71,0.04),0_12px_32px_rgba(44,58,71,0.06)]">

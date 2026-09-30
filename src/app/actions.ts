@@ -1404,7 +1404,13 @@ export async function uploadTemplate(form: FormData) {
 async function readTemplateFile(key: string) {
   const row = await prisma.templateFile.findUnique({ where: { key } });
   if (!row) return null;
-  return readStoredFile(row.filePath);
+  const buf = await readStoredFile(row.filePath);
+  if (!buf) {
+    throw new Error(
+      `The letter template “${row.originalName}” is listed in Settings but the file could not be loaded. Re-upload it under Settings → Letter templates.`
+    );
+  }
+  return buf;
 }
 
 async function templateBuffer(key: "approved" | "disapproved" | "pt4", contractType?: string) {

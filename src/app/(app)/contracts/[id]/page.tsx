@@ -43,6 +43,7 @@ export default async function ContractDetailPage({
   const linked = await searchParams;
   const session = await getSession();
   const canEdit = can(session, "create") || can(session, "edit");
+  const canApprove = can(session, "approve");
   const contract = await prisma.contract.findFirst({
     where: { id, deletedAt: null },
     include: {
@@ -374,6 +375,7 @@ export default async function ContractDetailPage({
                 <LetterButtons
                   kind="contract"
                   id={contract.id}
+                  canApprove={canApprove}
                   contractTypeLabel={contractTypeLabel(contract.type)}
                   contractType={contract.type}
                   letterGroup={currentLetterGroup}
