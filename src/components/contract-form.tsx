@@ -222,7 +222,7 @@ export function ContractForm({
             name="type"
             required
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => setType(mapContractType(e.target.value))}
           >
             {CONTRACT_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
