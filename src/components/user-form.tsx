@@ -80,7 +80,12 @@ export function UserForm({
           ))}
         </div>
       </div>
-      <div className="md:col-span-2 grid gap-2 sm:grid-cols-2">
+      <div className="md:col-span-2">
+        <p className="mb-2 text-sm font-medium">What they are allowed to do</p>
+        <p className="mb-3 text-sm text-muted">
+          Check “Delete contracts and other records” for anyone who should remove a contract entered by mistake. Super Admin already has this. They can use it on the next page they open.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
         {PERMISSIONS.map((p) => (
           <label key={p.key} className="flex items-center gap-2">
             <input
@@ -97,6 +102,7 @@ export function UserForm({
             <span>{p.label}</span>
           </label>
         ))}
+        </div>
       </div>
       <div>
         <Button type="submit">{user ? "Save user" : "Add user"}</Button>

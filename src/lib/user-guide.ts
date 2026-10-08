@@ -122,6 +122,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         ],
       },
       {
+        heading: "Delete a contract entered by mistake",
+        body: "Open the contract and choose Delete contract. It leaves the lists. Super Admin can always do this. To let someone else delete, go to Settings → Users, open their name, check Delete contracts and other records, and save.",
+      },
+      {
         heading: "Checklist, PT-4, and letters",
         steps: [
           "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",

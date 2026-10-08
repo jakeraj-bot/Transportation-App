@@ -5,9 +5,9 @@ import {
   deleteContractComment,
   markLetterSent,
   saveSignedApprovalLetter,
-  softDelete,
 } from "@/app/actions";
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
+import { DeleteContractButton } from "@/components/delete-contract-button";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
@@ -44,6 +44,7 @@ export default async function ContractDetailPage({
   const session = await getSession();
   const canEdit = can(session, "create") || can(session, "edit");
   const canApprove = can(session, "approve");
+  const canDelete = can(session, "delete") || isSuperAdmin(session?.role);
   const contract = await prisma.contract.findFirst({
     where: { id, deletedAt: null },
     include: {
@@ -193,11 +194,6 @@ export default async function ContractDetailPage({
     receivedDate: contract.receivedDate,
   };
 
-  async function remove() {
-    "use server";
-    await softDelete("contract", id, "/contracts");
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -206,7 +202,9 @@ export default async function ContractDetailPage({
         actions={
           <>
             <LabelButton contractId={contract.id} />
-            <form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>
+            {canDelete ? (
+              <DeleteContractButton id={contract.id} multiContractNumber={contract.multiContractNumber} />
+            ) : null}
           </>
         }
       />

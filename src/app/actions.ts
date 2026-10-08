@@ -1070,8 +1070,11 @@ export async function updateChecklistItem(form: FormData) {
 
 export async function softDelete(entityType: string, id: string, backTo: string) {
   const user = await requireSession();
-  if (!can(user, "delete")) throw new Error("You do not have permission.");
+  if (!can(user, "delete") && !isSuperAdmin(user.role)) {
+    throw new Error("You do not have permission to delete contracts. Ask Super Admin to turn on Delete contracts and other records.");
+  }
   const data = { deletedAt: new Date() };
+  let summary = `Removed a ${entityType}`;
   switch (entityType) {
     case "district":
       await prisma.district.update({ where: { id }, data });
@@ -1079,9 +1082,15 @@ export async function softDelete(entityType: string, id: string, backTo: string)
     case "contractor":
       await prisma.contractor.update({ where: { id }, data });
       break;
-    case "contract":
+    case "contract": {
+      const row = await prisma.contract.findUnique({
+        where: { id },
+        select: { multiContractNumber: true, schoolYear: true },
+      });
       await prisma.contract.update({ where: { id }, data });
+      summary = `Removed contract ${row?.multiContractNumber || id}${row?.schoolYear ? ` (${row.schoolYear})` : ""}`;
       break;
+    }
     case "cert":
       await prisma.annualCert.update({ where: { id }, data });
       break;
@@ -1111,7 +1120,7 @@ export async function softDelete(entityType: string, id: string, backTo: string)
     action: "delete",
     entityType,
     entityId: id,
-    summary: `Removed a ${entityType}`,
+    summary,
   });
   revalidateAll();
   redirect(backTo);
