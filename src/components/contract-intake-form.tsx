@@ -34,6 +34,7 @@ type AddendumMatch = {
   schoolYear: string;
   multiContractNumber: string;
   districtName: string;
+  contractorId: string;
   contractorNames: string;
   statusName: string;
   routes: Array<{ id: string; number: string }>;
@@ -121,6 +122,9 @@ export function ContractIntakeForm({
       });
       setMatches(found);
       setPickedId(found[0]?.id ?? "");
+      if (found[0]) {
+        setCompanies([{ contractorId: found[0].contractorId, newName: "", newCounty: "" }]);
+      }
       if (!found.length) {
         setFindError(
           "No contract on file has that multi-contract number and school year. Enter the original, renewal, quote, parental, or joint first, then come back to link the addendum."
@@ -133,6 +137,7 @@ export function ContractIntakeForm({
   }
 
   function companyFields() {
+    if (!usesBusCompany(type)) return null;
     return (
       <div className={allowsMultipleCompanies(type) ? "md:col-span-2 space-y-3" : undefined}>
         {companies.map((row, index) => (
@@ -243,7 +248,7 @@ export function ContractIntakeForm({
         <Field label="Date sent to district">
           <input className={inputClass} type="date" name="sentToDistrictAt" />
         </Field>
-        <Field label="Insurance expiration date" hint="Filed on this bus company and district. You can add the certificate file later under Insurance.">
+        <Field label="Insurance expiration date" hint="You can add the certificate file later under Insurance.">
           <input className={inputClass} type="date" name="insuranceExpiresAt" />
         </Field>
         <Field label="Notes" className="md:col-span-2">
@@ -290,6 +295,7 @@ export function ContractIntakeForm({
                     setPickedId(row.id);
                     setConfirmed(false);
                     setRouteIds([]);
+                    setCompanies([{ contractorId: row.contractorId, newName: "", newCounty: "" }]);
                   }}
                 />
                 <span>
@@ -361,6 +367,7 @@ export function ContractIntakeForm({
             <Field label="Renewal number">
               <input className={inputClass} name="renewalNumber" />
             </Field>
+            {companyFields()}
             <Field label="Status" hint="This updates the contract this addendum is linked to.">
               <select className={inputClass} name="statusName" defaultValue={picked.statusName}>
                 {statuses.map((s) => (
@@ -409,12 +416,12 @@ export function ContractIntakeForm({
         )}
 
         {usesParentName(type) ? (
-          <Field label="Parent name" hint="The parent who is transporting only their own child.">
+          <Field label="Parent name" hint="Parentals do not use a bus company. Enter the parent who is transporting their own child.">
             <input className={inputClass} name="parentName" required placeholder="Parent name" />
           </Field>
-        ) : usesBusCompany(type) ? (
+        ) : (
           companyFields()
-        ) : null}
+        )}
 
         {allowsMultiplePackets(type) ? (
           <div className="md:col-span-2 space-y-3 rounded-xl border border-line bg-cream px-4 py-3">

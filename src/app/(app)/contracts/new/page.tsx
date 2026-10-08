@@ -23,7 +23,7 @@ export default async function NewContractPage({
       <PageHeader
         title="New contract"
         backHref="/contracts"
-        hint="Choose the type of packet first. Enter what identifies it, including contract dates when you know them. Cost, insurance amounts, and bonds are added during review."
+        hint="Choose the type first. A parental asks for the parent name and does not ask for a bus company. Quotes ask for one bus company. Originals, renewals, and joint agreements can have more than one. Addendums find a contract already on file and ask you to confirm before linking."
       />
       {error ? <Flag tone="rose">{error}</Flag> : null}
       <Card>

@@ -19,7 +19,7 @@ export const INTAKE_TYPES = [
   {
     value: "parental",
     title: "Parentals",
-    hint: "District, parent name, multi-contract number, and routes.",
+    hint: "District and parent name. A parental does not ask for a bus company.",
   },
   {
     value: "joint",
@@ -64,7 +64,7 @@ export function usesHostJoiner(type: string) {
 }
 
 export function usesBusCompany(type: string) {
-  return type !== "parental" && type !== "addendum";
+  return type !== "parental";
 }
 
 export type PacketRow = {

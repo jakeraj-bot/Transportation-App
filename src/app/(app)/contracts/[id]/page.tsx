@@ -216,7 +216,7 @@ export default async function ContractDetailPage({
           {linked.routeCount ? ` on ${linked.routeCount} matching route${linked.routeCount === "1" ? "" : "s"}` : ""}.
         </Flag>
       ) : null}
-      {contract.contractor.incomplete ? (
+      {contract.contractor.incomplete && contract.type !== "parental" ? (
         <Flag tone="rose">
           {contract.contractor.legalName} was added by name only. Fill in the rest on the{" "}
           <Link className="underline" href={`/contractors/${contract.contractorId}`}>contractor tab</Link> so it is no longer highlighted in red.
@@ -520,7 +520,11 @@ export default async function ContractDetailPage({
           <CollapsibleSection
             compact
             title="Edit contract"
-            hint="District, bus company, status, dates, costs, bonds, and other review fields"
+            hint={
+              contract.type === "parental"
+                ? "District, parent name, status, dates, costs, and bonds. Parentals do not use a bus company."
+                : "District, bus company, status, dates, costs, bonds, and other review fields"
+            }
           >
             {canEdit ? (
               <ContractForm

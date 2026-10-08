@@ -10,6 +10,7 @@ import {
   parsePacketRows,
   primaryAndExtraPackets,
   showsBidNumber,
+  usesBusCompany,
   usesParentName,
 } from "./contract-intake";
 
@@ -21,7 +22,12 @@ describe("contract intake types", () => {
 
   it("asks for parent name instead of a bus company on parentals", () => {
     assert.equal(usesParentName("parental"), true);
+    assert.equal(usesBusCompany("parental"), false);
+    assert.equal(usesBusCompany("quote"), true);
+    assert.equal(usesBusCompany("addendum"), true);
     assert.equal(allowsMultipleCompanies("parental"), false);
+    assert.equal(allowsMultipleCompanies("quote"), false);
+    assert.equal(allowsMultipleCompanies("addendum"), false);
   });
 
   it("lets originals, renewals, and joints have more than one bus company", () => {

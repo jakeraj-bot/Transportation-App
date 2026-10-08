@@ -67,7 +67,7 @@ export function ContractSnapshot({
           </Link>
         </Field>
         <Field label="Date received">{formatDate(contract.receivedDate)}</Field>
-        <Field label="Contractor">
+        <Field label={contract.type === "parental" ? "Parent" : "Bus company"}>
           {contract.parentName ? (
             contract.parentName
           ) : (

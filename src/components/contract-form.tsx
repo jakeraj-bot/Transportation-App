@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
-import { allowsMultipleCompanies, showsBidNumber, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
+import { allowsMultipleCompanies, showsBidNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
+import { mapContractType } from "@/lib/import-records";
 import { checklistDefinition } from "@/lib/checklists";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
 
@@ -40,7 +41,7 @@ export function ContractForm({
   linkedRouteIds?: string[];
   currentUserId?: string;
 }) {
-  const [type, setType] = useState(contract?.type ?? "original");
+  const [type, setType] = useState(mapContractType(contract?.type ?? "original"));
   const [contractorList, setContractorList] = useState(contractors);
   const [contractorIds, setContractorIds] = useState(
     [contract?.contractorId, ...(additionalContractorIds ?? [])].filter((id): id is string => Boolean(id))
@@ -116,13 +117,13 @@ export function ContractForm({
           </select>
         </Field>
         {usesParentName(type) ? (
-          <Field label="Parent name">
+          <Field label="Parent name" hint="A parental contract does not use a bus company.">
             <input className={inputClass} name="parentName" required defaultValue={contract?.parentName ?? ""} />
           </Field>
-        ) : (
+        ) : usesBusCompany(type) ? (
           <Field
-            label="Contractor"
-            hint="If this packet has a contractor we have not filed yet, add the name only. It stays red until someone fills in the contractor tab."
+            label="Bus company"
+            hint="Choose a company already on the list, or add a name that is not on the list yet."
             className={allowsMultipleCompanies(type) ? "md:col-span-2" : undefined}
           >
             {(contractorIds.length ? contractorIds : [""]).map((value, index) => (
@@ -163,7 +164,7 @@ export function ContractForm({
                 className={inputClass}
                 value={newContractorName}
                 onChange={(e) => setNewContractorName(e.target.value)}
-                placeholder="Contractor name"
+                placeholder="Bus company name"
               />
               <div className="flex flex-wrap gap-2">
                 <button
@@ -189,11 +190,11 @@ export function ContractForm({
               className="mt-2 text-sm text-teal hover:underline"
               onClick={() => setAddingContractor(true)}
             >
-              Add new contractor
+              Add a bus company that is not on the list
             </button>
           )}
         </Field>
-        )}
+        ) : null}
         {usesHostJoiner(type) ? (
           <>
             <Field label="Host district">
@@ -236,9 +237,11 @@ export function ContractForm({
             <input className={inputClass} name="bidNumber" defaultValue={contract?.bidNumber ?? ""} />
           </Field>
         ) : null}
-        <Field label="Renewal number">
-          <input className={inputClass} name="renewalNumber" defaultValue={contract?.renewalNumber ?? ""} />
-        </Field>
+        {showsRenewalNumber(type) ? (
+          <Field label="Renewal number">
+            <input className={inputClass} name="renewalNumber" defaultValue={contract?.renewalNumber ?? ""} />
+          </Field>
+        ) : null}
         <Field
           label="Multi-contract number"
           hint={

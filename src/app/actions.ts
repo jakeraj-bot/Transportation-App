@@ -377,7 +377,27 @@ async function resolveContractorIdsFromForm(form: FormData) {
 }
 
 async function resolveParentContractorId(parentName: string) {
-  const created = await findOrCreateContractorByLegalName(parentName);
+  const name = parentName.trim();
+  if (!name) return "";
+  const existing = await findContractorByLegalName(name);
+  if (existing) {
+    if (existing.incomplete) {
+      await prisma.contractor.update({
+        where: { id: existing.id },
+        data: { incomplete: false, notes: existing.notes || "Parent on a parental contract. Not a bus company." },
+      });
+    }
+    return existing.id;
+  }
+  const created = await prisma.contractor.create({
+    data: {
+      legalName: name,
+      incomplete: false,
+      brcStatus: "Not on file",
+      brcNameControl: nameControlFrom(name) || null,
+      notes: "Parent on a parental contract. Not a bus company.",
+    },
+  });
   return created.id;
 }
 
@@ -484,6 +504,7 @@ export async function findContractForAddendum({
     schoolYear: row.schoolYear,
     multiContractNumber: row.multiContractNumber,
     districtName: row.district.name,
+    contractorId: row.contractorId,
     contractorNames: formatCompanyNames([
       row.parentName || row.contractor.legalName,
       ...row.extraContractors.map((link) => link.contractor.legalName),
@@ -519,6 +540,18 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
         `Contract ${existing.multiContractNumber} is on file, but you have to pick a route that is already on that contract.`
       )
     );
+  }
+  const addedCompanies = await resolveContractorIdsFromForm(form);
+  for (const contractorId of addedCompanies) {
+    if (!contractorId || contractorId === existing.contractorId) continue;
+    if (existing.extraContractors.some((link) => link.contractorId === contractorId)) continue;
+    await prisma.contractContractor.create({
+      data: {
+        contractId: existing.id,
+        contractorId,
+        sortOrder: existing.extraContractors.length,
+      },
+    });
   }
   const bidNumber = formString(form, "bidNumber") || null;
   const renewalNumber = formString(form, "renewalNumber") || null;
@@ -628,11 +661,21 @@ export async function saveContract(form: FormData) {
     await linkAddendumFromForm(form, user.id);
   }
 
+  const parentName = formString(form, "parentName");
+  if (usesParentName(type) && !parentName) {
+    redirect(intakeErrorPath(form, type, "Enter the parent name. A parental contract does not use a bus company."));
+  }
   const contractorIds = usesParentName(type)
-    ? [await resolveParentContractorId(formString(form, "parentName"))]
+    ? [await resolveParentContractorId(parentName)]
     : await resolveContractorIdsFromForm(form);
   if (!contractorIds.length) {
-    redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
+    redirect(
+      intakeErrorPath(
+        form,
+        type,
+        usesParentName(type) ? "Enter the parent name. A parental contract does not use a bus company." : "Choose a bus company or type a new name."
+      )
+    );
   }
 
   const hostDistrictId = usesHostJoiner(type) ? (await resolveDistrictIdFromForm(form, "hostDistrictId")) || null : null;
@@ -736,11 +779,21 @@ export async function saveCurrentContract(form: FormData) {
   const packets = primaryAndExtraPackets(parsePacketRows(form));
   const routes = packets.routeNumbers.length ? packets.routeNumbers : splitRoutes(formString(form, "routes"));
   const statusName = formString(form, "statusName") || "Need Review";
+  const parentName = formString(form, "parentName");
+  if (usesParentName(type) && !parentName) {
+    redirect(intakeErrorPath(form, type, "Enter the parent name. A parental contract does not use a bus company."));
+  }
   const contractorIds = usesParentName(type)
-    ? [await resolveParentContractorId(formString(form, "parentName"))]
+    ? [await resolveParentContractorId(parentName)]
     : await resolveContractorIdsFromForm(form);
   if (!contractorIds.length) {
-    redirect(intakeErrorPath(form, type, "Choose a bus company or type a new name."));
+    redirect(
+      intakeErrorPath(
+        form,
+        type,
+        usesParentName(type) ? "Enter the parent name. A parental contract does not use a bus company." : "Choose a bus company or type a new name."
+      )
+    );
   }
   const hostDistrictId = usesHostJoiner(type) ? (await resolveDistrictIdFromForm(form, "hostDistrictId")) || null : null;
   const districtId = usesHostJoiner(type)
