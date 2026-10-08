@@ -60,18 +60,241 @@ export function buildSimpleDocx(lines: Array<{ text: string; bold?: boolean; siz
 export type LetterFields = {
   letterDate: string;
   district: string;
+  districtName: string;
+  districtAddress: string;
+  addressBlock: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  zipCode: string;
+  districtContact: string;
+  districtContactPosition: string;
   contractor: string;
+  parentName: string;
   vendorCode: string;
   schoolYear: string;
   multiContractNumber: string;
   routes: string;
+  routeNumber: string;
+  addendumNumber: string;
+  hostDistrict: string;
+  jointDistrict: string;
+  dateReceived: string;
   type: string;
   decision: string;
   notes: string;
   missingItems: string;
 };
 
-export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
+export type DistrictAddressInput = {
+  name: string;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  addressBlock?: string | null;
+  contactName?: string | null;
+  contactPosition?: string | null;
+};
+
+const CITY_STATE_ZIP = /^(.*),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/;
+
+function formatCityLine(city: string, state: string, zip: string) {
+  return [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+}
+
+/** Split street / city / state / ZIP so the city line is not baked into the street field. */
+export function normalizeDistrictAddress(district: DistrictAddressInput) {
+  let street = district.street?.trim() || "";
+  let city = district.city?.trim() || "";
+  let state = district.state?.trim() || "";
+  let zip = district.zip?.trim() || "";
+
+  const packedCity = city.match(CITY_STATE_ZIP);
+  if (packedCity) {
+    city = packedCity[1].trim();
+    state = state || packedCity[2].toUpperCase();
+    zip = zip || packedCity[3];
+  }
+
+  const cityLine = formatCityLine(city, state, zip);
+  if (cityLine) {
+    const escaped = cityLine.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    street = street.replace(new RegExp(`(?:\\s*[\\n,]\\s*)?${escaped}\\s*$`, "i"), "").trim();
+  }
+
+  return { street, city, state, zip, cityLine: formatCityLine(city, state, zip) };
+}
+
+export function formatDistrictAddress(district: DistrictAddressInput) {
+  const block = district.addressBlock?.trim();
+  if (block) return block;
+  const parts = normalizeDistrictAddress(district);
+  return [parts.street, parts.cityLine].filter(Boolean).join("\n");
+}
+
+export function districtMergeFields(district?: DistrictAddressInput | null) {
+  const parts = district ? normalizeDistrictAddress(district) : { street: "", city: "", state: "", zip: "", cityLine: "" };
+  const name = district?.name ?? "";
+  const block = district ? formatDistrictAddress(district) : "";
+  return {
+    district: name,
+    districtName: name,
+    // Street only when we also have city/state/ZIP. Otherwise the letter-ready block.
+    districtAddress: parts.street || block,
+    street: parts.street,
+    city: parts.city,
+    state: parts.state,
+    zip: parts.zip,
+    zipCode: parts.zip,
+    addressBlock: district ? formatDistrictAddress(district) : "",
+    districtContact: district?.contactName?.trim() || "",
+    districtContactPosition: district?.contactPosition?.trim() || "",
+  };
+}
+
+export type ContractLetterRowInput = {
+  multiContractNumber: string;
+  contractorName: string;
+  parentName?: string | null;
+  vendorCode?: string | null;
+  routes: string[];
+  addendumNumbers?: string[];
+  hostDistrictName?: string | null;
+  jointDistrict?: string | null;
+  receivedDate?: Date | string | null;
+};
+
+function longDate(value?: Date | string | null) {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { dateStyle: "long" });
+}
+
+export function contractLetterRow(input: ContractLetterRowInput) {
+  const routes = input.routes.filter(Boolean).join(", ") || "—";
+  const addendumNumber = (input.addendumNumbers ?? []).filter(Boolean).join(", ");
+  return {
+    multiContractNumber: input.multiContractNumber,
+    contractor: input.contractorName,
+    parentName: input.parentName?.trim() || input.contractorName,
+    vendorCode: input.vendorCode || "—",
+    routes,
+    routeNumber: routes,
+    addendumNumber,
+    hostDistrict: input.hostDistrictName?.trim() || "",
+    jointDistrict: input.jointDistrict?.trim() || "",
+    dateReceived: longDate(input.receivedDate),
+  };
+}
+
+export function contractLetterFields(input: {
+  letterDate: Date | string;
+  district?: DistrictAddressInput | null;
+  rows: ContractLetterRowInput[];
+  schoolYear: string;
+  type: string;
+  decision: string;
+  notes?: string;
+  missingItems?: string;
+}) {
+  const rows = input.rows.map(contractLetterRow);
+  const first = rows[0];
+  const join = (key: keyof (typeof rows)[0]) => rows.map((row) => row[key]).filter(Boolean).join("\n");
+  return {
+    letterDate: longDate(input.letterDate),
+    ...districtMergeFields(input.district),
+    contractor: join("contractor"),
+    parentName: join("parentName"),
+    vendorCode: first?.vendorCode ?? "",
+    schoolYear: input.schoolYear,
+    multiContractNumber: join("multiContractNumber"),
+    routes: first?.routes ?? "",
+    routeNumber: join("routeNumber"),
+    addendumNumber: join("addendumNumber"),
+    hostDistrict: first?.hostDistrict ?? "",
+    jointDistrict: first?.jointDistrict ?? "",
+    dateReceived: first?.dateReceived ?? "",
+    type: input.type,
+    decision: input.decision,
+    notes: input.notes ?? "",
+    missingItems: input.missingItems ?? "",
+    contracts: rows,
+    rows,
+  };
+}
+
+const LETTER_NOUN: Record<string, string> = {
+  original: "original transportation contract",
+  renewal: "contract renewal",
+  quote: "quoted transportation",
+  parental: "parental transportation contract",
+  addendum: "contract addendum",
+  joint: "joint transportation agreement",
+};
+
+const LETTER_TITLES: Record<string, { approved: string; disapproved: string }> = {
+  original: {
+    approved: "Approval of original student transportation contract",
+    disapproved: "Disapproval of original student transportation contract",
+  },
+  renewal: {
+    approved: "Approval of student transportation contract renewal",
+    disapproved: "Disapproval of student transportation contract renewal",
+  },
+  quote: {
+    approved: "Approval of quoted student transportation",
+    disapproved: "Disapproval of quoted student transportation",
+  },
+  parental: {
+    approved: "Approval of parental transportation contract",
+    disapproved: "Disapproval of parental transportation contract",
+  },
+  addendum: {
+    approved: "Approval of student transportation contract addendum",
+    disapproved: "Disapproval of student transportation contract addendum",
+  },
+  joint: {
+    approved: "Approval of joint transportation agreement",
+    disapproved: "Disapproval of joint transportation agreement",
+  },
+};
+
+function letterTitle(kind: "approved" | "disapproved", contractType?: string) {
+  const pair = LETTER_TITLES[contractType || ""];
+  if (pair) return pair[kind];
+  return kind === "approved" ? "Approval of student transportation" : "Disapproval of student transportation";
+}
+
+function letterDecisionSentence(kind: "approved" | "disapproved", contractType?: string) {
+  const noun = LETTER_NOUN[contractType || ""] ?? "transportation";
+  return kind === "approved"
+    ? `This office has reviewed the documents submitted and the ${noun} described above is {decision}.`
+    : `This office has reviewed the documents submitted and cannot approve the ${noun} described above.`;
+}
+
+const COUNTY_LETTER_TYPES = new Set(["original", "renewal", "quote", "parental", "addendum", "joint"]);
+
+/** Official Passaic County letterhead .docx shipped with the app. */
+export function bundledCountyLetter(kind: "approved" | "disapproved", contractType?: string | null) {
+  const type = String(contractType || "");
+  if (!COUNTY_LETTER_TYPES.has(type)) return null;
+  const file = path.join(process.cwd(), "letter-templates", `contract_${kind}_${type}.docx`);
+  try {
+    if (!fs.existsSync(file)) return null;
+    return fs.readFileSync(file);
+  } catch {
+    return null;
+  }
+}
+
+export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4", contractType?: string) {
+  if (kind !== "pt4") {
+    const county = bundledCountyLetter(kind, contractType);
+    if (county) return county;
+  }
   if (kind === "pt4") {
     return buildSimpleDocx([
       { text: "PASSAIC COUNTY OFFICE OF EDUCATION", bold: true, size: 28, center: true },
@@ -80,6 +303,7 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
       { text: "" },
       { text: "Date: {letterDate}" },
       { text: "District: {district}" },
+      { text: "{addressBlock}" },
       { text: "Contractor: {contractor}" },
       { text: "School year: {schoolYear}" },
       { text: "Multi-contract #: {multiContractNumber}" },
@@ -97,31 +321,26 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
     ]);
   }
 
-  const title =
-    kind === "approved"
-      ? "Approval of student transportation"
-      : "Disapproval of student transportation";
-
   return buildSimpleDocx([
     { text: "PASSAIC COUNTY OFFICE OF EDUCATION", bold: true, size: 28, center: true },
     { text: "Office of the Executive County Superintendent", size: 22, center: true },
-    { text: title, bold: true, size: 32, center: true },
+    { text: letterTitle(kind, contractType), bold: true, size: 32, center: true },
     { text: "" },
     { text: "Date: {letterDate}" },
     { text: "" },
-    { text: "To: {district}" },
+    { text: "{districtContact}, {districtContactPosition}" },
+    { text: "To: {districtName}" },
+    { text: "{addressBlock}" },
     { text: "Re: {contractor}  ({vendorCode})" },
     { text: "School year: {schoolYear}" },
-    { text: "Multi-contract #: {multiContractNumber}" },
     { text: "Type: {type}" },
-    { text: "Routes: {routes}" },
     { text: "" },
-    {
-      text:
-        kind === "approved"
-          ? "This office has reviewed the documents submitted and the transportation described above is {decision}."
-          : "This office has reviewed the documents submitted and cannot approve the transportation described above.",
-    },
+    { text: "Route # / Multi Contract #    Contractor" },
+    { text: "{#contracts}" },
+    { text: "{multiContractNumber}    {contractor}" },
+    { text: "{/contracts}" },
+    { text: "" },
+    { text: letterDecisionSentence(kind, contractType) },
     { text: "" },
     { text: "{notes}" },
     { text: "" },
@@ -132,13 +351,40 @@ export function defaultLetterDocx(kind: "approved" | "disapproved" | "pt4") {
   ]);
 }
 
-export function fillDocx(template: Buffer, fields: Record<string, string>) {
-  const zip = new PizZip(template);
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-    delimiters: { start: "{", end: "}" },
-  });
-  doc.render(fields);
-  return doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
+export function formatDocxFillError(err: unknown) {
+  const props = err as { properties?: { errors?: Array<{ message?: string; explanation?: string }> } };
+  const parts = props.properties?.errors
+    ?.map((row) => row.explanation || row.message)
+    .filter(Boolean);
+  if (parts?.length) {
+    return `The Word letter template has a placeholder problem: ${parts.join(" ")} Check Settings → Letter templates — use {fieldName} tags like {districtName} and {#contracts}…{/contracts} for table rows.`;
+  }
+  if (err instanceof Error && err.message && !err.message.includes("Server Components")) {
+    return err.message;
+  }
+  return "Could not fill the Word letter template. Check placeholders in Settings → Letter templates, or re-upload the .docx.";
+}
+
+export function fillDocx(template: Buffer, fields: Record<string, unknown>) {
+  try {
+    const zip = new PizZip(template);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: "{", end: "}" },
+      nullGetter() {
+        return "";
+      },
+    });
+    doc.render(fields);
+    return doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
+  } catch (err) {
+    throw new Error(formatDocxFillError(err));
+  }
+}
+
+export function zipFiles(files: Array<{ name: string; data: Buffer }>) {
+  const zip = new PizZip();
+  for (const file of files) zip.file(file.name, file.data);
+  return zip.generate({ type: "nodebuffer" }) as Buffer;
 }
