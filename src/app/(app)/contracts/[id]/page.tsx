@@ -32,6 +32,7 @@ export default async function ContractDetailPage({
 }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
+    saved?: string;
     addendumLinked?: string;
     addendumCount?: string;
     routeCount?: string;
@@ -264,6 +265,7 @@ export default async function ContractDetailPage({
         }
       />
 
+      {linked.saved ? <Flag tone="sage">Saved. This contract is on file.</Flag> : null}
       {linked.addendumLinked ? (
         <Flag tone="sage">
           New addendum linked to this route. This contract now has {linked.addendumCount || addendumTotal} addendum

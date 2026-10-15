@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addQuickContractor, saveContract } from "@/app/actions";
-import { Button, Field, inputClass } from "@/components/ui";
+import { SaveContractButton, SavingForm } from "@/components/saving-form";
+import { Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
 import { allowsMultipleCompanies, showsBidNumber, showsMultiContractNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { mapContractType } from "@/lib/import-records";
@@ -99,7 +100,7 @@ export function ContractForm({
   }
 
   return (
-    <form action={saveContract} className="space-y-5">
+    <SavingForm action={saveContract} className="space-y-5">
       {contract ? <input type="hidden" name="id" value={contract.id} /> : null}
       <input type="hidden" name="mode" value={mode} />
       {ownSecondReview ? (
@@ -448,9 +449,10 @@ export function ContractForm({
           </>
         ) : null}
       </div>
-      <Button type="submit">
-        {mode === "intake" && !contract ? "Save incoming contract" : "Save"}
-      </Button>
-    </form>
+      <SaveContractButton
+        label={mode === "intake" && !contract ? "Save incoming contract" : "Save"}
+        message={contract ? "Saving changes. Please wait." : "Saving this contract. Please wait."}
+      />
+    </SavingForm>
   );
 }

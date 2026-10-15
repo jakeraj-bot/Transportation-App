@@ -402,6 +402,25 @@ async function resolveParentContractorId(parentName: string) {
   return created.id;
 }
 
+const DUPLICATE_SAVE_WINDOW_MS = 20_000;
+
+async function findRecentDuplicateContract(where: {
+  districtId: string;
+  contractorId: string;
+  schoolYear: string;
+  type: string;
+  multiContractNumber: string;
+}) {
+  return prisma.contract.findFirst({
+    where: {
+      ...where,
+      deletedAt: null,
+      createdAt: { gte: new Date(Date.now() - DUPLICATE_SAVE_WINDOW_MS) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 function intakeErrorPath(form: FormData, type: string, message: string) {
   const source = formString(form, "source") || "incoming";
   const base = source === "current" ? "/settings/current-records" : "/contracts/new";
@@ -558,17 +577,35 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
   const renewalNumber = formString(form, "renewalNumber") || null;
   const notes = formString(form, "notes") || null;
   const previousCount = matched.reduce((sum, route) => sum + route.addenda.length, 0);
+  const recentSince = new Date(Date.now() - DUPLICATE_SAVE_WINDOW_MS);
+  let createdAddenda = 0;
   for (const route of matched) {
+    const reason = notes || `Addendum ${route.addenda.length + 1}`;
+    const recent = await prisma.routeAddendum.findFirst({
+      where: { routeId: route.id, deletedAt: null, reason, createdAt: { gte: recentSince } },
+    });
+    if (recent) continue;
     await prisma.routeAddendum.create({
       data: {
         routeId: route.id,
-        reason: notes || `Addendum ${route.addenda.length + 1}`,
+        reason,
         receivedDate: parseDate(formString(form, "receivedDate")) || parseFlexibleDate(formString(form, "receivedDate")),
         bidNumber,
         renewalNumber,
         notes,
       },
     });
+    createdAddenda += 1;
+  }
+  if (!createdAddenda) {
+    revalidateAll();
+    const source = formString(form, "source") || "incoming";
+    if (source === "current") {
+      redirect(
+        `/settings/current-records?type=addendum&saved=addendum&number=${encodeURIComponent(existing.multiContractNumber)}`
+      );
+    }
+    redirect(`/contracts/${existing.id}?addendumLinked=1&addendumCount=${previousCount}&routeCount=${matched.length}`);
   }
   const statusName = formString(form, "statusName");
   const reviewers = parseReviewersFromForm(form);
@@ -595,7 +632,7 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
       expiresAt: insuranceExpiresAt,
     });
   }
-  const nextCount = previousCount + matched.length;
+  const nextCount = previousCount + createdAddenda;
   await writeAudit({
     userId,
     action: "create",
@@ -747,6 +784,20 @@ export async function saveContract(form: FormData) {
 
   const data = { ...intake, ...review, ...(firstReviewerId ? { firstReviewerId } : {}), ...(secondReviewStartedAt ? { secondReviewStartedAt } : {}) };
 
+  if (!id) {
+    const duplicate = await findRecentDuplicateContract({
+      districtId,
+      contractorId: contractorIds[0],
+      schoolYear,
+      type,
+      multiContractNumber,
+    });
+    if (duplicate) {
+      revalidateAll();
+      redirect(`/contracts/${duplicate.id}?saved=1`);
+    }
+  }
+
   const row = id
     ? await prisma.contract.update({ where: { id }, data })
     : await prisma.contract.create({ data });
@@ -776,7 +827,7 @@ export async function saveContract(form: FormData) {
     summary: `${id ? "Updated" : "Entered"} contract ${row.multiContractNumber}`,
   });
   revalidateAll();
-  redirect(`/contracts/${row.id}`);
+  redirect(`/contracts/${row.id}?saved=1`);
 }
 
 export async function saveCurrentContract(form: FormData) {
@@ -829,6 +880,20 @@ export async function saveCurrentContract(form: FormData) {
   const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
   const startsOn = parseFlexibleDate(formString(form, "startsOn")) ?? defaults.start;
   const endsOn = parseFlexibleDate(formString(form, "endsOn")) ?? defaults.end;
+
+  const duplicate = await findRecentDuplicateContract({
+    districtId,
+    contractorId: contractorIds[0],
+    schoolYear,
+    type,
+    multiContractNumber,
+  });
+  if (duplicate) {
+    revalidateAll();
+    redirect(
+      `/settings/current-records?type=${encodeURIComponent(type)}&saved=contract&number=${encodeURIComponent(duplicate.multiContractNumber)}`
+    );
+  }
 
   const row = await prisma.contract.create({
     data: {

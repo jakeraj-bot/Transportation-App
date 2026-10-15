@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addQuickContractor, findContractForAddendum, saveContract, saveCurrentContract } from "@/app/actions";
 import { DistrictPickerField, JoinerDistrictFields } from "@/components/district-picker-fields";
 import { ReviewerFields } from "@/components/reviewer-fields";
+import { SaveContractButton, SavingForm } from "@/components/saving-form";
 import { Button, Field, inputClass } from "@/components/ui";
 import { districtOptionLabel } from "@/lib/districts";
 import {
@@ -327,7 +328,7 @@ export function ContractIntakeForm({
         ) : null}
 
         {picked && confirmed ? (
-          <form action={action} className="grid gap-4 md:grid-cols-2">
+          <SavingForm action={action} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="source" value={source} />
             <input type="hidden" name="mode" value="intake" />
             <input type="hidden" name="type" value="addendum" />
@@ -377,17 +378,20 @@ export function ContractIntakeForm({
               </select>
             </Field>
             {currentExtras()}
-            <div>
-              <Button type="submit">{current ? "Link current addendum" : "Link addendum"}</Button>
-            </div>
-          </form>
+            <SaveContractButton
+              className="md:col-span-2"
+              label={current ? "Link current addendum" : "Link addendum"}
+              pendingLabel="Linking…"
+              message="Linking this addendum. Please wait."
+            />
+          </SavingForm>
         ) : null}
       </div>
     );
   }
 
   return (
-    <form action={action} className="space-y-5">
+    <SavingForm action={action} className="space-y-5">
       <TypeBanner type={type} href={changeTypeHref} />
       <input type="hidden" name="source" value={source} />
       <input type="hidden" name="mode" value="intake" />
@@ -547,8 +551,8 @@ export function ContractIntakeForm({
         </Field>
         {currentExtras()}
       </div>
-      <Button type="submit">{current ? "Save current contract" : "Save incoming contract"}</Button>
-    </form>
+      <SaveContractButton label={current ? "Save current contract" : "Save incoming contract"} />
+    </SavingForm>
   );
 }
 
