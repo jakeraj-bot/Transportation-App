@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { PermissionKey } from "./permissions";
+import { isSuperAdmin } from "./roles";
 
 const COOKIE = "pct_session";
 
@@ -69,8 +70,12 @@ export async function getSession(): Promise<SessionUser | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
+    const userId = String(payload.sub || "");
+    if (!userId) return null;
+    const fresh = await loadUserSession(userId);
+    if (fresh) return fresh;
     return {
-      id: String(payload.sub),
+      id: userId,
       name: String(payload.name ?? ""),
       email: String(payload.email ?? ""),
       role: String(payload.role ?? "staff"),
@@ -85,6 +90,12 @@ export async function getSession(): Promise<SessionUser | null> {
 export async function requireSession() {
   const session = await getSession();
   if (!session) throw new Error("You need to sign in.");
+  return session;
+}
+
+export async function requireSuperAdmin() {
+  const session = await requireSession();
+  if (!isSuperAdmin(session.role)) throw new Error("Only Super Admin can do this.");
   return session;
 }
 

@@ -47,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "manage_statuses",
     "manage_templates",
     "upload_files",
+    "edit_districts",
   ],
   reviewer: ["view", "create", "edit", "approve", "send_email", "upload_files"],
   intake: ["view", "create", "edit", "upload_files"],
@@ -70,4 +71,8 @@ export const CONTRACT_STATUSES = [
 
 export function isSuperAdmin(role?: string | null) {
   return role === "super_admin";
+}
+
+export function canEditDistricts(role?: string | null, permissions?: string[] | null) {
+  return isSuperAdmin(role) || Boolean(permissions?.includes("edit_districts"));
 }
