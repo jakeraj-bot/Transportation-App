@@ -123,7 +123,6 @@ export default async function ContractDetailPage({
   const jointMatches = jointMatchesForContract(
     {
       type: contract.type,
-      districtName: contract.district.name,
       routes: contract.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
     },
     jointRows.map((row) => ({
@@ -146,7 +145,6 @@ export default async function ContractDetailPage({
           const matches = jointMatchesForContract(
             {
               type: row.type,
-              districtName: row.district.name,
               routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
             },
             [thisJoint]

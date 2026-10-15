@@ -100,7 +100,6 @@ export default async function ContractsPage({
               const matches = jointMatchesForContract(
                 {
                   type: c.type,
-                  districtName: c.district.name,
                   routes: c.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
                 },
                 jointCandidates
