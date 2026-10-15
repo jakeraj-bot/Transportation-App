@@ -12,6 +12,7 @@ import {
   allowsMultiplePackets,
   intakeTypeLabel,
   showsBidNumber,
+  showsMultiContractNumber,
   showsRenewalNumber,
   usesBusCompany,
   usesHostJoiner,
@@ -423,7 +424,15 @@ export function ContractIntakeForm({
           companyFields()
         )}
 
-        {allowsMultiplePackets(type) ? (
+        {usesHostJoiner(type) ? (
+          <Field
+            label="Route numbers"
+            hint="Joint agreements do not have a multi-contract number. Enter each route the districts agreed to run."
+            className="md:col-span-2"
+          >
+            <textarea className={inputClass} name="routes" rows={3} required placeholder="One route per line, or separate them with commas" />
+          </Field>
+        ) : allowsMultiplePackets(type) ? (
           <div className="md:col-span-2 space-y-3 rounded-xl border border-line bg-cream px-4 py-3">
             <p className="font-medium">Multi-contract numbers</p>
             <p className="text-sm text-muted">

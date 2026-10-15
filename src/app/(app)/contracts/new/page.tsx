@@ -23,7 +23,7 @@ export default async function NewContractPage({
       <PageHeader
         title="New contract"
         backHref="/contracts"
-        hint="Choose the type first. A parental asks for the parent name and does not ask for a bus company. Quotes ask for one bus company. Originals, renewals, and joint agreements can have more than one. Addendums find a contract already on file and ask you to confirm before linking."
+        hint="Choose the type first. A parental asks for the parent name and does not ask for a bus company. Joint agreements ask for routes only, not a multi-contract number. Addendums find a contract already on file and ask you to confirm before linking."
       />
       {error ? <Flag tone="rose">{error}</Flag> : null}
       <Card>

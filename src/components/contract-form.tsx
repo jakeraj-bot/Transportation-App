@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
 import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
-import { allowsMultipleCompanies, showsBidNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
+import { allowsMultipleCompanies, showsBidNumber, showsMultiContractNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { mapContractType } from "@/lib/import-records";
 import { checklistDefinition } from "@/lib/checklists";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
@@ -242,23 +242,27 @@ export function ContractForm({
             <input className={inputClass} name="renewalNumber" defaultValue={contract?.renewalNumber ?? ""} />
           </Field>
         ) : null}
-        <Field
-          label="Multi-contract number"
-          hint={
-            type === "addendum"
-              ? "Use the same multi-contract number as the contract this addendum belongs to. It will attach instead of making a new contract."
-              : "This is the number the district put on the packet."
-          }
-        >
-          <input className={inputClass} name="multiContractNumber" required defaultValue={contract?.multiContractNumber} />
-        </Field>
+        {showsMultiContractNumber(type) ? (
+          <Field
+            label="Multi-contract number"
+            hint={
+              type === "addendum"
+                ? "Use the same multi-contract number as the contract this addendum belongs to. It will attach instead of making a new contract."
+                : "This is the number the district put on the packet."
+            }
+          >
+            <input className={inputClass} name="multiContractNumber" required defaultValue={contract?.multiContractNumber} />
+          </Field>
+        ) : null}
         <Field
           label="Route numbers"
           className="md:col-span-2"
           hint={
             type === "addendum"
               ? "Enter the existing route number. The addendum will attach to that route and you will see how many addendums it already has."
-              : "Enter each route on its own line. To add routes later or cancel one route while keeping the others, use the Routes section on this contract page."
+              : type === "joint"
+                ? "Joint agreements do not have a multi-contract number. These route numbers are how the agreement is identified."
+                : "Enter each route on its own line. To add routes later or cancel one route while keeping the others, use the Routes section on this contract page."
           }
         >
           <textarea className={inputClass} name="routes" rows={4} defaultValue={routes?.map((r) => r.number).join("\n")} />

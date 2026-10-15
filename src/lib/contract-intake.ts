@@ -24,7 +24,7 @@ export const INTAKE_TYPES = [
   {
     value: "joint",
     title: "Joint agreements",
-    hint: "Host district, joiner district, bus company, multi-contract number, and routes.",
+    hint: "Host district, joiner district, bus company, and routes. Joint agreements do not have a multi-contract number.",
   },
   {
     value: "addendum",
@@ -61,6 +61,10 @@ export function usesParentName(type: string) {
 
 export function usesHostJoiner(type: string) {
   return type === "joint";
+}
+
+export function showsMultiContractNumber(type: string) {
+  return type !== "joint";
 }
 
 export function usesBusCompany(type: string) {

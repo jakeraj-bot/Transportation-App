@@ -54,6 +54,7 @@ import {
   usesHostJoiner,
   usesParentName,
 } from "@/lib/contract-intake";
+import { jointRouteLabel } from "@/lib/joint-agreements";
 
 function formString(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -685,13 +686,23 @@ export async function saveContract(form: FormData) {
   if (!districtId) {
     redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
   }
+  const jointRoutes = usesHostJoiner(type) ? (routes.length ? routes : splitRoutes(formString(form, "routes"))) : routes;
+  const multiContractNumber = usesHostJoiner(type)
+    ? jointRouteLabel(jointRoutes)
+    : packets.primary.multiContractNumber || formString(form, "multiContractNumber");
+  if (usesHostJoiner(type) && !multiContractNumber) {
+    redirect(intakeErrorPath(form, type, "Enter the route numbers. A joint agreement does not use a multi-contract number."));
+  }
+  if (!usesHostJoiner(type) && !multiContractNumber) {
+    redirect(intakeErrorPath(form, type, "Enter the multi-contract number."));
+  }
 
   const intake = {
     districtId,
     contractorId: contractorIds[0],
     schoolYear,
     type,
-    multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
+    multiContractNumber,
     bidNumber: packets.primary.bidNumber || formString(form, "bidNumber") || null,
     renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
     parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
@@ -740,8 +751,8 @@ export async function saveContract(form: FormData) {
     ? await prisma.contract.update({ where: { id }, data })
     : await prisma.contract.create({ data });
 
-  await syncRoutes(row.id, routes);
-  await syncExtraPackets(row.id, packets.extras);
+  await syncRoutes(row.id, usesHostJoiner(type) ? jointRoutes : routes);
+  await syncExtraPackets(row.id, usesHostJoiner(type) ? [] : packets.extras);
   await syncContractContractors(row.id, contractorIds);
 
   if (mode === "review" && type === "original") {
@@ -802,6 +813,16 @@ export async function saveCurrentContract(form: FormData) {
   if (!districtId) {
     redirect(intakeErrorPath(form, type, usesHostJoiner(type) ? "Choose the host district." : "Choose a district."));
   }
+  const jointRoutes = usesHostJoiner(type) ? (routes.length ? routes : splitRoutes(formString(form, "routes"))) : routes;
+  const multiContractNumber = usesHostJoiner(type)
+    ? jointRouteLabel(jointRoutes)
+    : packets.primary.multiContractNumber || formString(form, "multiContractNumber");
+  if (usesHostJoiner(type) && !multiContractNumber) {
+    redirect(intakeErrorPath(form, type, "Enter the route numbers. A joint agreement does not use a multi-contract number."));
+  }
+  if (!usesHostJoiner(type) && !multiContractNumber) {
+    redirect(intakeErrorPath(form, type, "Enter the multi-contract number."));
+  }
   const reviewers = parseReviewersFromForm(form);
   await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
   const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
@@ -815,7 +836,7 @@ export async function saveCurrentContract(form: FormData) {
       contractorId: contractorIds[0],
       schoolYear,
       type,
-      multiContractNumber: packets.primary.multiContractNumber || formString(form, "multiContractNumber"),
+      multiContractNumber,
       bidNumber: packets.primary.bidNumber || formString(form, "bidNumber") || null,
       renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
       parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
@@ -834,8 +855,8 @@ export async function saveCurrentContract(form: FormData) {
       notes: formString(form, "notes") || "Entered from the current-system list.",
     },
   });
-  await syncRoutes(row.id, routes);
-  await syncExtraPackets(row.id, packets.extras);
+  await syncRoutes(row.id, usesHostJoiner(type) ? jointRoutes : routes);
+  await syncExtraPackets(row.id, usesHostJoiner(type) ? [] : packets.extras);
   await syncContractContractors(row.id, contractorIds);
 
   if (insuranceExpiresAt) {

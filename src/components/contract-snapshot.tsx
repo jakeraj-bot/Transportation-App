@@ -55,7 +55,11 @@ export function ContractSnapshot({
   return (
     <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-3">
-        <span className="serif text-xl">{contract.multiContractNumber}</span>
+        <span className="serif text-xl">
+          {contract.type === "joint"
+            ? `Routes ${routes.map((route) => route.number).filter(Boolean).join(", ") || "—"}`
+            : contract.multiContractNumber}
+        </span>
         <span className="text-sm text-muted">{contractTypeLabel(contract.type)}</span>
         <span className="text-sm text-muted">{contract.schoolYear}</span>
       </div>

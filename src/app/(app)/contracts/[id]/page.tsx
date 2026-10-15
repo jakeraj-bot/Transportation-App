@@ -23,6 +23,7 @@ import { checklistDefinition } from "@/lib/checklists";
 import { sameLetterGroup } from "@/lib/letter-groups";
 import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
+import { jointMatchesForContract } from "@/lib/joint-agreements";
 import { reviewerLabel } from "@/lib/reviewers";
 
 export default async function ContractDetailPage({
@@ -67,7 +68,7 @@ export default async function ContractDetailPage({
   const firstReviewerLabel = reviewerLabel(contract.firstReviewer?.name, contract.firstReviewerName);
   const secondReviewerLabel = reviewerLabel(contract.secondReviewer?.name, contract.secondReviewerName);
 
-  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4] =
+  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4, jointRows, coveredContractRows] =
     await Promise.all([
       getSchoolYear(),
       activeDistricts(),
@@ -101,10 +102,66 @@ export default async function ContractDetailPage({
         where: { entityType: "contract", entityId: contract.id, kind: "pt4" },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.contract.findMany({
+        where:
+          contract.type === "joint" || contract.type === "addendum"
+            ? { id: "__none__" }
+            : { deletedAt: null, type: "joint", schoolYear: contract.schoolYear },
+        include: { hostDistrict: true, district: true, routes: true },
+      }),
+      prisma.contract.findMany({
+        where:
+          contract.type === "joint"
+            ? { deletedAt: null, schoolYear: contract.schoolYear, type: { notIn: ["joint", "addendum"] } }
+            : { id: "__none__" },
+        include: { district: true, routes: true },
+      }),
     ]);
   const existingPt4Url = latestPt4
     ? `/api/files?path=${encodeURIComponent(latestPt4.filePath)}`
     : undefined;
+  const jointMatches = jointMatchesForContract(
+    {
+      type: contract.type,
+      districtName: contract.district.name,
+      routes: contract.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+    },
+    jointRows.map((row) => ({
+      id: row.id,
+      hostName: row.hostDistrict?.name || row.district.name,
+      joinerDistricts: row.joinerDistricts,
+      routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+      statusName: row.statusName,
+    }))
+  );
+  const thisJoint = {
+    id: contract.id,
+    hostName: contract.hostDistrict?.name || contract.district.name,
+    joinerDistricts: contract.joinerDistricts,
+    routes: contract.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+  };
+  const contractsOnThisJoint =
+    contract.type === "joint"
+      ? coveredContractRows.flatMap((row) => {
+          const matches = jointMatchesForContract(
+            {
+              type: row.type,
+              districtName: row.district.name,
+              routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+            },
+            [thisJoint]
+          );
+          if (!matches.length) return [];
+          return [
+            {
+              id: row.id,
+              multiContractNumber: row.multiContractNumber,
+              districtName: row.district.name,
+              routes: matches[0].matchedRoutes,
+            },
+          ];
+        })
+      : [];
 
   const cert =
     contract.contractor.annualCerts.find(
@@ -266,6 +323,43 @@ export default async function ContractDetailPage({
           <Link className="text-sm text-teal" href={`/contractors/${contract.contractorId}`}>Open BRC search from contractor</Link>
         </Card>
       </div>
+
+      {jointMatches.length ? (
+        <Flag tone="teal">
+          <p className="font-medium">This contract has a joint agreement</p>
+          <ul className="mt-2 space-y-1">
+            {jointMatches.map((joint) => (
+              <li key={joint.id}>
+                <Link className="underline" href={`/contracts/${joint.id}`}>
+                  Routes {joint.matchedRoutes.join(", ")}
+                </Link>
+                {" · "}
+                Host {joint.hostName}
+                {joint.joinerDistricts ? ` · Joiner ${joint.joinerDistricts}` : ""}
+                {joint.statusName ? ` · ${joint.statusName}` : ""}
+              </li>
+            ))}
+          </ul>
+        </Flag>
+      ) : null}
+      {contractsOnThisJoint.length ? (
+        <Flag tone="teal">
+          <p className="font-medium">Contracts already on file for these joint routes</p>
+          <ul className="mt-2 space-y-1">
+            {contractsOnThisJoint.map((row) => (
+              <li key={row.id}>
+                <Link className="underline" href={`/contracts/${row.id}`}>
+                  {row.multiContractNumber}
+                </Link>
+                {" · "}
+                {row.districtName}
+                {" · routes "}
+                {row.routes.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </Flag>
+      ) : null}
 
       <ContractSnapshot
         contractId={contract.id}

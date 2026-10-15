@@ -27,6 +27,7 @@ export type ContractListRow = {
   receivedDate?: string | null;
   receivedDateLabel?: string | null;
   schoolYear?: string;
+  jointNote?: string;
   routes: Array<{ id: string; number: string; hasAddendum: boolean; cancelled?: boolean }>;
 };
 
@@ -154,8 +155,11 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                 ) : null}
                 <td className="px-5 py-3">
                   <Link className="text-teal hover:underline" href={`/contracts/${c.id}`}>
-                    {c.multiContractNumber}
+                    {c.type === "joint"
+                      ? `Routes ${c.routes.filter((route) => !route.cancelled).map((route) => route.number).join(", ") || "—"}`
+                      : c.multiContractNumber}
                   </Link>
+                  {c.jointNote ? <div className="text-xs text-teal">{c.jointNote}</div> : null}
                   {c.rationaleNeeded ? <div className="text-xs text-rose">Needs rationale letter</div> : null}
                   {c.nextMeetingFlag ? <div className="text-xs text-amber">Next-meeting flag</div> : null}
                   {c.statusName === "2nd review" && c.secondReviewHours != null ? (

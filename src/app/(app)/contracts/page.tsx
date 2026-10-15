@@ -7,6 +7,7 @@ import { can, getSession } from "@/lib/auth";
 import { hoursInSecondReview } from "@/lib/flags";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
+import { jointMatchesForContract } from "@/lib/joint-agreements";
 
 export default async function ContractsPage({
   searchParams,
@@ -30,6 +31,15 @@ export default async function ContractsPage({
             include: { district: true, contractor: true, extraContractors: { include: { contractor: true } }, routes: { include: { addenda: true } }, hostDistrict: true },
     orderBy: { updatedAt: "desc" },
   });
+  const jointCandidates = rows
+    .filter((row) => row.type === "joint")
+    .map((row) => ({
+      id: row.id,
+      hostName: row.hostDistrict?.name || row.district.name,
+      joinerDistricts: row.joinerDistricts,
+      routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+      statusName: row.statusName,
+    }));
 
   return (
     <div>
@@ -86,6 +96,21 @@ export default async function ContractsPage({
             receivedDate: toInputDate(c.receivedDate),
             receivedDateLabel: formatDate(c.receivedDate),
             schoolYear: c.schoolYear,
+            jointNote: (() => {
+              const matches = jointMatchesForContract(
+                {
+                  type: c.type,
+                  districtName: c.district.name,
+                  routes: c.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+                },
+                jointCandidates
+              );
+              if (!matches.length) return "";
+              const routeList = [...new Set(matches.flatMap((match) => match.matchedRoutes))].join(", ");
+              return matches.length === 1
+                ? `Joint agreement for routes ${routeList}`
+                : `${matches.length} joint agreements for routes ${routeList}`;
+            })(),
             routes: c.routes.map((r) => ({
               id: r.id,
               number: r.number,
