@@ -360,7 +360,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         bullets: [
           "Districts must submit contracts within 30 days after the board award or by September 1. 6A:27-9.9(b).",
-          "If a packet arrives 30 or more days after the board meeting, ask for a rationale letter.",
+          "If a packet arrives 30 or more days after the board meeting, ask for a rationale letter. On that contract, check OK. Do not need a rationale letter when the extra time is a weekend, a closure, or another reason that packet is fine. That contract leaves the Home count. Other late packets stay flagged. Uncheck it if the letter is needed later. Changing the received date or the board meeting date brings the flag back.",
           "Use Commissioner-prescribed forms. 6A:27-9.9(b).",
           "An original contract may not run more than four years. 18A:39-2, 6A:27-9.9(a).",
           "A multi-year contract may increase beginning in year two by a maximum of 7.5% of the original yearly amount, with ECS approval. 18A:39-2.",

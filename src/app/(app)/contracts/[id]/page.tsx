@@ -8,6 +8,7 @@ import {
 } from "@/app/actions";
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { DeleteContractButton } from "@/components/delete-contract-button";
+import { RationaleFlag } from "@/components/rationale-flag";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
@@ -16,12 +17,12 @@ import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
-import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
+import { hoursInSecondReview, insuranceCoverage, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
 import { checklistDefinition } from "@/lib/checklists";
 import { sameLetterGroup } from "@/lib/letter-groups";
-import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
+import { contractTypeLabel, daysBetween, debarmentUrl, formatDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
 import { jointMatchesForContract } from "@/lib/joint-agreements";
 import { reviewerLabel } from "@/lib/reviewers";
@@ -190,6 +191,12 @@ export default async function ContractDetailPage({
       ? contract.priorYearCost * (1 + Number(cpi) / 100)
       : null;
   const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
+  const rationaleLate = needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate);
+  const rationaleWaived = rationaleLate && !rationaleStillNeeded(contract);
+  const rationaleDays =
+    contract.receivedDate && contract.boardMeetingDate
+      ? daysBetween(contract.receivedDate, contract.boardMeetingDate)
+      : 0;
   const sortedRoutes = [...contract.routes].sort((a, b) => {
     if (a.cancelledAt && !b.cancelledAt) return 1;
     if (!a.cancelledAt && b.cancelledAt) return -1;
@@ -378,10 +385,16 @@ export default async function ContractDetailPage({
         ) : (
           <Flag tone="teal">Not flagged as debarred. Still confirm on the <a className="underline" href={debarmentUrl()} target="_blank">state list</a> if you are unsure.</Flag>
         )}
-        {contract.rationaleNeeded ? (
-          <Flag tone="rose">
-            Received {formatDate(contract.receivedDate)}, which is 30 or more days after the {formatDate(contract.boardMeetingDate)} board meeting. Ask the district for a rationale letter.
-          </Flag>
+        {rationaleLate ? (
+          <RationaleFlag
+            contractId={contract.id}
+            receivedLabel={formatDate(contract.receivedDate)}
+            boardLabel={formatDate(contract.boardMeetingDate)}
+            days={rationaleDays}
+            waived={rationaleWaived}
+            note={contract.rationaleOkNote ?? ""}
+            canEdit={canEdit}
+          />
         ) : null}
         {ins.kind === "pending" ? (
           <Flag tone="amber">{ins.label}</Flag>

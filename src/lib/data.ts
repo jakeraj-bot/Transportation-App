@@ -165,11 +165,11 @@ export async function refreshContractFlags(contractId: string) {
     include: { emergencyQuote: true },
   });
   if (!contract) return;
-  const { needsRationaleLetter, missedNextBoardMeeting } = await import("./flags");
+  const { rationaleStillNeeded, missedNextBoardMeeting } = await import("./flags");
   await prisma.contract.update({
     where: { id: contractId },
     data: {
-      rationaleNeeded: needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate),
+      rationaleNeeded: rationaleStillNeeded(contract),
       nextMeetingFlag:
         contract.type === "quote" &&
         missedNextBoardMeeting(contract.emergencyQuote?.approvedAt, contract.boardMeetingDate),

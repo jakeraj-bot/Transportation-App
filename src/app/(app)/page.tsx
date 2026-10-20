@@ -120,7 +120,7 @@ export default async function HomePage({
 
   const tiles: AttentionTile[] = [
     { key: "secondReview", href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "Every contract in 2nd review, including other districts." },
-    { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting" },
+    { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting. A contract marked OK is left off this count." },
     { key: "quotes", href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
     { key: "insurance", href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
     { key: "certs", href: "/certs?open=1", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },

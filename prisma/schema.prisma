@@ -182,6 +182,10 @@ model Contract {
   secondReviewStartedAt DateTime?
   letterDate           DateTime?
   rationaleNeeded      Boolean   @default(false)
+  rationaleOk          Boolean   @default(false)
+  rationaleOkNote      String?
+  rationaleOkReceivedAt DateTime?
+  rationaleOkBoardAt   DateTime?
   nextMeetingFlag      Boolean   @default(false)
   notes                String?
   folderTabPrintedAt   DateTime?

@@ -1949,6 +1949,43 @@ export async function saveContractDates(form: FormData) {
   revalidateAll();
 }
 
+export async function setRationaleDecision(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const contract = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
+  if (!contract) throw new Error("That contract could not be found.");
+  const ok = form.get("ok") === "on" || form.get("ok") === "true";
+  const note = formString(form, "note");
+  await prisma.contract.update({
+    where: { id },
+    data: ok
+      ? {
+          rationaleOk: true,
+          rationaleOkNote: note || null,
+          rationaleOkReceivedAt: contract.receivedDate,
+          rationaleOkBoardAt: contract.boardMeetingDate,
+        }
+      : {
+          rationaleOk: false,
+          rationaleOkNote: null,
+          rationaleOkReceivedAt: null,
+          rationaleOkBoardAt: null,
+        },
+  });
+  await refreshContractFlags(id);
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: id,
+    summary: ok
+      ? `Marked the rationale letter OK for ${contract.multiContractNumber}${note ? `: ${note}` : ""}`
+      : `Rationale letter is needed again for ${contract.multiContractNumber}`,
+  });
+  revalidateAll();
+}
+
 export async function saveUploadedPt4(form: FormData) {
   const user = await requireSession();
   if (!can(user, "upload_files") && !can(user, "edit") && !can(user, "create")) {
