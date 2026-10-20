@@ -8,6 +8,27 @@ export function needsRationaleLetter(
   return daysBetween(receivedDate, boardMeetingDate) >= 30;
 }
 
+function sameInstant(left?: Date | null, right?: Date | null) {
+  if (!left || !right) return false;
+  return left.getTime() === right.getTime();
+}
+
+/** A late packet still needs a letter unless someone marked these exact dates OK. */
+export function rationaleStillNeeded(contract: {
+  receivedDate?: Date | null;
+  boardMeetingDate?: Date | null;
+  rationaleOk?: boolean;
+  rationaleOkReceivedAt?: Date | null;
+  rationaleOkBoardAt?: Date | null;
+}) {
+  if (!needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate)) return false;
+  const waived =
+    Boolean(contract.rationaleOk) &&
+    sameInstant(contract.rationaleOkReceivedAt, contract.receivedDate) &&
+    sameInstant(contract.rationaleOkBoardAt, contract.boardMeetingDate);
+  return !waived;
+}
+
 export function missedNextBoardMeeting(
   quoteApprovedAt?: Date | null,
   boardMeetingDate?: Date | null
@@ -31,6 +52,17 @@ export function insuranceCoverage(input: {
     !input.namedDistrict.toLowerCase().includes(input.districtName.toLowerCase()) &&
     !input.districtName.toLowerCase().includes(input.namedDistrict.toLowerCase());
 
+  if (!input.contractStart && !input.contractEnd) {
+    if (!input.insEnd) {
+      return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
+    }
+    return {
+      kind: "pending" as const,
+      label: "Insurance dates are on file. Enter the contract dates during review to check the full run.",
+      gapStart: null,
+      gapEnd: null,
+    };
+  }
   if (!input.insEnd) {
     return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
   }

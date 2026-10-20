@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { Button, Card, EmptyState, PageHeader, StatusChip } from "@/components/ui";
 import { insuranceCoverage } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +10,7 @@ export default async function InsurancePage({
 }: {
   searchParams: Promise<{ flag?: string }>;
 }) {
+  noStore();
   const { flag } = await searchParams;
   const now = new Date();
   const soon = new Date();
