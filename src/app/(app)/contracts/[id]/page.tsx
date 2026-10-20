@@ -9,6 +9,7 @@ import {
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { DeleteContractButton } from "@/components/delete-contract-button";
 import { RationaleFlag } from "@/components/rationale-flag";
+import { RationaleLetterAsk } from "@/components/rationale-letter-ask";
 import { SecondReviewNote } from "@/components/second-review-note";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
@@ -483,8 +484,8 @@ export default async function ContractDetailPage({
               ) : null}
 
               {contract.rationaleNeeded ? (
-                <div>
-                  <h3 className="mb-2 font-medium">Ask for a rationale letter</h3>
+                <RationaleLetterAsk>
+                  <h3 className="font-medium">Ask for a rationale letter</h3>
                   <SimpleEmailForm
                     districtId={contract.districtId}
                     defaultTo={contract.district.email || ""}
@@ -493,7 +494,7 @@ export default async function ContractDetailPage({
                     body={`Hello,\n\nThis contract was received by the county office 30 or more days after the board meeting that awarded it. Please send a rationale letter so we can continue the review.\n\nMulti-contract: ${contract.multiContractNumber}\nBoard meeting: ${formatDate(contract.boardMeetingDate)}\nDate received: ${formatDate(contract.receivedDate)}\n\nThank you,\nPassaic County Transportation`}
                     canSend={outlookConfigured()}
                   />
-                </div>
+                </RationaleLetterAsk>
               ) : null}
 
               <div>
