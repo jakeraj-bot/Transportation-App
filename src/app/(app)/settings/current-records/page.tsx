@@ -5,7 +5,7 @@ import { ContractTypePicker } from "@/components/contract-type-picker";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { getSession } from "@/lib/auth";
 import { isIntakeType } from "@/lib/contract-intake";
-import { activeContractors, activeDistricts, getSchoolYear, getStatuses } from "@/lib/data";
+import { activeContractors, activeDistricts, getSchoolYear, getStatuses, secondReviewers } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
 
@@ -25,7 +25,7 @@ export default async function CurrentRecordsPage({
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/");
   const q = await searchParams;
-  const [schoolYear, districts, contractors, statuses, reviewers, reviewerNames] = await Promise.all([
+  const [schoolYear, districts, contractors, statuses, reviewers, reviewerNames, eligibleSecondReviewers] = await Promise.all([
     getSchoolYear(),
     activeDistricts(),
     activeContractors(),
@@ -38,6 +38,7 @@ export default async function CurrentRecordsPage({
       where: { deletedAt: null },
       orderBy: { name: "asc" },
     }),
+    secondReviewers(),
   ]);
 
   return (
@@ -113,6 +114,7 @@ export default async function CurrentRecordsPage({
             statuses={statuses}
             reviewers={reviewers}
             reviewerNames={reviewerNames}
+            secondReviewers={eligibleSecondReviewers}
             changeTypeHref="/settings/current-records"
           />
         ) : (

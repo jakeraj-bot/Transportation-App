@@ -29,6 +29,22 @@ export async function activeDistricts() {
   });
 }
 
+export async function secondReviewers() {
+  noStore();
+  return prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      active: true,
+      OR: [
+        { role: "super_admin" },
+        { permissions: { some: { permissionKey: "second_review" } } },
+      ],
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
 export async function activeContractors() {
   noStore();
   return prisma.contractor.findMany({

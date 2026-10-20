@@ -59,7 +59,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         bullets: [
           "Need review: packets that just came in.",
           "1st review missing: we reviewed them and still need documents or a fix. A PT-4 is usually sent.",
-          "2nd review: first review looked good and the other reviewer should take it.",
+          "2nd review: first review looked good. Pick the person who will do the second look. Home shows every contract in 2nd review, even when your districts are limited. Use Assigned to me for the ones with your name.",
           "Approved / Disapproved: the letter is generated and waiting for a signature.",
           "Final approved / Final disapproved: the signed letter was sent to the district.",
           "Trenton log: we already entered it in the Trenton log. That log will be built in a later phase.",
@@ -75,7 +75,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Second review list",
-        body: "This table shows every contract in 2nd review and how long it has been waiting. Super Admin can turn on an alert in Settings if a contract sits there too long.",
+        body: "This table shows every contract in 2nd review for the school year, including districts that are not assigned to you, and who was picked to do the second look. All is the full list. Assigned to me keeps only the ones with your name. Super Admin can turn on an alert in Settings if a contract sits there too long.",
       },
     ],
   },
@@ -113,7 +113,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         bullets: [
           "Need Review → first look.",
           "1st review missing items → send a PT-4 and wait for the district.",
-          "2nd review → first review is clean. The other reviewer takes it. Do not 2nd-review your own first review unless Super Admin needs a backup.",
+          "2nd review → first review is clean. Choose who will do the 2nd review before you save. That person, and everyone else, can see it on Home and on the 2nd review list. Assigned to me shows only the ones with your name. Do not 2nd-review your own first review unless Super Admin needs a backup.",
           "Approved or Disapproved → generate the letter and wait for a signature.",
           "Final approved or Final disapproved → mark the date the signed letter was sent to the district.",
           "Trenton Log → after it is entered in the Trenton log (phase 2).",
@@ -326,7 +326,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Users",
-        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts.",
+        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts. Check Do 2nd reviews for each person who should be on the list when a contract is sent to 2nd review. Super Admin is always on that list. The 2nd review list still shows every district; Assigned to me filters it to the person you picked.",
       },
       {
         heading: "Statuses and letters",

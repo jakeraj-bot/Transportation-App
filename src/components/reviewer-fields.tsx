@@ -8,6 +8,30 @@ import { Field, inputClass } from "@/components/ui";
 type ReviewerUser = { id: string; name: string };
 type ReviewerName = { name: string };
 
+export function SecondReviewerPicker({
+  reviewers,
+  defaultId,
+}: {
+  reviewers: Array<{ id: string; name: string }>;
+  defaultId?: string | null;
+}) {
+  return (
+    <Field
+      label="Who will do the 2nd review"
+      hint="Everyone in 2nd review can see this contract. The person you pick can filter the list to the ones assigned to them. Add people under Settings → Users by checking Do 2nd reviews."
+    >
+      <select className={inputClass} name="secondReviewerId" required defaultValue={defaultId ?? ""}>
+        <option value="">Choose a person</option>
+        {reviewers.map((person) => (
+          <option key={person.id} value={person.id}>
+            {person.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 export function ReviewerFields({
   reviewers,
   reviewerNames,

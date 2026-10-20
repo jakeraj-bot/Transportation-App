@@ -9,6 +9,7 @@ import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
 import { allowsMultipleCompanies, showsBidNumber, showsMultiContractNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { mapContractType } from "@/lib/import-records";
 import { checklistDefinition } from "@/lib/checklists";
+import { SecondReviewerPicker } from "@/components/reviewer-fields";
 import type { BidSpec, Contract, ExtraPacket, Route, RouteDescription, Status } from "@prisma/client";
 
 type ContractorOption = { id: string; legalName: string; incomplete?: boolean };
@@ -27,6 +28,7 @@ export function ContractForm({
   additionalContractorIds,
   linkedRouteIds,
   currentUserId,
+  secondReviewers = [],
 }: {
   mode: "intake" | "review";
   schoolYear: string;
@@ -41,8 +43,10 @@ export function ContractForm({
   additionalContractorIds?: string[];
   linkedRouteIds?: string[];
   currentUserId?: string;
+  secondReviewers?: Array<{ id: string; name: string }>;
 }) {
   const [type, setType] = useState(mapContractType(contract?.type ?? "original"));
+  const [statusName, setStatusName] = useState(contract?.statusName ?? "Need Review");
   const [contractorList, setContractorList] = useState(contractors);
   const [contractorIds, setContractorIds] = useState(
     [contract?.contractorId, ...(additionalContractorIds ?? [])].filter((id): id is string => Boolean(id))
@@ -350,12 +354,15 @@ export function ContractForm({
           </div>
         ) : null}
         <Field label="Status">
-          <select className={inputClass} name="statusName" defaultValue={contract?.statusName ?? "Need Review"}>
+          <select className={inputClass} name="statusName" value={statusName} onChange={(e) => setStatusName(e.target.value)}>
             {statuses.map((s) => (
               <option key={s.id} value={s.name}>{s.name}</option>
             ))}
           </select>
         </Field>
+        {statusName === "2nd review" ? (
+          <SecondReviewerPicker reviewers={secondReviewers} defaultId={contract?.secondReviewerId} />
+        ) : null}
         {mode === "intake" ? (
           <>
             <Field label="Contract start date" hint="Each contract can have different dates.">

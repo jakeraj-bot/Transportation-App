@@ -421,6 +421,31 @@ async function findRecentDuplicateContract(where: {
   });
 }
 
+async function resolveSecondReviewerId(form: FormData, statusName: string, contractId: string, type: string) {
+  if (statusName !== "2nd review") return undefined;
+  const picked = formString(form, "secondReviewerId");
+  const allowed = picked
+    ? await prisma.user.findFirst({
+        where: {
+          id: picked,
+          deletedAt: null,
+          active: true,
+          OR: [
+            { role: "super_admin" },
+            { permissions: { some: { permissionKey: "second_review" } } },
+          ],
+        },
+      })
+    : null;
+  if (!allowed) {
+    const message =
+      "Choose who will do the 2nd review. Under Settings → Users, check Do 2nd reviews for each person who should be on that list.";
+    if (contractId) redirect(`/contracts/${contractId}?error=${encodeURIComponent(message)}`);
+    redirect(intakeErrorPath(form, type, message));
+  }
+  return allowed.id;
+}
+
 function intakeErrorPath(form: FormData, type: string, message: string) {
   const source = formString(form, "source") || "incoming";
   const base = source === "current" ? "/settings/current-records" : "/contracts/new";
@@ -608,6 +633,7 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
     redirect(`/contracts/${existing.id}?addendumLinked=1&addendumCount=${previousCount}&routeCount=${matched.length}`);
   }
   const statusName = formString(form, "statusName");
+  const secondReviewerId = await resolveSecondReviewerId(form, statusName, existing.id, "addendum");
   const reviewers = parseReviewersFromForm(form);
   const sentToDistrictAt = parseDate(formString(form, "sentToDistrictAt")) || parseFlexibleDate(formString(form, "sentToDistrictAt"));
   await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
@@ -615,10 +641,11 @@ async function linkAddendumFromForm(form: FormData, userId: string) {
     where: { id: existing.id },
     data: {
       ...(statusName ? { statusName } : {}),
+      ...(statusName === "2nd review" && !existing.secondReviewStartedAt ? { secondReviewStartedAt: new Date() } : {}),
       firstReviewerId: reviewers.firstReviewerId,
       firstReviewerName: reviewers.firstReviewerName,
-      secondReviewerId: reviewers.secondReviewerId,
-      secondReviewerName: reviewers.secondReviewerName,
+      secondReviewerId: secondReviewerId || reviewers.secondReviewerId,
+      secondReviewerName: secondReviewerId ? null : reviewers.secondReviewerName,
       ...(sentToDistrictAt ? { sentToDistrictAt } : {}),
     },
   });
@@ -782,7 +809,14 @@ export async function saveContract(form: FormData) {
     }
   }
 
-  const data = { ...intake, ...review, ...(firstReviewerId ? { firstReviewerId } : {}), ...(secondReviewStartedAt ? { secondReviewStartedAt } : {}) };
+  const assignedSecondReviewerId = await resolveSecondReviewerId(form, statusName, id, type);
+  const data = {
+    ...intake,
+    ...review,
+    ...(firstReviewerId ? { firstReviewerId } : {}),
+    ...(secondReviewStartedAt ? { secondReviewStartedAt } : {}),
+    ...(assignedSecondReviewerId ? { secondReviewerId: assignedSecondReviewerId, secondReviewerName: null } : {}),
+  };
 
   if (!id) {
     const duplicate = await findRecentDuplicateContract({
@@ -875,6 +909,7 @@ export async function saveCurrentContract(form: FormData) {
     redirect(intakeErrorPath(form, type, "Enter the multi-contract number."));
   }
   const reviewers = parseReviewersFromForm(form);
+  const assignedSecondReviewerId = await resolveSecondReviewerId(form, statusName, "", type);
   await rememberReviewerNames([reviewers.firstReviewerName, reviewers.secondReviewerName]);
   const sentToDistrictAt = parseFlexibleDate(formString(form, "sentToDistrictAt"));
   const insuranceExpiresAt = parseFlexibleDate(formString(form, "insuranceExpiresAt"));
@@ -911,8 +946,8 @@ export async function saveCurrentContract(form: FormData) {
       statusName,
       firstReviewerId: reviewers.firstReviewerId,
       firstReviewerName: reviewers.firstReviewerName,
-      secondReviewerId: reviewers.secondReviewerId,
-      secondReviewerName: reviewers.secondReviewerName,
+      secondReviewerId: assignedSecondReviewerId || reviewers.secondReviewerId,
+      secondReviewerName: assignedSecondReviewerId ? null : reviewers.secondReviewerName,
       sentToDistrictAt,
       secondReviewStartedAt: statusName === "2nd review" ? new Date() : null,
       startsOn,

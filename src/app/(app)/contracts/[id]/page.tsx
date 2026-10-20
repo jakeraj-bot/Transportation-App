@@ -13,7 +13,7 @@ import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
 import { ContractRoutesPanel } from "@/components/contract-routes-panel";
 import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
-import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
+import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
 import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
@@ -33,6 +33,7 @@ export default async function ContractDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     saved?: string;
+    error?: string;
     addendumLinked?: string;
     addendumCount?: string;
     routeCount?: string;
@@ -69,12 +70,13 @@ export default async function ContractDetailPage({
   const firstReviewerLabel = reviewerLabel(contract.firstReviewer?.name, contract.firstReviewerName);
   const secondReviewerLabel = reviewerLabel(contract.secondReviewer?.name, contract.secondReviewerName);
 
-  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4, jointRows, coveredContractRows] =
+  const [schoolYear, districts, contractors, statuses, reviewers, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4, jointRows, coveredContractRows] =
     await Promise.all([
       getSchoolYear(),
       activeDistricts(),
       activeContractors(),
       getStatuses("contract"),
+      secondReviewers(),
       prisma.bidSpec.findMany({ where: { deletedAt: null } }),
       prisma.routeDescription.findMany({ where: { deletedAt: null } }),
       ensureChecklist("contract", contract.id, contract.type),
@@ -266,6 +268,7 @@ export default async function ContractDetailPage({
       />
 
       {linked.saved ? <Flag tone="sage">Saved. This contract is on file.</Flag> : null}
+      {linked.error ? <Flag tone="rose">{linked.error}</Flag> : null}
       {linked.addendumLinked ? (
         <Flag tone="sage">
           New addendum linked to this route. This contract now has {linked.addendumCount || addendumTotal} addendum
@@ -288,7 +291,7 @@ export default async function ContractDetailPage({
             <p className="mt-2 text-sm text-muted">
               Waiting {Math.max(1, Math.round(secondHours))} hours
               {firstReviewerLabel ? ` · first review by ${firstReviewerLabel}` : ""}
-              {secondReviewerLabel ? ` · second review by ${secondReviewerLabel}` : ""}
+              {secondReviewerLabel ? ` · assigned to ${secondReviewerLabel}` : " · pick who will do the 2nd review"}
             </p>
           ) : (
             <>
@@ -635,6 +638,7 @@ export default async function ContractDetailPage({
                 additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
                 linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
                 currentUserId={session?.id}
+                secondReviewers={reviewers}
               />
             ) : (
               <p className="text-muted">You can view this contract. Super Admin can give you permission to edit records.</p>

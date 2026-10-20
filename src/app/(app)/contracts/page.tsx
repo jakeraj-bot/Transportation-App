@@ -12,15 +12,18 @@ import { jointMatchesForContract } from "@/lib/joint-agreements";
 export default async function ContractsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flag?: string; status?: string; view?: string }>;
+  searchParams: Promise<{ flag?: string; status?: string; view?: string; reviewer?: string }>;
 }) {
   noStore();
-  const { flag, status, view } = await searchParams;
+  const { flag, status, view, reviewer } = await searchParams;
   const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
-  const showMine = Boolean(assigned.length) && view !== "all";
+  const secondReviewList = status === "2nd review";
+  const showMine = !secondReviewList && Boolean(assigned.length) && view !== "all";
+  const reviewerMine = secondReviewList && reviewer === "me";
   const where: Record<string, unknown> = { deletedAt: null, schoolYear };
   if (showMine) where.districtId = { in: assigned };
+  if (reviewerMine && session) where.secondReviewerId = session.id;
   if (flag === "late") where.rationaleNeeded = true;
   if (flag === "meeting") where.nextMeetingFlag = true;
   if (status) where.statusName = status;
@@ -28,7 +31,14 @@ export default async function ContractsPage({
 
   const rows = await prisma.contract.findMany({
     where,
-            include: { district: true, contractor: true, extraContractors: { include: { contractor: true } }, routes: { include: { addenda: true } }, hostDistrict: true },
+    include: {
+      district: true,
+      contractor: true,
+      secondReviewer: true,
+      extraContractors: { include: { contractor: true } },
+      routes: { include: { addenda: true } },
+      hostDistrict: true,
+    },
     orderBy: { updatedAt: "desc" },
   });
   const jointCandidates = rows
@@ -46,13 +56,23 @@ export default async function ContractsPage({
       <PageHeader
         title="Contracts"
         hint={
-          showMine
-            ? `Showing ${schoolYear} contracts for your assigned districts. Use View all if a saved contract is missing. Addendums attach to an existing contract instead of creating a new row.`
-            : `Every ${schoolYear} packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
+          secondReviewList
+            ? reviewerMine
+              ? `${schoolYear} contracts in 2nd review that are assigned to you.`
+              : `Every ${schoolYear} contract in 2nd review, including districts that are not assigned to you. Use Assigned to me to see only yours.`
+            : showMine
+              ? `Showing ${schoolYear} contracts for your assigned districts. Use View all if a saved contract is missing. Addendums attach to an existing contract instead of creating a new row.`
+              : `Every ${schoolYear} packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
         }
         actions={
           <>
-            {assigned.length ? (
+            {secondReviewList ? (
+              <>
+                <Button href="/contracts?status=2nd%20review" variant={reviewerMine ? "secondary" : "primary"}>All 2nd reviews</Button>
+                <Button href="/contracts?status=2nd%20review&reviewer=me" variant={reviewerMine ? "primary" : "secondary"}>Assigned to me</Button>
+              </>
+            ) : null}
+            {!secondReviewList && assigned.length ? (
               <Button href={showMine ? "/contracts?view=all" : "/contracts"} variant="secondary">
                 {showMine ? "View all" : "My districts"}
               </Button>
@@ -66,8 +86,8 @@ export default async function ContractsPage({
       />
       {rows.length === 0 ? (
         <EmptyState
-          title="No contracts in this list"
-          body="Enter a contract when a district packet arrives."
+          title={reviewerMine ? "No 2nd reviews assigned to you" : "No contracts in this list"}
+          body={reviewerMine ? "Contracts appear here after someone chooses you as the 2nd reviewer." : "Enter a contract when a district packet arrives."}
           action={<Button href="/contracts/new">New contract</Button>}
         />
       ) : (
@@ -90,6 +110,11 @@ export default async function ContractsPage({
             rationaleNeeded: c.rationaleNeeded,
             nextMeetingFlag: c.nextMeetingFlag,
             secondReviewHours: c.statusName === "2nd review" ? hoursInSecondReview(c.secondReviewStartedAt) : undefined,
+            secondReviewerName: c.secondReviewer
+              ? c.secondReviewer.id === session?.id
+                ? `${c.secondReviewer.name} (you)`
+                : c.secondReviewer.name
+              : undefined,
             hostDistrictId: c.hostDistrictId,
             hostName: c.hostDistrict?.name,
             joinerDistricts: c.joinerDistricts,

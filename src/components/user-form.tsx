@@ -64,7 +64,7 @@ export function UserForm({
       <div className="md:col-span-2">
         <p className="mb-2 text-sm font-medium">Their districts</p>
         <p className="mb-2 text-sm text-muted">
-          Leave blank to see every district. Assign districts so a reviewer’s Home screen starts with only their contracts. They can still open View all.
+          Leave blank to see every district. Assign districts so a reviewer’s Home screen starts with only their contracts. They can still open View all. The 2nd review list always shows every district. Assigned to me filters that list to the person picked on the contract.
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {districts.map((d) => (
@@ -83,7 +83,7 @@ export function UserForm({
       <div className="md:col-span-2">
         <p className="mb-2 text-sm font-medium">What they are allowed to do</p>
         <p className="mb-3 text-sm text-muted">
-          Check “Delete contracts and other records” for anyone who should remove a contract entered by mistake. Super Admin already has this. They can use it on the next page they open.
+          Check “Delete contracts and other records” for anyone who should remove a contract entered by mistake. Super Admin already has this. They can use it on the next page they open. Check “Do 2nd reviews” for anyone who should appear when a contract is sent to 2nd review. Super Admin is always on that list.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
         {PERMISSIONS.map((p) => (

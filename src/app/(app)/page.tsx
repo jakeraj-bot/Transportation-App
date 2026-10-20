@@ -26,9 +26,11 @@ type SecondReviewRow = {
   id: string;
   multiContractNumber: string;
   secondReviewStartedAt: Date | null;
+  secondReviewerId: string | null;
   district: { name: string };
   firstReviewer: { name: string } | null;
   firstReviewerName: string | null;
+  secondReviewer: { name: string } | null;
 };
 
 type RecentRow = {
@@ -43,9 +45,9 @@ type RecentRow = {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; second?: string }>;
 }) {
-  const { view } = await searchParams;
+  const { view, second } = await searchParams;
   const [schoolYear, session, alertOn, alertHoursRaw, dbStatuses] = await Promise.all([
     getSchoolYear(),
     getSession(),
@@ -74,7 +76,12 @@ export default async function HomePage({
         HOME_STATUSES.map(async (status) => ({
           ...status,
           color: statusColor[status.name] || status.color,
-          count: await prisma.contract.count({ where: { ...whereYear, statusName: status.name } }),
+          count: await prisma.contract.count({
+            where: {
+              ...(status.name === "2nd review" ? { deletedAt: null, schoolYear } : whereYear),
+              statusName: status.name,
+            },
+          }),
         }))
       ),
       prisma.contract.count({ where: whereYear }),
@@ -90,8 +97,8 @@ export default async function HomePage({
         where: { ...whereYear, statusName: "1st review missing items" },
       }),
       prisma.contract.findMany({
-        where: { ...whereYear, statusName: "2nd review" },
-        include: { district: true, contractor: true, firstReviewer: true },
+        where: { deletedAt: null, schoolYear, statusName: "2nd review" },
+        include: { district: true, contractor: true, firstReviewer: true, secondReviewer: true },
         orderBy: { secondReviewStartedAt: "asc" },
       }),
       prisma.contract.findMany({
@@ -103,12 +110,16 @@ export default async function HomePage({
     ]);
 
   const gapCount = await countInsuranceGaps(schoolYear);
+  const secondMine = second === "mine";
+  const visibleSecond = secondMine
+    ? secondReview.filter((row) => row.secondReviewerId === session?.id)
+    : secondReview;
   const overdueSecond = secondReview.filter(
     (c) => hoursInSecondReview(c.secondReviewStartedAt) >= alertHours
   );
 
   const tiles: AttentionTile[] = [
-    { key: "secondReview", href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "First review is done. These need the other reviewer." },
+    { key: "secondReview", href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "Every contract in 2nd review, including other districts." },
     { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting" },
     { key: "quotes", href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
     { key: "insurance", href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
@@ -181,7 +192,7 @@ export default async function HomePage({
           {showLists ? (
             <div className="home-compact-lists">
               {prefs.showSecondReview ? (
-                <SecondReviewSection rows={secondReview} compact />
+                <SecondReviewSection rows={visibleSecond} total={secondReview.length} mine={secondMine} view={view} meId={session?.id} compact />
               ) : null}
               {prefs.showRecent ? (
                 <RecentSection rows={recent} statusColor={statusColor} compact />
@@ -192,7 +203,9 @@ export default async function HomePage({
       ) : (
         <>
           {showTiles ? <AttentionTiles tiles={visibleTiles} compact={false} /> : null}
-          {prefs.showSecondReview ? <SecondReviewSection rows={secondReview} compact={false} /> : null}
+          {prefs.showSecondReview ? (
+            <SecondReviewSection rows={visibleSecond} total={secondReview.length} mine={secondMine} view={view} meId={session?.id} compact={false} />
+          ) : null}
           {prefs.showRecent ? <RecentSection rows={recent} statusColor={statusColor} compact={false} /> : null}
         </>
       )}
@@ -216,13 +229,50 @@ function AttentionTiles({ tiles, compact }: { tiles: AttentionTile[]; compact: b
   );
 }
 
-function SecondReviewSection({ rows, compact }: { rows: SecondReviewRow[]; compact: boolean }) {
+function secondReviewHref(view?: string, mine?: boolean) {
+  const query = new URLSearchParams();
+  if (view === "all") query.set("view", "all");
+  if (mine) query.set("second", "mine");
+  const text = query.toString();
+  return text ? `/?${text}` : "/";
+}
+
+function SecondReviewSection({
+  rows,
+  total,
+  mine,
+  view,
+  meId,
+  compact,
+}: {
+  rows: SecondReviewRow[];
+  total: number;
+  mine: boolean;
+  view?: string;
+  meId?: string;
+  compact: boolean;
+}) {
   return (
     <div className={compact ? "home-compact-panel" : "mt-8"}>
-      <h2 className="serif mb-3 text-2xl">Contracts in 2nd review</h2>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="serif text-2xl">Contracts in 2nd review</h2>
+          <p className="mt-1 text-sm text-muted">
+            {mine
+              ? `${rows.length} assigned to you. ${total} in 2nd review altogether.`
+              : `All ${total} contract${total === 1 ? "" : "s"} in 2nd review, including districts that are not yours.`}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button href={secondReviewHref(view)} variant={mine ? "secondary" : "primary"}>All</Button>
+          <Button href={secondReviewHref(view, true)} variant={mine ? "primary" : "secondary"}>Assigned to me</Button>
+        </div>
+      </div>
       {rows.length === 0 ? (
         <Card className={compact ? "p-3" : undefined}>
-          <p className="text-muted">Nothing is waiting on a second review right now.</p>
+          <p className="text-muted">
+            {mine ? "Nothing in 2nd review is assigned to you." : "Nothing is waiting on a second review right now."}
+          </p>
         </Card>
       ) : (
         <Card className="home-compact-scroll overflow-x-auto p-0">
@@ -232,6 +282,7 @@ function SecondReviewSection({ rows, compact }: { rows: SecondReviewRow[]; compa
                 <th className="px-5 py-3 font-medium">Multi-contract</th>
                 <th className="px-5 py-3 font-medium">District</th>
                 {compact ? null : <th className="px-5 py-3 font-medium">First reviewer</th>}
+                <th className="px-5 py-3 font-medium">2nd reviewer</th>
                 <th className="px-5 py-3 font-medium">Waiting</th>
               </tr>
             </thead>
@@ -239,6 +290,7 @@ function SecondReviewSection({ rows, compact }: { rows: SecondReviewRow[]; compa
               {rows.map((c) => {
                 const hours = hoursInSecondReview(c.secondReviewStartedAt);
                 const waiting = hours >= 24 ? `${Math.floor(hours / 24)}d ${Math.floor(hours % 24)}h` : `${Math.max(1, Math.round(hours))}h`;
+                const assignee = c.secondReviewer?.name || "—";
                 return (
                   <tr key={c.id} className="border-b border-line/70 last:border-0">
                     <td className="px-5 py-3">
@@ -250,6 +302,10 @@ function SecondReviewSection({ rows, compact }: { rows: SecondReviewRow[]; compa
                     {compact ? null : (
                       <td className="px-5 py-3">{reviewerLabel(c.firstReviewer?.name, c.firstReviewerName) || "—"}</td>
                     )}
+                    <td className="px-5 py-3">
+                      {assignee}
+                      {c.secondReviewerId && c.secondReviewerId === meId ? " (you)" : ""}
+                    </td>
                     <td className="px-5 py-3">{waiting}</td>
                   </tr>
                 );

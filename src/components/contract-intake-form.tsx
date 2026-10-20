@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addQuickContractor, findContractForAddendum, saveContract, saveCurrentContract } from "@/app/actions";
 import { DistrictPickerField, JoinerDistrictFields } from "@/components/district-picker-fields";
-import { ReviewerFields } from "@/components/reviewer-fields";
+import { ReviewerFields, SecondReviewerPicker } from "@/components/reviewer-fields";
 import { SaveContractButton, SavingForm } from "@/components/saving-form";
 import { Button, Field, inputClass } from "@/components/ui";
 import { districtOptionLabel } from "@/lib/districts";
@@ -56,6 +56,7 @@ export function ContractIntakeForm({
   reviewers = [],
   reviewerNames = [],
   changeTypeHref,
+  secondReviewers = [],
 }: {
   source: "incoming" | "current";
   type: IntakeType;
@@ -66,6 +67,7 @@ export function ContractIntakeForm({
   reviewers?: ReviewerOption[];
   reviewerNames?: ReviewerNameOption[];
   changeTypeHref: string;
+  secondReviewers?: Array<{ id: string; name: string }>;
 }) {
   const current = source === "current";
   const [contractorList, setContractorList] = useState(contractors);
@@ -81,6 +83,8 @@ export function ContractIntakeForm({
   const [matches, setMatches] = useState<AddendumMatch[] | null>(null);
   const [pickedId, setPickedId] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [statusName, setStatusName] = useState("Need Review");
+  const [addendumStatus, setAddendumStatus] = useState("Need Review");
   const [routeIds, setRouteIds] = useState<string[]>([]);
   const picked = matches?.find((row) => row.id === pickedId) ?? null;
   const action = current ? saveCurrentContract : saveContract;
@@ -295,6 +299,7 @@ export function ContractIntakeForm({
                   checked={pickedId === row.id}
                   onChange={() => {
                     setPickedId(row.id);
+                    setAddendumStatus(row.statusName);
                     setConfirmed(false);
                     setRouteIds([]);
                     setCompanies([{ contractorId: row.contractorId, newName: "", newCounty: "" }]);
@@ -371,12 +376,15 @@ export function ContractIntakeForm({
             </Field>
             {companyFields()}
             <Field label="Status" hint="This updates the contract this addendum is linked to.">
-              <select className={inputClass} name="statusName" defaultValue={picked.statusName}>
+              <select className={inputClass} name="statusName" value={addendumStatus} onChange={(e) => setAddendumStatus(e.target.value)}>
                 {statuses.map((s) => (
                   <option key={s.id} value={s.name}>{s.name}</option>
                 ))}
               </select>
             </Field>
+            {addendumStatus === "2nd review" ? (
+              <SecondReviewerPicker reviewers={secondReviewers} />
+            ) : null}
             {currentExtras()}
             <SaveContractButton
               className="md:col-span-2"
@@ -543,12 +551,13 @@ export function ContractIntakeForm({
         ) : null}
 
         <Field label="Status">
-          <select className={inputClass} name="statusName" defaultValue="Need Review">
+          <select className={inputClass} name="statusName" value={statusName} onChange={(e) => setStatusName(e.target.value)}>
             {statuses.map((s) => (
               <option key={s.id} value={s.name}>{s.name}</option>
             ))}
           </select>
         </Field>
+        {statusName === "2nd review" ? <SecondReviewerPicker reviewers={secondReviewers} /> : null}
         {currentExtras()}
       </div>
       <SaveContractButton label={current ? "Save current contract" : "Save incoming contract"} />

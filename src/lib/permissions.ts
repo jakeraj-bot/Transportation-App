@@ -4,6 +4,7 @@ export const PERMISSIONS = [
   { key: "edit", label: "Edit records" },
   { key: "delete", label: "Delete contracts and other records" },
   { key: "approve", label: "Approve or disapprove" },
+  { key: "second_review", label: "Do 2nd reviews" },
   { key: "send_email", label: "Send email to districts" },
   { key: "manage_users", label: "Manage users and permissions" },
   { key: "manage_statuses", label: "Add, edit, or delete statuses" },

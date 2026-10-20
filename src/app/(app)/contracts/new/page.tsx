@@ -1,7 +1,7 @@
 import { ContractIntakeForm } from "@/components/contract-intake-form";
 import { ContractTypePicker } from "@/components/contract-type-picker";
 import { Card, Flag, PageHeader } from "@/components/ui";
-import { activeContractors, activeDistricts, getSchoolYear, getStatuses } from "@/lib/data";
+import { activeContractors, activeDistricts, getSchoolYear, getStatuses, secondReviewers } from "@/lib/data";
 import { isIntakeType } from "@/lib/contract-intake";
 
 export default async function NewContractPage({
@@ -10,11 +10,12 @@ export default async function NewContractPage({
   searchParams: Promise<{ error?: string; type?: string }>;
 }) {
   const { error, type } = await searchParams;
-  const [schoolYear, districts, contractors, statuses] = await Promise.all([
+  const [schoolYear, districts, contractors, statuses, reviewers] = await Promise.all([
     getSchoolYear(),
     activeDistricts(),
     activeContractors(),
     getStatuses("contract"),
+    secondReviewers(),
   ]);
   const selectedType = isIntakeType(type) ? type : null;
 
@@ -35,6 +36,7 @@ export default async function NewContractPage({
             districts={districts}
             contractors={contractors}
             statuses={statuses}
+            secondReviewers={reviewers}
             changeTypeHref="/contracts/new"
           />
         ) : (
