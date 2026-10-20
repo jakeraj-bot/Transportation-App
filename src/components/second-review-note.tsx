@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveSecondReviewNote } from "@/app/actions";
 import { inputClass } from "@/components/ui";
@@ -26,6 +26,12 @@ export function SecondReviewNote({
   const [checked, setChecked] = useState(done);
   const [text, setText] = useState(note);
   const [message, setMessage] = useState("");
+  const textRef = useRef(note);
+
+  function updateText(value: string) {
+    textRef.current = value;
+    setText(value);
+  }
 
   async function save(nextDone: boolean, nextNote: string) {
     setMessage("Saving…");
@@ -55,7 +61,7 @@ export function SecondReviewNote({
               onChange={async (event) => {
                 const next = event.target.checked;
                 setChecked(next);
-                await save(next, text);
+                await save(next, textRef.current);
               }}
             />
             <span className="font-medium">2nd review done</span>
@@ -71,9 +77,11 @@ export function SecondReviewNote({
             rows={2}
             placeholder="What the 2nd review confirmed"
             value={text}
-            onChange={(event) => setText(event.target.value)}
-            onBlur={() => {
-              if (text.trim() !== note.trim()) void save(checked, text);
+            onChange={(event) => updateText(event.target.value)}
+            onBlur={(event) => {
+              const next = event.currentTarget.value;
+              updateText(next);
+              if (next.trim() !== note.trim()) void save(checked, next);
             }}
           />
           {message ? <p className="mt-2 text-xs">{message}</p> : null}
