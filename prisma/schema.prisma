@@ -27,6 +27,7 @@ model User {
   emails            EmailLog[]
   firstReviews      Contract[]       @relation("FirstReviewer")
   secondReviews     Contract[]       @relation("SecondReviewer")
+  secondReviewsCompleted Contract[]  @relation("SecondReviewCompletedBy")
   comments          ContractComment[]
 }
 
@@ -180,6 +181,9 @@ model Contract {
   firstReviewerName    String?
   secondReviewerName   String?
   secondReviewStartedAt DateTime?
+  secondReviewNote     String?
+  secondReviewCompletedAt DateTime?
+  secondReviewCompletedById String?
   letterDate           DateTime?
   rationaleNeeded      Boolean   @default(false)
   rationaleOk          Boolean   @default(false)
@@ -203,6 +207,7 @@ model Contract {
   routePacket     RouteDescription? @relation("ContractPacket", fields: [routePacketId], references: [id])
   firstReviewer   User?            @relation("FirstReviewer", fields: [firstReviewerId], references: [id])
   secondReviewer  User?            @relation("SecondReviewer", fields: [secondReviewerId], references: [id])
+  secondReviewCompletedBy User?     @relation("SecondReviewCompletedBy", fields: [secondReviewCompletedById], references: [id])
   routes          Route[]
   routeLinks      ContractRouteDescription[]
   extraPackets    ExtraPacket[]

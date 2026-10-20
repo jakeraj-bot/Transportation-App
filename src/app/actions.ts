@@ -1221,6 +1221,34 @@ export async function saveBidSpec(form: FormData) {
   redirect(`/bid-specs/${row.id}`);
 }
 
+export async function saveSecondReviewNote(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "edit") && !can(user, "create")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const contract = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
+  if (!contract) throw new Error("That contract could not be found.");
+  const done = form.get("done") === "on" || form.get("done") === "true";
+  const note = formString(form, "note");
+  await prisma.contract.update({
+    where: { id },
+    data: {
+      secondReviewNote: note || null,
+      secondReviewCompletedAt: done ? contract.secondReviewCompletedAt ?? new Date() : null,
+      secondReviewCompletedById: done ? contract.secondReviewCompletedById ?? user.id : null,
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: id,
+    summary: done
+      ? `Noted 2nd review done for ${contract.multiContractNumber}`
+      : `Cleared the 2nd review note for ${contract.multiContractNumber}`,
+  });
+  revalidateAll();
+}
+
 export async function updateChecklistItem(form: FormData) {
   const user = await requireSession();
   if (!can(user, "edit")) throw new Error("You do not have permission.");

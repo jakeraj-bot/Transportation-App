@@ -129,6 +129,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         heading: "Checklist, PT-4, and letters",
         steps: [
           "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
+          "Under Review process, the 2nd review section is where you note that the second look is finished. Check 2nd review done and write what you confirmed. The contract shows the date and your name.",
           "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
           "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",

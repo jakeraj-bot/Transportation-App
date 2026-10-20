@@ -9,6 +9,7 @@ import {
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
 import { DeleteContractButton } from "@/components/delete-contract-button";
 import { RationaleFlag } from "@/components/rationale-flag";
+import { SecondReviewNote } from "@/components/second-review-note";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
@@ -63,6 +64,7 @@ export default async function ContractDetailPage({
       hostDistrict: true,
       firstReviewer: true,
       secondReviewer: true,
+      secondReviewCompletedBy: true,
       routeLinks: { include: { routeDescription: true } },
     },
   });
@@ -299,6 +301,9 @@ export default async function ContractDetailPage({
               Waiting {Math.max(1, Math.round(secondHours))} hours
               {firstReviewerLabel ? ` · first review by ${firstReviewerLabel}` : ""}
               {secondReviewerLabel ? ` · assigned to ${secondReviewerLabel}` : " · pick who will do the 2nd review"}
+              {contract.secondReviewCompletedAt
+                ? ` · done ${formatDate(contract.secondReviewCompletedAt)}${contract.secondReviewCompletedBy?.name ? ` by ${contract.secondReviewCompletedBy.name}` : ""}`
+                : ""}
             </p>
           ) : (
             <>
@@ -307,6 +312,12 @@ export default async function ContractDetailPage({
               ) : null}
               {secondReviewerLabel ? (
                 <p className="mt-2 text-sm text-muted">2nd reviewer: {secondReviewerLabel}</p>
+              ) : null}
+              {contract.secondReviewCompletedAt ? (
+                <p className="mt-2 text-sm text-muted">
+                  2nd review done {formatDate(contract.secondReviewCompletedAt)}
+                  {contract.secondReviewCompletedBy?.name ? ` by ${contract.secondReviewCompletedBy.name}` : ""}
+                </p>
               ) : null}
             </>
           )}
@@ -425,7 +436,7 @@ export default async function ContractDetailPage({
           <CollapsibleSection
             compact
             title="Review process"
-            hint={`${checklistDef?.name ?? "Checklist"}, review and decide${contract.rationaleNeeded ? ", rationale letter" : ""}`}
+            hint={`${checklistDef?.name ?? "Checklist"}, 2nd review, review and decide${contract.rationaleNeeded ? ", rationale letter" : ""}`}
           >
             <div className="space-y-6">
               <div>
@@ -440,6 +451,16 @@ export default async function ContractDetailPage({
                   ))}
                 </div>
               </div>
+
+              <SecondReviewNote
+                contractId={contract.id}
+                done={Boolean(contract.secondReviewCompletedAt)}
+                note={contract.secondReviewNote ?? ""}
+                assignee={secondReviewerLabel || undefined}
+                completedLabel={contract.secondReviewCompletedAt ? formatDate(contract.secondReviewCompletedAt) : undefined}
+                completedBy={contract.secondReviewCompletedBy?.name}
+                canEdit={canEdit}
+              />
 
               {contract.bidSpec ? (
                 <div>
