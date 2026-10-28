@@ -8,6 +8,27 @@ export function needsRationaleLetter(
   return daysBetween(receivedDate, boardMeetingDate) >= 30;
 }
 
+function sameInstant(left?: Date | null, right?: Date | null) {
+  if (!left || !right) return false;
+  return left.getTime() === right.getTime();
+}
+
+/** A late packet still needs a letter unless someone marked these exact dates OK. */
+export function rationaleStillNeeded(contract: {
+  receivedDate?: Date | null;
+  boardMeetingDate?: Date | null;
+  rationaleOk?: boolean;
+  rationaleOkReceivedAt?: Date | null;
+  rationaleOkBoardAt?: Date | null;
+}) {
+  if (!needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate)) return false;
+  const waived =
+    Boolean(contract.rationaleOk) &&
+    sameInstant(contract.rationaleOkReceivedAt, contract.receivedDate) &&
+    sameInstant(contract.rationaleOkBoardAt, contract.boardMeetingDate);
+  return !waived;
+}
+
 export function missedNextBoardMeeting(
   quoteApprovedAt?: Date | null,
   boardMeetingDate?: Date | null
@@ -31,6 +52,17 @@ export function insuranceCoverage(input: {
     !input.namedDistrict.toLowerCase().includes(input.districtName.toLowerCase()) &&
     !input.districtName.toLowerCase().includes(input.namedDistrict.toLowerCase());
 
+  if (!input.contractStart && !input.contractEnd) {
+    if (!input.insEnd) {
+      return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
+    }
+    return {
+      kind: "pending" as const,
+      label: "Insurance dates are on file. Enter the contract dates during review to check the full run.",
+      gapStart: null,
+      gapEnd: null,
+    };
+  }
   if (!input.insEnd) {
     return { kind: "missing" as const, label: "No insurance expiration on file", gapStart: null, gapEnd: null };
   }
@@ -63,9 +95,30 @@ export function insuranceCoverage(input: {
   return { kind: "covers" as const, label: "This certificate covers the full contract period", gapStart: null, gapEnd: null };
 }
 
-export function hoursInSecondReview(startedAt?: Date | null) {
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/** Whole days a contract has been in 2nd review. The same calendar day is 0. */
+export function daysInSecondReview(startedAt?: Date | null, now = Date.now()) {
   if (!startedAt) return 0;
-  return Math.max(0, (Date.now() - startedAt.getTime()) / (1000 * 60 * 60));
+  return Math.max(0, Math.floor((now - startedAt.getTime()) / DAY_MS));
+}
+
+export function formatSecondReviewDays(startedAt?: Date | null, now = Date.now()) {
+  const days = daysInSecondReview(startedAt, now);
+  if (days <= 0) return "Less than 1 day";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
+/** Days for the Home alert. Older offices stored this as hours. */
+export function alertDaysFromStored(daysRaw?: string | null, hoursRaw?: string | null) {
+  const days = Number(daysRaw);
+  if (daysRaw != null && daysRaw.trim() !== "" && Number.isFinite(days) && days >= 0) {
+    return Math.floor(days);
+  }
+  const hours = Number(hoursRaw);
+  if (Number.isFinite(hours) && hours > 0) return Math.max(1, Math.round(hours / 24));
+  return 2;
 }
 
 /** @deprecated use insuranceCoverage */

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
+import { formatCompanyNames } from "@/lib/contract-intake";
 import { prisma } from "@/lib/prisma";
+import { textContains } from "@/lib/text-match";
 
 export default async function SearchPage({
   searchParams,
@@ -10,35 +12,74 @@ export default async function SearchPage({
   const { q = "" } = await searchParams;
   const term = q.trim();
   if (!term) {
-    return <PageHeader title="Search" backHref="/" hint="Type a district, contractor, multi-contract number, or route number." />;
+    return <PageHeader title="Search" backHref="/" hint="Type a district, contractor, parent name, multi-contract number, or route number." />;
   }
-  const [contracts, contractors, districts, routes] = await Promise.all([
+  const has = textContains(term);
+  const [contracts, extraCompanyContracts, contractors, districts, routes] = await Promise.all([
     prisma.contract.findMany({
-      where: { deletedAt: null, OR: [{ multiContractNumber: { contains: term } }, { notes: { contains: term } }] },
-      include: { district: true, contractor: true },
+      where: {
+        deletedAt: null,
+        OR: [
+          { multiContractNumber: has },
+          { bidNumber: has },
+          { renewalNumber: has },
+          { parentName: has },
+          { notes: has },
+          { contractor: { legalName: has } },
+        ],
+      },
+      include: { district: true, contractor: true, extraContractors: { include: { contractor: true } } },
+      take: 20,
+    }),
+    prisma.contract.findMany({
+      where: {
+        deletedAt: null,
+        extraContractors: { some: { contractor: { legalName: has } } },
+      },
+      include: { district: true, contractor: true, extraContractors: { include: { contractor: true } } },
       take: 20,
     }),
     prisma.contractor.findMany({
-      where: { deletedAt: null, OR: [{ legalName: { contains: term } }, { vendorCode: { contains: term } }, { dba: { contains: term } }] },
+      where: {
+        deletedAt: null,
+        OR: [
+          { legalName: has },
+          { vendorCode: has },
+          { dba: has },
+          { ospCode: has },
+          { county: has },
+        ],
+      },
       take: 20,
     }),
     prisma.district.findMany({
-      where: { deletedAt: null, name: { contains: term } },
+      where: { deletedAt: null, name: has },
       take: 20,
     }),
     prisma.route.findMany({
-      where: { number: { contains: term } },
+      where: { number: has },
       include: { contract: { include: { district: true } } },
       take: 20,
     }),
   ]);
+  const contractMap = new Map([...contracts, ...extraCompanyContracts].map((row) => [row.id, row]));
+  const contractRows = [...contractMap.values()];
   return (
     <div className="space-y-6">
       <PageHeader title={`Results for “${term}”`} backHref="/" />
       <Card>
         <h2 className="serif mb-2 text-2xl">Contracts</h2>
-        {contracts.length === 0 ? <p className="text-muted">None</p> : contracts.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/contracts/${c.id}`}>{c.multiContractNumber}</Link> · {c.district.name} · {c.contractor.legalName}</p>
+        {contractRows.length === 0 ? <p className="text-muted">None</p> : contractRows.map((c) => (
+          <p key={c.id}>
+            <Link className="text-teal" href={`/contracts/${c.id}`}>{c.multiContractNumber}</Link>
+            {" · "}
+            {c.district.name}
+            {" · "}
+            {formatCompanyNames([
+              c.parentName || c.contractor.legalName,
+              ...c.extraContractors.map((link) => link.contractor.legalName),
+            ])}
+          </p>
         ))}
       </Card>
       <Card>
@@ -50,7 +91,7 @@ export default async function SearchPage({
       <Card>
         <h2 className="serif mb-2 text-2xl">Contractors</h2>
         {contractors.length === 0 ? <p className="text-muted">None</p> : contractors.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/contractors/${c.id}`}>{c.legalName}</Link></p>
+          <p key={c.id}><Link className="text-teal" href={`/contractors/${c.id}`}>{c.legalName}</Link>{c.county ? ` · ${c.county}` : ""}</p>
         ))}
       </Card>
       <Card>
