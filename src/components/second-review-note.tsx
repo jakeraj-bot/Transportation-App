@@ -46,7 +46,6 @@ export function SecondReviewNote({
 
   return (
     <div>
-      <h3 className="mb-2 font-medium">2nd review</h3>
       <p className="mb-3 text-sm text-muted">
         Check this when the second look is finished. Write what you confirmed.
         {assignee ? ` Assigned to ${assignee}.` : ""}

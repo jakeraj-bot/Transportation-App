@@ -129,7 +129,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         heading: "Checklist, PT-4, and letters",
         steps: [
           "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
-          "Under Review process, the 2nd review section is where you note that the second look is finished. Check 2nd review done and write what you confirmed. The contract shows the date and your name.",
+          "2nd review is its own section, listed under Review process. Check 2nd review done and write what you confirmed. The contract shows the date and your name.",
           "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
           "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
@@ -138,7 +138,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Edit a contract and manage routes",
         bullets: [
-          "Open the contract and expand Edit contract to change district, bus company, status, dates, costs, bonds, and other review fields.",
+          "Change the status at the top of the contract. Pick the new status and choose Update status. Choosing 2nd review also asks who will do that review.",
+          "Open Edit contract for district, bus company, dates, costs, bonds, and the other review fields.",
           "Expand Routes to add more route numbers any time.",
           "If the district cancels one route but keeps the others, use Cancel this route only on that route. The route stays on the contract for the record; other routes stay active.",
           "Addendums belong to a route that is already on a contract. Click a route number to add or edit addendums there.",

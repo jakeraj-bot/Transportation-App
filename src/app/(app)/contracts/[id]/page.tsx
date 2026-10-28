@@ -11,6 +11,7 @@ import { DeleteContractButton } from "@/components/delete-contract-button";
 import { RationaleFlag } from "@/components/rationale-flag";
 import { RationaleLetterAsk } from "@/components/rationale-letter-ask";
 import { SecondReviewNote } from "@/components/second-review-note";
+import { ContractStatusForm } from "@/components/contract-status-form";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
@@ -36,6 +37,7 @@ export default async function ContractDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     saved?: string;
+    statusUpdated?: string;
     error?: string;
     addendumLinked?: string;
     addendumCount?: string;
@@ -278,6 +280,7 @@ export default async function ContractDetailPage({
       />
 
       {linked.saved ? <Flag tone="sage">Saved. This contract is on file.</Flag> : null}
+      {linked.statusUpdated ? <Flag tone="sage">Status updated.</Flag> : null}
       {linked.error ? <Flag tone="rose">{linked.error}</Flag> : null}
       {linked.addendumLinked ? (
         <Flag tone="sage">
@@ -294,7 +297,7 @@ export default async function ContractDetailPage({
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
+        <Card className="md:col-span-2 xl:col-span-4">
           <p className="text-sm text-muted">Status</p>
           <div className="mt-2"><StatusChip name={contract.statusName} color={statusColor} /></div>
           {contract.statusName === "2nd review" ? (
@@ -327,6 +330,15 @@ export default async function ContractDetailPage({
           ) : null}
           {contract.sentToDistrictAt ? (
             <p className="mt-2 text-sm text-muted">Letter sent {formatDate(contract.sentToDistrictAt)}</p>
+          ) : null}
+          {canEdit ? (
+            <ContractStatusForm
+              contractId={contract.id}
+              statusName={contract.statusName}
+              statuses={statuses}
+              secondReviewers={reviewers}
+              secondReviewerId={contract.secondReviewerId}
+            />
           ) : null}
         </Card>
         <Card>
@@ -437,7 +449,7 @@ export default async function ContractDetailPage({
           <CollapsibleSection
             compact
             title="Review process"
-            hint={`${checklistDef?.name ?? "Checklist"}, 2nd review, review and decide${contract.rationaleNeeded ? ", rationale letter" : ""}`}
+            hint={`${checklistDef?.name ?? "Checklist"}, review and decide${contract.rationaleNeeded ? ", rationale letter" : ""}`}
           >
             <div className="space-y-6">
               <div>
@@ -452,16 +464,6 @@ export default async function ContractDetailPage({
                   ))}
                 </div>
               </div>
-
-              <SecondReviewNote
-                contractId={contract.id}
-                done={Boolean(contract.secondReviewCompletedAt)}
-                note={contract.secondReviewNote ?? ""}
-                assignee={secondReviewerLabel || undefined}
-                completedLabel={contract.secondReviewCompletedAt ? formatDate(contract.secondReviewCompletedAt) : undefined}
-                completedBy={contract.secondReviewCompletedBy?.name}
-                canEdit={canEdit}
-              />
 
               {contract.bidSpec ? (
                 <div>
@@ -562,6 +564,28 @@ export default async function ContractDetailPage({
                 ) : null}
               </div>
             </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            compact
+            title="2nd review"
+            hint={
+              contract.secondReviewCompletedAt
+                ? `Done ${formatDate(contract.secondReviewCompletedAt)}${contract.secondReviewCompletedBy?.name ? ` by ${contract.secondReviewCompletedBy.name}` : ""}`
+                : secondReviewerLabel
+                  ? `Assigned to ${secondReviewerLabel}`
+                  : "Check this when the second look is finished"
+            }
+          >
+            <SecondReviewNote
+              contractId={contract.id}
+              done={Boolean(contract.secondReviewCompletedAt)}
+              note={contract.secondReviewNote ?? ""}
+              assignee={secondReviewerLabel || undefined}
+              completedLabel={contract.secondReviewCompletedAt ? formatDate(contract.secondReviewCompletedAt) : undefined}
+              completedBy={contract.secondReviewCompletedBy?.name}
+              canEdit={canEdit}
+            />
           </CollapsibleSection>
 
           <CollapsibleSection

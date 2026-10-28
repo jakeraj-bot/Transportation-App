@@ -1249,6 +1249,44 @@ export async function saveSecondReviewNote(form: FormData) {
   revalidateAll();
 }
 
+export async function updateContractStatus(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "edit") && !can(user, "create")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const contract = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
+  if (!contract) throw new Error("That contract could not be found.");
+  const statusName = formString(form, "statusName");
+  const allowed = statusName
+    ? await prisma.status.findFirst({ where: { entityType: "contract", name: statusName, deletedAt: null } })
+    : null;
+  if (!allowed) {
+    redirect(`/contracts/${id}?error=${encodeURIComponent("Choose a status from the list.")}`);
+  }
+  const assignedSecondReviewerId = await resolveSecondReviewerId(form, statusName, id, contract.type);
+  const firstReviewerId =
+    !contract.firstReviewerId && ["1st review missing items", "2nd review"].includes(statusName) ? user.id : undefined;
+  const secondReviewStartedAt =
+    statusName === "2nd review" && !contract.secondReviewStartedAt ? new Date() : undefined;
+  await prisma.contract.update({
+    where: { id },
+    data: {
+      statusName,
+      ...(firstReviewerId ? { firstReviewerId } : {}),
+      ...(secondReviewStartedAt ? { secondReviewStartedAt } : {}),
+      ...(assignedSecondReviewerId ? { secondReviewerId: assignedSecondReviewerId, secondReviewerName: null } : {}),
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: id,
+    summary: `Changed ${contract.multiContractNumber} status to ${statusName}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${id}?statusUpdated=1`);
+}
+
 export async function updateChecklistItem(form: FormData) {
   const user = await requireSession();
   if (!can(user, "edit")) throw new Error("You do not have permission.");
