@@ -163,7 +163,7 @@ export const FONT_GROUPS = [
 
 export type FontGroup = (typeof FONT_GROUPS)[number]["id"];
 
-/** Add a Google font in src/app/layout.tsx, then add a row here so it appears in Settings. */
+/** Add the font file under src/fonts, register it in src/app/layout.tsx, then add a row here so it appears in Settings. */
 export const HOME_FONTS = [
   { id: "sans", label: "Source Sans (default)", group: "sans", stack: 'var(--font-sans), "Segoe UI", system-ui, sans-serif' },
   { id: "inter", label: "Inter", group: "sans", stack: 'var(--font-inter), "Segoe UI", sans-serif' },
