@@ -29,7 +29,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "On a large screen, the menu stays on the left.",
           "On a phone or small laptop, tap Menu at the top left.",
           "Use ← Back at the top of a page to return to the list you came from.",
-          "The search box at the top finds a district, contractor, multi-contract number, or route number.",
+          "The search box at the top finds a district, contractor, multi-contract number, or route number. Capital letters do not matter.",
         ],
       },
       {

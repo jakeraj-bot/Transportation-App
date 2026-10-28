@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { formatCompanyNames } from "@/lib/contract-intake";
 import { prisma } from "@/lib/prisma";
+import { textContains } from "@/lib/text-match";
 
 export default async function SearchPage({
   searchParams,
@@ -13,17 +14,18 @@ export default async function SearchPage({
   if (!term) {
     return <PageHeader title="Search" backHref="/" hint="Type a district, contractor, parent name, multi-contract number, or route number." />;
   }
+  const has = textContains(term);
   const [contracts, extraCompanyContracts, contractors, districts, routes] = await Promise.all([
     prisma.contract.findMany({
       where: {
         deletedAt: null,
         OR: [
-          { multiContractNumber: { contains: term } },
-          { bidNumber: { contains: term } },
-          { renewalNumber: { contains: term } },
-          { parentName: { contains: term } },
-          { notes: { contains: term } },
-          { contractor: { legalName: { contains: term } } },
+          { multiContractNumber: has },
+          { bidNumber: has },
+          { renewalNumber: has },
+          { parentName: has },
+          { notes: has },
+          { contractor: { legalName: has } },
         ],
       },
       include: { district: true, contractor: true, extraContractors: { include: { contractor: true } } },
@@ -32,7 +34,7 @@ export default async function SearchPage({
     prisma.contract.findMany({
       where: {
         deletedAt: null,
-        extraContractors: { some: { contractor: { legalName: { contains: term } } } },
+        extraContractors: { some: { contractor: { legalName: has } } },
       },
       include: { district: true, contractor: true, extraContractors: { include: { contractor: true } } },
       take: 20,
@@ -41,21 +43,21 @@ export default async function SearchPage({
       where: {
         deletedAt: null,
         OR: [
-          { legalName: { contains: term } },
-          { vendorCode: { contains: term } },
-          { dba: { contains: term } },
-          { ospCode: { contains: term } },
-          { county: { contains: term } },
+          { legalName: has },
+          { vendorCode: has },
+          { dba: has },
+          { ospCode: has },
+          { county: has },
         ],
       },
       take: 20,
     }),
     prisma.district.findMany({
-      where: { deletedAt: null, name: { contains: term } },
+      where: { deletedAt: null, name: has },
       take: 20,
     }),
     prisma.route.findMany({
-      where: { number: { contains: term } },
+      where: { number: has },
       include: { contract: { include: { district: true } } },
       take: 20,
     }),
