@@ -7,6 +7,7 @@ import { TemplateUploadForm } from "@/components/template-upload";
 import { Button, Field, Flag, PageHeader, inputClass } from "@/components/ui";
 import { getSession } from "@/lib/auth";
 import { getSetting } from "@/lib/data";
+import { alertDaysFromStored } from "@/lib/flags";
 import { outlookConfigured } from "@/lib/email";
 import { parseHomePrefs } from "@/lib/home-prefs";
 import { prisma } from "@/lib/prisma";
@@ -38,7 +39,7 @@ export default async function SettingsPage({
   const session = await getSession();
   if (!session) redirect("/login");
   const admin = isSuperAdmin(session.role);
-  const [{ uploaded, uploadError, homeSaved }, schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertHours, templates, me] =
+  const [{ uploaded, uploadError, homeSaved }, schoolYear, cpi, bidThreshold, officeName, officeEmail, alertOn, alertDaysStored, alertHoursStored, templates, me] =
     await Promise.all([
       searchParams,
       getSetting("schoolYear"),
@@ -47,10 +48,12 @@ export default async function SettingsPage({
       getSetting("officeName"),
       getSetting("officeEmail"),
       getSetting("secondReviewAlertOn", "off"),
+      getSetting("secondReviewAlertDays", ""),
       getSetting("secondReviewAlertHours", "48"),
       admin ? prisma.templateFile.findMany() : Promise.resolve([]),
       prisma.user.findUnique({ where: { id: session.id } }),
     ]);
+  const alertDays = alertDaysFromStored(alertDaysStored, alertHoursStored);
   const byKey = Object.fromEntries(templates.map((t) => [t.key, t.originalName]));
   const prefs = parseHomePrefs(me?.homePrefs);
   return (
@@ -99,8 +102,8 @@ export default async function SettingsPage({
                   <option value="on">On</option>
                 </select>
               </Field>
-              <Field label="Hours before the 2nd-review alert" hint="Example: 48 means two days.">
-                <input className={inputClass} name="secondReviewAlertHours" defaultValue={alertHours} />
+              <Field label="Days before the 2nd-review alert" hint="Example: 2 means the Home alert shows after two days.">
+                <input className={inputClass} name="secondReviewAlertDays" defaultValue={String(alertDays)} inputMode="numeric" />
               </Field>
               <div><Button type="submit">Save settings</Button></div>
             </form>

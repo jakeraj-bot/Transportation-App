@@ -153,6 +153,7 @@ async function main() {
     officeName: "Passaic County Superintendent of Schools",
     officeEmail: "transportation@passaic.nj.us",
     secondReviewAlertOn: "off",
+    secondReviewAlertDays: "2",
     secondReviewAlertHours: "48",
   };
   for (const [key, value] of Object.entries(settings)) {

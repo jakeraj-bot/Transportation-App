@@ -20,7 +20,7 @@ export type ContractListRow = {
   statusColor?: string;
   rationaleNeeded: boolean;
   nextMeetingFlag: boolean;
-  secondReviewHours?: number;
+  secondReviewWait?: string;
   secondReviewerName?: string;
   hostDistrictId?: string | null;
   hostName?: string | null;
@@ -163,9 +163,9 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                   {c.jointNote ? <div className="text-xs text-teal">{c.jointNote}</div> : null}
                   {c.rationaleNeeded ? <div className="text-xs text-rose">Needs rationale letter</div> : null}
                   {c.nextMeetingFlag ? <div className="text-xs text-amber">Next-meeting flag</div> : null}
-                  {c.statusName === "2nd review" && c.secondReviewHours != null ? (
+                  {c.statusName === "2nd review" && c.secondReviewWait ? (
                     <div className="text-xs text-muted">
-                      In 2nd review {Math.max(1, Math.round(c.secondReviewHours))}h
+                      In 2nd review {c.secondReviewWait}
                       {c.secondReviewerName ? ` · ${c.secondReviewerName}` : ""}
                     </div>
                   ) : null}

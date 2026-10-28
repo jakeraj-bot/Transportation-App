@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { needsRationaleLetter, rationaleStillNeeded } from "./flags";
+import { alertDaysFromStored, daysInSecondReview, formatSecondReviewDays, needsRationaleLetter, rationaleStillNeeded } from "./flags";
 
 const board = new Date("2026-08-18T00:00:00.000Z");
 const received = new Date("2026-09-17T00:00:00.000Z");
@@ -55,6 +55,20 @@ test("29 days does not ask for a rationale letter", () => {
     }),
     false
   );
+});
+
+test("2nd review waiting time is counted in days", () => {
+  const started = new Date("2026-10-26T15:00:00.000Z");
+  const sameAfternoon = new Date("2026-10-26T20:00:00.000Z").getTime();
+  const nextDay = new Date("2026-10-27T16:00:00.000Z").getTime();
+  const twoDays = new Date("2026-10-28T16:00:00.000Z").getTime();
+  assert.equal(daysInSecondReview(started, sameAfternoon), 0);
+  assert.equal(formatSecondReviewDays(started, sameAfternoon), "Less than 1 day");
+  assert.equal(daysInSecondReview(started, nextDay), 1);
+  assert.equal(formatSecondReviewDays(started, nextDay), "1 day");
+  assert.equal(formatSecondReviewDays(started, twoDays), "2 days");
+  assert.equal(alertDaysFromStored("", "48"), 2);
+  assert.equal(alertDaysFromStored("3", "48"), 3);
 });
 
 function days(later: Date, earlier: Date) {

@@ -95,9 +95,30 @@ export function insuranceCoverage(input: {
   return { kind: "covers" as const, label: "This certificate covers the full contract period", gapStart: null, gapEnd: null };
 }
 
-export function hoursInSecondReview(startedAt?: Date | null) {
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/** Whole days a contract has been in 2nd review. The same calendar day is 0. */
+export function daysInSecondReview(startedAt?: Date | null, now = Date.now()) {
   if (!startedAt) return 0;
-  return Math.max(0, (Date.now() - startedAt.getTime()) / (1000 * 60 * 60));
+  return Math.max(0, Math.floor((now - startedAt.getTime()) / DAY_MS));
+}
+
+export function formatSecondReviewDays(startedAt?: Date | null, now = Date.now()) {
+  const days = daysInSecondReview(startedAt, now);
+  if (days <= 0) return "Less than 1 day";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
+/** Days for the Home alert. Older offices stored this as hours. */
+export function alertDaysFromStored(daysRaw?: string | null, hoursRaw?: string | null) {
+  const days = Number(daysRaw);
+  if (daysRaw != null && daysRaw.trim() !== "" && Number.isFinite(days) && days >= 0) {
+    return Math.floor(days);
+  }
+  const hours = Number(hoursRaw);
+  if (Number.isFinite(hours) && hours > 0) return Math.max(1, Math.round(hours / 24));
+  return 2;
 }
 
 /** @deprecated use insuranceCoverage */

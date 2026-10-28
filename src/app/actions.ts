@@ -1448,7 +1448,7 @@ export async function saveSettings(form: FormData) {
     officeName: formString(form, "officeName"),
     officeEmail: formString(form, "officeEmail"),
     secondReviewAlertOn: formString(form, "secondReviewAlertOn"),
-    secondReviewAlertHours: formString(form, "secondReviewAlertHours"),
+    secondReviewAlertDays: formString(form, "secondReviewAlertDays") || "2",
   };
   for (const [key, value] of Object.entries(values)) {
     await prisma.setting.upsert({

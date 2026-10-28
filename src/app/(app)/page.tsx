@@ -3,7 +3,7 @@ import { Button, Card, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { getSession } from "@/lib/auth";
-import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
+import { alertDaysFromStored, daysInSecondReview, formatSecondReviewDays, insuranceCoverage } from "@/lib/flags";
 import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
 import { statusFillStyle } from "@/lib/status-color";
 import { reviewerLabel } from "@/lib/reviewers";
@@ -48,15 +48,16 @@ export default async function HomePage({
   searchParams: Promise<{ view?: string; second?: string }>;
 }) {
   const { view, second } = await searchParams;
-  const [schoolYear, session, alertOn, alertHoursRaw, dbStatuses] = await Promise.all([
+  const [schoolYear, session, alertOn, alertDaysRaw, alertHoursRaw, dbStatuses] = await Promise.all([
     getSchoolYear(),
     getSession(),
     getSetting("secondReviewAlertOn", "off"),
+    getSetting("secondReviewAlertDays", ""),
     getSetting("secondReviewAlertHours", "48"),
     getStatuses("contract"),
   ]);
   const statusColor = Object.fromEntries(dbStatuses.map((row) => [row.name, row.color]));
-  const alertHours = Number(alertHoursRaw) || 48;
+  const alertDays = alertDaysFromStored(alertDaysRaw, alertHoursRaw);
   const assigned = session?.districtIds ?? [];
   const showMine = Boolean(assigned.length) && view !== "all";
   const districtFilter = showMine ? { districtId: { in: assigned } } : {};
@@ -115,7 +116,7 @@ export default async function HomePage({
     ? secondReview.filter((row) => row.secondReviewerId === session?.id)
     : secondReview;
   const overdueSecond = secondReview.filter(
-    (c) => hoursInSecondReview(c.secondReviewStartedAt) >= alertHours
+    (c) => daysInSecondReview(c.secondReviewStartedAt) >= alertDays
   );
 
   const tiles: AttentionTile[] = [
@@ -178,7 +179,7 @@ export default async function HomePage({
       {alertOn === "on" && overdueSecond.length ? (
         <Card className="home-alert mb-6 bg-amber-soft">
           <p className="font-medium">
-            {overdueSecond.length} contract{overdueSecond.length === 1 ? "" : "s"} {overdueSecond.length === 1 ? "has" : "have"} been in 2nd review longer than {alertHours} hours.
+            {overdueSecond.length} contract{overdueSecond.length === 1 ? "" : "s"} {overdueSecond.length === 1 ? "has" : "have"} been in 2nd review longer than {alertDays} {alertDays === 1 ? "day" : "days"}.
           </p>
           {compact ? null : (
             <p className="mt-1 text-sm text-muted">Turn this alert off in Settings if you do not want it on the Home screen.</p>
@@ -288,8 +289,7 @@ function SecondReviewSection({
             </thead>
             <tbody>
               {rows.map((c) => {
-                const hours = hoursInSecondReview(c.secondReviewStartedAt);
-                const waiting = hours >= 24 ? `${Math.floor(hours / 24)}d ${Math.floor(hours % 24)}h` : `${Math.max(1, Math.round(hours))}h`;
+                const waiting = formatSecondReviewDays(c.secondReviewStartedAt);
                 const assignee = c.secondReviewer?.name || "—";
                 return (
                   <tr key={c.id} className="border-b border-line/70 last:border-0">

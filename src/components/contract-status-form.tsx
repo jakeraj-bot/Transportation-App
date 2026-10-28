@@ -3,15 +3,19 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { updateContractStatus } from "@/app/actions";
-import { SecondReviewerPicker } from "@/components/reviewer-fields";
-import { Button, Field, inputClass } from "@/components/ui";
 
-function UpdateStatusButton() {
+const controlClass = "min-w-0 flex-1 rounded-lg border border-line bg-white px-2 py-1 text-sm text-ink";
+
+function UpdateButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Updating…" : "Update status"}
-    </Button>
+    <button
+      type="submit"
+      disabled={pending}
+      className="shrink-0 rounded-lg bg-teal px-2 py-1 text-sm font-medium text-white disabled:opacity-60"
+    >
+      {pending ? "Saving…" : "Update"}
+    </button>
   );
 }
 
@@ -34,12 +38,13 @@ export function ContractStatusForm({
     : [{ id: "current", name: statusName }, ...statuses];
 
   return (
-    <form action={updateContractStatus} className="mt-4 flex flex-wrap items-end gap-3">
+    <form action={updateContractStatus} className="mt-2 space-y-1.5">
       <input type="hidden" name="id" value={contractId} />
-      <Field label="Change status" className="min-w-56 flex-1">
+      <div className="flex items-center gap-1.5">
         <select
-          className={inputClass}
+          className={controlClass}
           name="statusName"
+          aria-label="Change status"
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >
@@ -49,13 +54,24 @@ export function ContractStatusForm({
             </option>
           ))}
         </select>
-      </Field>
+        <UpdateButton />
+      </div>
       {status === "2nd review" ? (
-        <div className="min-w-64 flex-1">
-          <SecondReviewerPicker reviewers={secondReviewers} defaultId={secondReviewerId} />
-        </div>
+        <select
+          className={`${controlClass} w-full`}
+          name="secondReviewerId"
+          aria-label="2nd reviewer"
+          required
+          defaultValue={secondReviewerId ?? ""}
+        >
+          <option value="">2nd reviewer</option>
+          {secondReviewers.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+            </option>
+          ))}
+        </select>
       ) : null}
-      <UpdateStatusButton />
     </form>
   );
 }

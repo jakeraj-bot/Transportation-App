@@ -20,7 +20,7 @@ import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
-import { hoursInSecondReview, insuranceCoverage, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
+import { formatSecondReviewDays, insuranceCoverage, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
 import { checklistDefinition } from "@/lib/checklists";
@@ -195,7 +195,7 @@ export default async function ContractDetailPage({
     contract.priorYearCost != null
       ? contract.priorYearCost * (1 + Number(cpi) / 100)
       : null;
-  const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
+  const secondWait = formatSecondReviewDays(contract.secondReviewStartedAt);
   const rationaleLate = needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate);
   const rationaleWaived = rationaleLate && !rationaleStillNeeded(contract);
   const rationaleDays =
@@ -297,12 +297,12 @@ export default async function ContractDetailPage({
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="md:col-span-2 xl:col-span-4">
+        <Card>
           <p className="text-sm text-muted">Status</p>
           <div className="mt-2"><StatusChip name={contract.statusName} color={statusColor} /></div>
           {contract.statusName === "2nd review" ? (
             <p className="mt-2 text-sm text-muted">
-              Waiting {Math.max(1, Math.round(secondHours))} hours
+              Waiting {secondWait}
               {firstReviewerLabel ? ` · first review by ${firstReviewerLabel}` : ""}
               {secondReviewerLabel ? ` · assigned to ${secondReviewerLabel}` : " · pick who will do the 2nd review"}
               {contract.secondReviewCompletedAt

@@ -4,7 +4,7 @@ import { ContractList } from "@/components/contract-list";
 import { prisma } from "@/lib/prisma";
 import { getSchoolYear, getStatuses } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
-import { hoursInSecondReview } from "@/lib/flags";
+import { formatSecondReviewDays } from "@/lib/flags";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
 import { jointMatchesForContract } from "@/lib/joint-agreements";
@@ -109,7 +109,7 @@ export default async function ContractsPage({
             statusColor: statusColor[c.statusName],
             rationaleNeeded: c.rationaleNeeded,
             nextMeetingFlag: c.nextMeetingFlag,
-            secondReviewHours: c.statusName === "2nd review" ? hoursInSecondReview(c.secondReviewStartedAt) : undefined,
+            secondReviewWait: c.statusName === "2nd review" ? formatSecondReviewDays(c.secondReviewStartedAt) : undefined,
             secondReviewerName: c.secondReviewer
               ? c.secondReviewer.id === session?.id
                 ? `${c.secondReviewer.name} (you)`

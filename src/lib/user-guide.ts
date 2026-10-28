@@ -138,7 +138,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Edit a contract and manage routes",
         bullets: [
-          "Change the status at the top of the contract. Pick the new status and choose Update status. Choosing 2nd review also asks who will do that review.",
+          "Change the status in the Status card at the top of the contract. Pick the new status and choose Update. Choosing 2nd review also asks who will do that review.",
           "Open Edit contract for district, bus company, dates, costs, bonds, and the other review fields.",
           "Expand Routes to add more route numbers any time.",
           "If the district cancels one route but keeps the others, use Cancel this route only on that route. The route stays on the contract for the record; other routes stay active.",
@@ -323,7 +323,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Click a heading on Settings to open that section. Click it again to close it, so you do not have to scroll the whole page.",
           "School year, CPI percent for renewals, and the bid threshold (used to flag quotes that look over the limit).",
           "Office name and email used on letters and follow-up.",
-          "Second-review alert: turn on if you want Home to warn you when a contract sits in 2nd review longer than the hours you set.",
+          "Second-review alert: turn on if you want Home to warn you when a contract sits in 2nd review longer than the days you set.",
         ],
       },
       {
