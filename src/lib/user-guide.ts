@@ -227,11 +227,13 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         bullets: [
-          "One certificate is filed per contractor per district. A Clifton cert cannot cover Wayne. The district named as additional insured must match.",
-          "If a contractor has five contracts with the same district, one current certificate can cover all five.",
-          "Enter the coverage start and end dates. The app compares them to the contract start and end.",
-          "Example: contract ends June 30, 2027 and insurance ends March 3, 2027 — we need a new cert for March 4 through June 30.",
-          "Example: contract runs September 1, 2026–June 30, 2027 and insurance runs July 1, 2026–July 1, 2027 — no update needed.",
+          "A certificate is filed per contractor per district. A Clifton cert cannot cover Wayne. The district named as additional insured must match.",
+          "Keep every certificate. When you add the updated policy, the current one stays on file. The contract is covered when the dates together span the full run.",
+          "If a contractor has five contracts with the same district, the certificates on file can cover all five.",
+          "Enter the coverage start and end dates on the new certificate. Do not replace the dates on the current one.",
+          "Example: contract ends June 30, 2027 and the current insurance ends March 3, 2027. Add a certificate for March 4 through June 30. Both stay on file.",
+          "Example: contract runs September 1, 2026–June 30, 2027 and one certificate runs July 1, 2026–July 1, 2027 — no update needed.",
+          "A gap between two certificates is still uncovered. March 3 then March 5 leaves March 4 open.",
           "Upload the certificate file so the next person can open it.",
         ],
       },

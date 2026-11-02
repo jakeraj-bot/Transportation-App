@@ -689,24 +689,25 @@ async function upsertInsuranceExpiration({
 }) {
   const district = await prisma.district.findUnique({ where: { id: districtId } });
   const expired = expiresAt < new Date();
+  const expirationKey = expiresAt.toISOString().slice(0, 10);
   for (const contractorId of [...new Set(contractorIds)]) {
-    const existing = await prisma.insuranceCertificate.findFirst({
+    const existing = await prisma.insuranceCertificate.findMany({
       where: { contractorId, districtId, deletedAt: null },
-      orderBy: { expiresAt: "desc" },
     });
-    const insData = {
-      schoolYear,
-      expiresAt,
-      namedDistrict: district?.name ?? null,
-      statusName: expired ? "Needs update" : "On file",
-    };
-    if (existing) {
-      await prisma.insuranceCertificate.update({ where: { id: existing.id }, data: insData });
-    } else {
-      await prisma.insuranceCertificate.create({
-        data: { contractorId, districtId, ...insData },
-      });
-    }
+    const alreadyFiled = existing.some(
+      (cert) => cert.expiresAt && cert.expiresAt.toISOString().slice(0, 10) === expirationKey
+    );
+    if (alreadyFiled) continue;
+    await prisma.insuranceCertificate.create({
+      data: {
+        contractorId,
+        districtId,
+        schoolYear,
+        expiresAt,
+        namedDistrict: district?.name ?? null,
+        statusName: expired ? "Needs update" : "On file",
+      },
+    });
   }
 }
 

@@ -20,7 +20,7 @@ import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@
 import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { outlookConfigured } from "@/lib/email";
-import { formatSecondReviewDays, insuranceCoverage, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
+import { certificatesCoverContract, formatSecondReviewDays, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
 import { checklistDefinition } from "@/lib/checklists";
@@ -175,20 +175,23 @@ export default async function ContractDetailPage({
       (c) => c.schoolYear === contract.schoolYear && !c.deletedAt && (c.county === "Passaic" || !c.county)
     ) ??
     contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
-  const insurance = await prisma.insuranceCertificate.findFirst({
-    where: {
-      contractorId: contract.contractorId,
-      districtId: contract.districtId,
-      deletedAt: null,
-    },
-    orderBy: { expiresAt: "desc" },
+  const insuranceRows = (
+    await prisma.insuranceCertificate.findMany({
+      where: {
+        contractorId: contract.contractorId,
+        districtId: contract.districtId,
+        deletedAt: null,
+      },
+    })
+  ).sort((a, b) => {
+    const start = (a.startsOn?.getTime() ?? 0) - (b.startsOn?.getTime() ?? 0);
+    if (start !== 0) return start;
+    return (a.expiresAt?.getTime() ?? 0) - (b.expiresAt?.getTime() ?? 0);
   });
-  const ins = insuranceCoverage({
-    insStart: insurance?.startsOn,
-    insEnd: insurance?.expiresAt,
+  const ins = certificatesCoverContract({
+    certificates: insuranceRows,
     contractStart: contract.startsOn,
     contractEnd: contract.endsOn,
-    namedDistrict: insurance?.namedDistrict,
     districtName: contract.district.name,
   });
   const cpiMax =
@@ -227,9 +230,14 @@ export default async function ContractDetailPage({
     cancelNote: route.cancelNote,
     addendaCount: route.addenda.length,
   }));
-  const insuranceHint = insurance
-    ? `${formatDate(insurance.startsOn)} – ${formatDate(insurance.expiresAt)}`
+  const insuranceHint = insuranceRows.length
+    ? insuranceRows.length === 1
+      ? `${formatDate(insuranceRows[0].startsOn)} – ${formatDate(insuranceRows[0].expiresAt)}`
+      : `${insuranceRows.length} certificates on file`
     : "No certificate on file yet";
+  const insuranceSpan = insuranceRows
+    .map((row) => `${formatDate(row.startsOn)} – ${formatDate(row.expiresAt)}`)
+    .join("; ");
   const superAdmin = isSuperAdmin(session?.role);
   const defaultIntakeNote = "Entered from the current-system list.";
   const displayComments = [
@@ -431,9 +439,7 @@ export default async function ContractDetailPage({
         ) : (
           <Flag tone="sage">
             Insurance for {contract.district.name} covers this contract
-            {insurance?.startsOn || insurance?.expiresAt
-              ? ` (${formatDate(insurance?.startsOn)} – ${formatDate(insurance?.expiresAt)})`
-              : ""}.
+            {insuranceSpan ? ` (${insuranceSpan})` : ""}.
           </Flag>
         )}
         {cpiMax != null && contract.cost != null && contract.cost > cpiMax + 0.01 && contract.type === "renewal" ? (
@@ -642,22 +648,30 @@ export default async function ContractDetailPage({
 
           <CollapsibleSection compact title="Insurance" hint={insuranceHint}>
             <p className="mb-3 text-sm text-muted">
-              We do not approve insurance. Keep the policy dates so we can tell when it expires. Uploading the file is optional.
+              We do not approve insurance. Keep every certificate. An updated policy stays on file with the current one, and the dates are checked together.
             </p>
-            {insurance ? (
-              <p className="mb-3 text-sm">
-                Named: {insurance.namedDistrict || "—"} · {formatDate(insurance.startsOn)} – {formatDate(insurance.expiresAt)}{" "}
-                {insurance.filePath ? (
-                  <a className="text-teal hover:underline" href={`/api/files?path=${encodeURIComponent(insurance.filePath)}`}>Open file</a>
-                ) : (
-                  <span className="text-muted">(no file uploaded)</span>
-                )}
-              </p>
+            {insuranceRows.length ? (
+              <ul className="mb-3 space-y-2 text-sm">
+                {insuranceRows.map((row) => (
+                  <li key={row.id}>
+                    <Link className="text-teal hover:underline" href={`/insurance/${row.id}`}>
+                      {formatDate(row.startsOn)} – {formatDate(row.expiresAt)}
+                    </Link>
+                    {row.policyNumber ? ` · ${row.policyNumber}` : ""}
+                    {" · "}Named: {row.namedDistrict || "—"}{" "}
+                    {row.filePath ? (
+                      <a className="text-teal hover:underline" href={`/api/files?path=${encodeURIComponent(row.filePath)}`}>Open file</a>
+                    ) : (
+                      <span className="text-muted">(no file uploaded)</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             ) : (
               <p className="mb-3 text-sm text-muted">No certificate on file that names {contract.district.name}.</p>
             )}
             <Link className="text-sm text-teal hover:underline" href={`/insurance/new?contractorId=${contract.contractorId}&districtId=${contract.districtId}`}>
-              Add insurance dates
+              {insuranceRows.length ? "Add updated insurance" : "Add insurance dates"}
             </Link>
             {ins.kind !== "covers" && ins.kind !== "pending" ? (
               <div className="mt-4">

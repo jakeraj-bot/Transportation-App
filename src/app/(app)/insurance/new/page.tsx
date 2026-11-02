@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { saveInsurance } from "@/app/actions";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { activeContractors, activeDistricts, getSchoolYear } from "@/lib/data";
+import { prisma } from "@/lib/prisma";
+import { formatDate } from "@/lib/utils";
 
 export default async function NewInsurancePage({
   searchParams,
@@ -8,18 +11,40 @@ export default async function NewInsurancePage({
   searchParams: Promise<{ contractorId?: string; districtId?: string }>;
 }) {
   const q = await searchParams;
-  const [contractors, districts, schoolYear] = await Promise.all([
+  const [contractors, districts, schoolYear, alreadyOnFile] = await Promise.all([
     activeContractors(),
     activeDistricts(),
     getSchoolYear(),
+    q.contractorId && q.districtId
+      ? prisma.insuranceCertificate.findMany({
+          where: { contractorId: q.contractorId, districtId: q.districtId, deletedAt: null },
+          orderBy: [{ startsOn: "asc" }, { expiresAt: "asc" }],
+        })
+      : Promise.resolve([]),
   ]);
   return (
     <div>
       <PageHeader
         title="Add insurance certificate"
         backHref="/insurance"
-        hint="We do not approve insurance. File the policy dates so every contract between this contractor and this district stays covered. Uploading the certificate is optional."
+        hint="We do not approve insurance. The certificate already on file stays. Enter the updated policy here, and the dates are checked together."
       />
+      {alreadyOnFile.length ? (
+        <Card className="mb-4">
+          <h2 className="serif mb-2 text-2xl">Already on file</h2>
+          <p className="mb-3 text-sm text-muted">These stay when you save the updated certificate.</p>
+          <ul className="space-y-1 text-sm">
+            {alreadyOnFile.map((cert) => (
+              <li key={cert.id}>
+                <Link className="text-teal hover:underline" href={`/insurance/${cert.id}`}>
+                  {formatDate(cert.startsOn)} – {formatDate(cert.expiresAt)}
+                </Link>
+                {cert.policyNumber ? ` · ${cert.policyNumber}` : ""}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       <Card>
         <form action={saveInsurance} className="grid gap-4 md:grid-cols-2">
           <Field label="Contractor">

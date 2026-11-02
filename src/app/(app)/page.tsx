@@ -3,7 +3,7 @@ import { Button, Card, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { getSchoolYear, getSetting, getStatuses } from "@/lib/data";
 import { getSession } from "@/lib/auth";
-import { alertDaysFromStored, daysInSecondReview, formatSecondReviewDays, insuranceCoverage } from "@/lib/flags";
+import { alertDaysFromStored, certificatesCoverContract, daysInSecondReview, formatSecondReviewDays } from "@/lib/flags";
 import { parseHomePrefs, type HomeTileKey } from "@/lib/home-prefs";
 import { statusFillStyle } from "@/lib/status-color";
 import { reviewerLabel } from "@/lib/reviewers";
@@ -376,17 +376,20 @@ async function countInsuranceGaps(schoolYear: string) {
   const certs = await prisma.insuranceCertificate.findMany({
     where: { deletedAt: null },
   });
+  const byPair = new Map<string, typeof certs>();
+  for (const cert of certs) {
+    const key = `${cert.contractorId}:${cert.districtId}`;
+    const list = byPair.get(key) ?? [];
+    list.push(cert);
+    byPair.set(key, list);
+  }
   let gaps = 0;
   for (const contract of contracts) {
-    const cert = certs.find(
-      (c) => c.contractorId === contract.contractorId && c.districtId === contract.districtId
-    );
-    const result = insuranceCoverage({
-      insStart: cert?.startsOn,
-      insEnd: cert?.expiresAt,
+    const pair = byPair.get(`${contract.contractorId}:${contract.districtId}`) ?? [];
+    const result = certificatesCoverContract({
+      certificates: pair,
       contractStart: contract.startsOn,
       contractEnd: contract.endsOn,
-      namedDistrict: cert?.namedDistrict,
       districtName: contract.district.name,
     });
     if (result.kind === "gap" || result.kind === "missing") gaps += 1;

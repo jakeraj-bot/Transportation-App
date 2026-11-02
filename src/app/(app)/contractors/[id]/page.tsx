@@ -5,7 +5,7 @@ import { ContractorForm } from "@/components/contractor-form";
 import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
-import { insuranceCoverage } from "@/lib/flags";
+import { certificatesCoverContract } from "@/lib/flags";
 
 export default async function ContractorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,30 +56,39 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">Insurance by district</h2>
-        <p className="mb-3 text-muted">One certificate can cover every contract this contractor has with that district, as long as the dates cover the full run.</p>
+        <p className="mb-3 text-muted">Keep every certificate for a district. An updated policy stays with the current one, and together they need to cover each contract.</p>
         <div className="space-y-2">
-          {contractor.insurance.length === 0 ? <p className="text-muted">None on file yet.</p> : contractor.insurance.map((ins) => {
-            const matching = contractor.contracts.filter((c) => c.districtId === ins.districtId);
+          {contractor.insurance.length === 0 ? <p className="text-muted">None on file yet.</p> : [...new Set(contractor.insurance.map((ins) => ins.districtId))].map((districtId) => {
+            const rows = contractor.insurance
+              .filter((ins) => ins.districtId === districtId)
+              .sort((a, b) => (a.startsOn?.getTime() ?? 0) - (b.startsOn?.getTime() ?? 0));
+            const matching = contractor.contracts.filter((c) => c.districtId === districtId);
             const worst = matching.reduce<{ kind: string; label: string }>(
               (acc, c) => {
-                const result = insuranceCoverage({
-                  insStart: ins.startsOn,
-                  insEnd: ins.expiresAt,
+                const result = certificatesCoverContract({
+                  certificates: rows,
                   contractStart: c.startsOn,
                   contractEnd: c.endsOn,
-                  namedDistrict: ins.namedDistrict,
-                  districtName: ins.district.name,
+                  districtName: rows[0].district.name,
                 });
-                return result.kind === "covers" ? acc : result;
+                return result.kind === "covers" || result.kind === "pending" ? acc : result;
               },
               { kind: "covers", label: "Covers the contracts on file" }
             );
             return (
-              <div key={ins.id} className="flex justify-between gap-3 rounded-xl border border-line px-4 py-3">
+              <div key={districtId} className="flex justify-between gap-3 rounded-xl border border-line px-4 py-3">
                 <div>
-                  <Link className="text-teal" href={`/insurance/${ins.id}`}>{ins.district.name}</Link>
+                  <p className="font-medium">{rows[0].district.name}</p>
+                  {rows.map((ins) => (
+                    <p key={ins.id} className="text-sm text-muted">
+                      <Link className="text-teal" href={`/insurance/${ins.id}`}>
+                        {formatDate(ins.startsOn)} – {formatDate(ins.expiresAt)}
+                      </Link>
+                      {ins.policyNumber ? ` · ${ins.policyNumber}` : ""}
+                    </p>
+                  ))}
                   <p className="text-sm text-muted">
-                    {formatDate(ins.startsOn)} – {formatDate(ins.expiresAt)} · {matching.length} contract{matching.length === 1 ? "" : "s"}
+                    {matching.length} contract{matching.length === 1 ? "" : "s"}
                   </p>
                 </div>
                 <StatusChip name={worst.label} color={worst.kind === "covers" ? "sage" : "rose"} />
