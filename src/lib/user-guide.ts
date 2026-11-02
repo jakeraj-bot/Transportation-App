@@ -29,7 +29,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "On a large screen, the menu stays on the left.",
           "On a phone or small laptop, tap Menu at the top left.",
           "Use ← Back at the top of a page to return to the list you came from.",
-          "The search box at the top finds a district, contractor, multi-contract number, or route number. Capital letters do not matter.",
+          "The search box at the top finds a district, contractor, multi-contract number, or route number. Capital letters do not matter, including a route such as w4q or W4Q.",
         ],
       },
       {
@@ -328,7 +328,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Users",
-        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts. Check Do 2nd reviews for each person who should be on the list when a contract is sent to 2nd review. Super Admin is always on that list. The 2nd review list still shows every district; Assigned to me filters it to the person you picked.",
+        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts. Super Admin, contract reviewers, and office managers can be picked for a 2nd review. Check Do 2nd reviews to add anyone else. The 2nd review list still shows every district; Assigned to me filters it to the person you picked.",
       },
       {
         heading: "Statuses and letters",

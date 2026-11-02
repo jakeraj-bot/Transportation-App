@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { formatCompanyNames } from "@/lib/contract-intake";
 import { prisma } from "@/lib/prisma";
-import { textContains } from "@/lib/text-match";
+import { textContains, textMatches } from "@/lib/text-match";
 
 export default async function SearchPage({
   searchParams,
@@ -15,7 +15,7 @@ export default async function SearchPage({
     return <PageHeader title="Search" backHref="/" hint="Type a district, contractor, parent name, multi-contract number, or route number." />;
   }
   const has = textContains(term);
-  const [contracts, extraCompanyContracts, contractors, districts, routes] = await Promise.all([
+  const [contracts, extraCompanyContracts, contractors, districts, routeRows, extraRouteRows, routeLines, routePackets] = await Promise.all([
     prisma.contract.findMany({
       where: {
         deletedAt: null,
@@ -57,12 +57,89 @@ export default async function SearchPage({
       take: 20,
     }),
     prisma.route.findMany({
-      where: { number: has },
-      include: { contract: { include: { district: true } } },
-      take: 20,
+      where: { contract: { deletedAt: null } },
+      select: {
+        id: true,
+        number: true,
+        destination: true,
+        contractId: true,
+        contract: { select: { multiContractNumber: true, district: { select: { name: true } } } },
+      },
+    }),
+    prisma.extraPacket.findMany({
+      where: { contract: { deletedAt: null } },
+      select: {
+        id: true,
+        routeNumber: true,
+        contractId: true,
+        contract: { select: { multiContractNumber: true, district: { select: { name: true } } } },
+      },
+    }),
+    prisma.routeLine.findMany({
+      select: {
+        id: true,
+        routeNumber: true,
+        destination: true,
+        packet: { select: { id: true, title: true, deletedAt: true, district: { select: { name: true } } } },
+      },
+    }),
+    prisma.routeDescription.findMany({
+      where: { deletedAt: null },
+      select: { id: true, title: true, routeNumbers: true, destination: true, district: { select: { name: true } } },
     }),
   ]);
-  const contractMap = new Map([...contracts, ...extraCompanyContracts].map((row) => [row.id, row]));
+  const routeHits: Array<{ key: string; href: string; label: string; detail: string; contractId?: string }> = [];
+  for (const route of routeRows) {
+    if (!textMatches(route.number, term) && !textMatches(route.destination, term)) continue;
+    routeHits.push({
+      key: `route-${route.id}`,
+      href: `/contracts/${route.contractId}/routes/${route.id}`,
+      label: `Route ${route.number}`,
+      detail: [route.contract.multiContractNumber, route.contract.district.name, route.destination].filter(Boolean).join(" · "),
+      contractId: route.contractId,
+    });
+  }
+  for (const packet of extraRouteRows) {
+    if (!textMatches(packet.routeNumber, term)) continue;
+    routeHits.push({
+      key: `extra-${packet.id}`,
+      href: `/contracts/${packet.contractId}`,
+      label: `Route ${packet.routeNumber}`,
+      detail: [packet.contract.multiContractNumber, packet.contract.district.name].filter(Boolean).join(" · "),
+      contractId: packet.contractId,
+    });
+  }
+  for (const line of routeLines) {
+    if (line.packet.deletedAt) continue;
+    if (!textMatches(line.routeNumber, term) && !textMatches(line.destination, term)) continue;
+    routeHits.push({
+      key: `line-${line.id}`,
+      href: `/route-descriptions/${line.packet.id}`,
+      label: `Route ${line.routeNumber}`,
+      detail: [line.packet.title, line.packet.district.name, line.destination].filter(Boolean).join(" · "),
+    });
+  }
+  const shownPackets = new Set(routeHits.filter((hit) => hit.key.startsWith("line-")).map((hit) => hit.href));
+  for (const packet of routePackets) {
+    const href = `/route-descriptions/${packet.id}`;
+    if (shownPackets.has(href)) continue;
+    if (!textMatches(packet.routeNumbers, term) && !textMatches(packet.title, term) && !textMatches(packet.destination, term)) continue;
+    routeHits.push({
+      key: `desc-${packet.id}`,
+      href,
+      label: packet.routeNumbers ? `Routes ${packet.routeNumbers}` : packet.title,
+      detail: [packet.title, packet.district.name, packet.destination].filter(Boolean).join(" · "),
+    });
+  }
+  const routes = routeHits.slice(0, 20);
+  const routeContractIds = [...new Set(routes.map((hit) => hit.contractId).filter((id): id is string => Boolean(id)))];
+  const contractsFromRoutes = routeContractIds.length
+    ? await prisma.contract.findMany({
+        where: { deletedAt: null, id: { in: routeContractIds } },
+        include: { district: true, contractor: true, extraContractors: { include: { contractor: true } } },
+      })
+    : [];
+  const contractMap = new Map([...contracts, ...extraCompanyContracts, ...contractsFromRoutes].map((row) => [row.id, row]));
   const contractRows = [...contractMap.values()];
   return (
     <div className="space-y-6">
@@ -84,8 +161,8 @@ export default async function SearchPage({
       </Card>
       <Card>
         <h2 className="serif mb-2 text-2xl">Routes</h2>
-        {routes.length === 0 ? <p className="text-muted">None</p> : routes.map((r) => (
-          <p key={r.id}><Link className="text-teal" href={`/contracts/${r.contractId}`}>Route {r.number}</Link> · {r.contract.multiContractNumber} · {r.contract.district.name}</p>
+        {routes.length === 0 ? <p className="text-muted">None</p> : routes.map((route) => (
+          <p key={route.key}><Link className="text-teal" href={route.href}>{route.label}</Link>{route.detail ? ` · ${route.detail}` : ""}</p>
         ))}
       </Card>
       <Card>

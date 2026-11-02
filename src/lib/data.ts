@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { CHECKLISTS, checklistDefinition } from "./checklists";
 import { prisma } from "./prisma";
+import { userCanSecondReview } from "./reviewers";
 import { currentSchoolYear } from "./utils";
 
 export async function getSetting(key: string, fallback = "") {
@@ -31,18 +32,19 @@ export async function activeDistricts() {
 
 export async function secondReviewers() {
   noStore();
-  return prisma.user.findMany({
-    where: {
-      deletedAt: null,
-      active: true,
-      OR: [
-        { role: "super_admin" },
-        { permissions: { some: { permissionKey: "second_review" } } },
-      ],
-    },
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null, active: true },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, role: true, permissions: { select: { permissionKey: true } } },
   });
+  return users
+    .filter((user) =>
+      userCanSecondReview({
+        role: user.role,
+        permissionKeys: user.permissions.map((row) => row.permissionKey),
+      })
+    )
+    .map(({ id, name }) => ({ id, name }));
 }
 
 export async function activeContractors() {

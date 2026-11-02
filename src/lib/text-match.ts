@@ -6,3 +6,9 @@ export function isPostgresDatabase(url = process.env.DATABASE_URL) {
 export function textContains(term: string, postgres = isPostgresDatabase()) {
   return postgres ? { contains: term, mode: "insensitive" as const } : { contains: term };
 }
+
+export function textMatches(value: string | null | undefined, term: string) {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return false;
+  return (value ?? "").toLowerCase().includes(needle);
+}

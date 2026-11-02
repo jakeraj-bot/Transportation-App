@@ -80,6 +80,9 @@ export function UserForm({
           ))}
         </div>
       </div>
+      {perms.map((key) => (
+        <input key={key} type="hidden" name="permissionKeys" value={key} />
+      ))}
       <div className="md:col-span-2">
         <p className="mb-2 text-sm font-medium">What they are allowed to do</p>
         <p className="mb-3 text-sm text-muted">
@@ -91,6 +94,7 @@ export function UserForm({
             <input
               type="checkbox"
               name={`perm_${p.key}`}
+              value="on"
               checked={perms.includes(p.key)}
               onChange={(e) => {
                 const key = p.key as PermissionKey;

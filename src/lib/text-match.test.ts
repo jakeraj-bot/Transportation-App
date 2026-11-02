@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPostgresDatabase, textContains } from "./text-match";
+import { isPostgresDatabase, textContains, textMatches } from "./text-match";
 
 test("contract search ignores letter case on Postgres", () => {
   assert.equal(isPostgresDatabase("postgresql://localhost/office"), true);
@@ -12,4 +12,11 @@ test("contract search ignores letter case on Postgres", () => {
 
 test("sqlite search stays a plain contains filter", () => {
   assert.deepEqual(textContains("wayne", false), { contains: "wayne" });
+});
+
+test("a route number matches without matching capital letters", () => {
+  assert.equal(textMatches("W4Q", "w4q"), true);
+  assert.equal(textMatches("w4q", "W4Q"), true);
+  assert.equal(textMatches("Route W4Q", "w4q"), true);
+  assert.equal(textMatches("H2", "w4q"), false);
 });

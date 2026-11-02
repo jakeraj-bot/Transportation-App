@@ -22,7 +22,7 @@ import {
   schoolYearDates,
   splitRoutes,
 } from "@/lib/utils";
-import { parseReviewerChoice } from "@/lib/reviewers";
+import { parseReviewerChoice, userCanSecondReview } from "@/lib/reviewers";
 import {
   describeSpreadsheet,
   mapContractType,
@@ -426,18 +426,17 @@ async function resolveSecondReviewerId(form: FormData, statusName: string, contr
   const picked = formString(form, "secondReviewerId");
   const allowed = picked
     ? await prisma.user.findFirst({
-        where: {
-          id: picked,
-          deletedAt: null,
-          active: true,
-          OR: [
-            { role: "super_admin" },
-            { permissions: { some: { permissionKey: "second_review" } } },
-          ],
-        },
+        where: { id: picked, deletedAt: null, active: true },
+        include: { permissions: { select: { permissionKey: true } } },
       })
     : null;
-  if (!allowed) {
+  const canReview = allowed
+    ? userCanSecondReview({
+        role: allowed.role,
+        permissionKeys: allowed.permissions.map((row) => row.permissionKey),
+      })
+    : false;
+  if (!allowed || !canReview) {
     const message =
       "Choose who will do the 2nd review. Under Settings → Users, check Do 2nd reviews for each person who should be on that list.";
     if (contractId) redirect(`/contracts/${contractId}?error=${encodeURIComponent(message)}`);
@@ -1496,7 +1495,9 @@ export async function saveUser(form: FormData) {
           adminSetPassword: passwordValue || "Passaic2026!",
         },
       });
-  const selected = ALL_PERMISSION_KEYS.filter((key) => form.get(`perm_${key}`) === "on");
+  const posted = form.getAll("permissionKeys").map((value) => String(value));
+  const checked = ALL_PERMISSION_KEYS.filter((key) => form.get(`perm_${key}`) === "on");
+  const selected = (posted.length ? ALL_PERMISSION_KEYS.filter((key) => posted.includes(key)) : checked);
   const perms = selected.length ? selected : ROLE_PERMISSIONS[role] ?? ["view"];
   await prisma.userPermission.deleteMany({ where: { userId: row.id } });
   await prisma.userPermission.createMany({

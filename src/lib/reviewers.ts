@@ -1,3 +1,10 @@
+export const SECOND_REVIEW_ROLES = ["super_admin", "reviewer", "office_manager"] as const;
+
+export function userCanSecondReview(user: { role?: string | null; permissionKeys?: string[] | null }) {
+  if (user.role && (SECOND_REVIEW_ROLES as readonly string[]).includes(user.role)) return true;
+  return Boolean(user.permissionKeys?.includes("second_review"));
+}
+
 export function reviewerLabel(
   userName?: string | null,
   typedName?: string | null

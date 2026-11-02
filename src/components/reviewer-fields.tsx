@@ -18,7 +18,7 @@ export function SecondReviewerPicker({
   return (
     <Field
       label="Who will do the 2nd review"
-      hint="Everyone in 2nd review can see this contract. The person you pick can filter the list to the ones assigned to them. Add people under Settings → Users by checking Do 2nd reviews."
+      hint="Contract reviewers, office managers, and anyone checked for Do 2nd reviews are listed here."
     >
       <select className={inputClass} name="secondReviewerId" required defaultValue={defaultId ?? ""}>
         <option value="">Choose a person</option>
