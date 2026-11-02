@@ -42,15 +42,17 @@ export const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "edit",
     "delete",
     "approve",
+    "second_review",
     "send_email",
     "manage_users",
     "manage_statuses",
     "manage_templates",
     "upload_files",
+    "edit_districts",
   ],
-  reviewer: ["view", "create", "edit", "approve", "send_email", "upload_files"],
+  reviewer: ["view", "create", "edit", "approve", "second_review", "send_email", "upload_files"],
   intake: ["view", "create", "edit", "upload_files"],
-  office_manager: ["view", "edit", "approve"],
+  office_manager: ["view", "edit", "approve", "second_review"],
   route_reviewer: ["view", "create", "edit", "approve", "upload_files"],
   staff: ["view"],
 };
@@ -70,4 +72,8 @@ export const CONTRACT_STATUSES = [
 
 export function isSuperAdmin(role?: string | null) {
   return role === "super_admin";
+}
+
+export function canEditDistricts(role?: string | null, permissions?: string[] | null) {
+  return isSuperAdmin(role) || Boolean(permissions?.includes("edit_districts"));
 }

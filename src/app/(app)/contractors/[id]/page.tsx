@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { softDelete } from "@/app/actions";
 import { ContractorForm } from "@/components/contractor-form";
-import { Card, PageHeader, StatusChip } from "@/components/ui";
+import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
-import { insuranceCoverage } from "@/lib/flags";
+import { certificatesCoverContract } from "@/lib/flags";
 
 export default async function ContractorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,9 +27,12 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       <PageHeader
         title={contractor.legalName}
         backHref="/contractors"
-        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}`}
+        hint={`Vendor ${contractor.vendorCode || "not on file"} · OSP ${contractor.ospCode || "not on file"}${contractor.county ? ` · ${contractor.county} County` : ""}`}
         actions={<form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>}
       />
+      {contractor.incomplete ? (
+        <Flag tone="rose">This contractor was added by name only. Fill in the details below so contracts stop highlighting it in red.</Flag>
+      ) : null}
       <Card>
         <ContractorForm
           id={contractor.id}
@@ -38,6 +41,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
             dba: contractor.dba,
             vendorCode: contractor.vendorCode,
             ospCode: contractor.ospCode,
+            county: contractor.county,
             busLocation: contractor.busLocation,
             contactName: contractor.contactName,
             email: contractor.email,
@@ -52,30 +56,39 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">Insurance by district</h2>
-        <p className="mb-3 text-muted">One certificate can cover every contract this contractor has with that district, as long as the dates cover the full run.</p>
+        <p className="mb-3 text-muted">Keep every certificate for a district. An updated policy stays with the current one, and together they need to cover each contract.</p>
         <div className="space-y-2">
-          {contractor.insurance.length === 0 ? <p className="text-muted">None on file yet.</p> : contractor.insurance.map((ins) => {
-            const matching = contractor.contracts.filter((c) => c.districtId === ins.districtId);
+          {contractor.insurance.length === 0 ? <p className="text-muted">None on file yet.</p> : [...new Set(contractor.insurance.map((ins) => ins.districtId))].map((districtId) => {
+            const rows = contractor.insurance
+              .filter((ins) => ins.districtId === districtId)
+              .sort((a, b) => (a.startsOn?.getTime() ?? 0) - (b.startsOn?.getTime() ?? 0));
+            const matching = contractor.contracts.filter((c) => c.districtId === districtId);
             const worst = matching.reduce<{ kind: string; label: string }>(
               (acc, c) => {
-                const result = insuranceCoverage({
-                  insStart: ins.startsOn,
-                  insEnd: ins.expiresAt,
+                const result = certificatesCoverContract({
+                  certificates: rows,
                   contractStart: c.startsOn,
                   contractEnd: c.endsOn,
-                  namedDistrict: ins.namedDistrict,
-                  districtName: ins.district.name,
+                  districtName: rows[0].district.name,
                 });
-                return result.kind === "covers" ? acc : result;
+                return result.kind === "covers" || result.kind === "pending" ? acc : result;
               },
               { kind: "covers", label: "Covers the contracts on file" }
             );
             return (
-              <div key={ins.id} className="flex justify-between gap-3 rounded-xl border border-line px-4 py-3">
+              <div key={districtId} className="flex justify-between gap-3 rounded-xl border border-line px-4 py-3">
                 <div>
-                  <Link className="text-teal" href={`/insurance/${ins.id}`}>{ins.district.name}</Link>
+                  <p className="font-medium">{rows[0].district.name}</p>
+                  {rows.map((ins) => (
+                    <p key={ins.id} className="text-sm text-muted">
+                      <Link className="text-teal" href={`/insurance/${ins.id}`}>
+                        {formatDate(ins.startsOn)} – {formatDate(ins.expiresAt)}
+                      </Link>
+                      {ins.policyNumber ? ` · ${ins.policyNumber}` : ""}
+                    </p>
+                  ))}
                   <p className="text-sm text-muted">
-                    {formatDate(ins.startsOn)} – {formatDate(ins.expiresAt)} · {matching.length} contract{matching.length === 1 ? "" : "s"}
+                    {matching.length} contract{matching.length === 1 ? "" : "s"}
                   </p>
                 </div>
                 <StatusChip name={worst.label} color={worst.kind === "covers" ? "sage" : "rose"} />
@@ -87,10 +100,27 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
       </Card>
       <Card>
         <h2 className="serif mb-3 text-2xl">Annual certifications</h2>
-        {contractor.annualCerts.map((c) => (
-          <p key={c.id}><Link className="text-teal" href={`/certs/${c.id}`}>{c.schoolYear}</Link> — {c.statusName}</p>
+        <p className="mb-3 text-sm text-muted">
+          One cert per county per school year. If this company has a terminal in another county, add another cert for that county.
+        </p>
+        {contractor.annualCerts
+          .slice()
+          .sort(
+            (a, b) =>
+              b.schoolYear.localeCompare(a.schoolYear) || (a.county || "").localeCompare(b.county || "")
+          )
+          .map((c) => (
+          <p key={c.id}>
+            <Link className="text-teal" href={`/certs/${c.id}`}>
+              {c.schoolYear}
+              {c.county || contractor.county ? ` · ${c.county || contractor.county}` : ""}
+            </Link>{" "}
+            — {c.statusName}
+          </p>
         ))}
-        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>Add annual cert</Link>
+        <Link className="mt-2 inline-block text-teal" href={`/certs/new?contractorId=${contractor.id}`}>
+          Add annual cert
+        </Link>
       </Card>
     </div>
   );
