@@ -1039,7 +1039,9 @@ export async function saveCert(form: FormData) {
 
 export async function saveInsurance(form: FormData) {
   const user = await requireSession();
-  if (!can(user, "upload_files") && !can(user, "create")) throw new Error("You do not have permission.");
+  if (!can(user, "upload_files") && !can(user, "create") && !can(user, "edit")) {
+    throw new Error("You do not have permission.");
+  }
   const id = formString(form, "id");
   const file = form.get("file") as File | null;
   let filePath: string | undefined;
@@ -1071,7 +1073,16 @@ export async function saveInsurance(form: FormData) {
     summary: `Saved insurance for a contractor/district pair`,
   });
   revalidateAll();
+  const returnTo = contractInsuranceReturn(formString(form, "returnTo"));
+  if (returnTo) redirect(`${returnTo}?insuranceSaved=1#insurance`);
   redirect(`/insurance/${row.id}`);
+}
+
+/** Stay on the contract the person was reviewing. Only that path is accepted. */
+function contractInsuranceReturn(value: string) {
+  const path = value.split("?")[0].split("#")[0];
+  if (!/^\/contracts\/[A-Za-z0-9_-]+$/.test(path)) return null;
+  return path;
 }
 
 export async function saveRouteDescription(form: FormData) {

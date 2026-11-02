@@ -229,6 +229,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         bullets: [
           "A certificate is filed per contractor per district. A Clifton cert cannot cover Wayne. The district named as additional insured must match.",
           "Keep every certificate. When you add the updated policy, the current one stays on file. The contract is covered when the dates together span the full run.",
+          "On the contract, open Insurance and enter the new dates there. You stay on that contract. The Insurance page shows the same certificate.",
           "If a contractor has five contracts with the same district, the certificates on file can cover all five.",
           "Enter the coverage start and end dates on the new certificate. Do not replace the dates on the current one.",
           "Example: contract ends June 30, 2027 and the current insurance ends March 3, 2027. Add a certificate for March 4 through June 30. Both stay on file.",

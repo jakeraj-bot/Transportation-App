@@ -32,9 +32,8 @@ function useRememberOpen(title: string, defaultOpen = false) {
     if (!el) return;
     const key = storageKey(path, title);
     const stored = sessionStorage.getItem(key);
-    if (stored === "1") el.open = true;
+    if (defaultOpen || stored === "1") el.open = true;
     else if (stored === "0") el.open = false;
-    else if (defaultOpen) el.open = true;
     const onToggle = () => sessionStorage.setItem(key, el.open ? "1" : "0");
     el.addEventListener("toggle", onToggle);
     return () => el.removeEventListener("toggle", onToggle);
@@ -58,7 +57,7 @@ export function CollapsibleSection({
   const ref = useRememberOpen(title, defaultOpen);
   return (
     <Card className="overflow-hidden p-0">
-      <details ref={ref}>
+      <details ref={ref} {...(defaultOpen ? { open: true } : {})}>
         <summary
           className={`collapse-summary flex cursor-pointer items-start justify-between gap-3 ${compact ? "px-4 py-3" : "gap-4 px-6 py-5"}`}
         >

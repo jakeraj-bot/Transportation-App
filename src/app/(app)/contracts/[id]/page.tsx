@@ -4,6 +4,7 @@ import {
   addContractComment,
   deleteContractComment,
   markLetterSent,
+  saveInsurance,
   saveSignedApprovalLetter,
 } from "@/app/actions";
 import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
@@ -45,12 +46,14 @@ export default async function ContractDetailPage({
     routesAdded?: string;
     routeCancelled?: string;
     routeRestored?: string;
+    insuranceSaved?: string;
   }>;
 }) {
   const { id } = await params;
   const linked = await searchParams;
   const session = await getSession();
   const canEdit = can(session, "create") || can(session, "edit");
+  const canFileInsurance = can(session, "upload_files") || can(session, "create") || can(session, "edit");
   const canApprove = can(session, "approve");
   const canDelete = can(session, "delete") || isSuperAdmin(session?.role);
   const contract = await prisma.contract.findFirst({
@@ -646,10 +649,19 @@ export default async function ContractDetailPage({
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection compact title="Insurance" hint={insuranceHint}>
+          <div id="insurance">
+          <CollapsibleSection
+            compact
+            title="Insurance"
+            hint={insuranceHint}
+            defaultOpen={linked.insuranceSaved === "1"}
+          >
             <p className="mb-3 text-sm text-muted">
-              We do not approve insurance. Keep every certificate. An updated policy stays on file with the current one, and the dates are checked together.
+              Enter the certificate here. You stay on this contract, and the Insurance page gets the same certificate. The one already on file stays.
             </p>
+            {linked.insuranceSaved === "1" ? (
+              <p className="mb-3 text-sm text-teal">Saved. This certificate is on this contract and on the Insurance page.</p>
+            ) : null}
             {insuranceRows.length ? (
               <ul className="mb-3 space-y-2 text-sm">
                 {insuranceRows.map((row) => (
@@ -670,9 +682,32 @@ export default async function ContractDetailPage({
             ) : (
               <p className="mb-3 text-sm text-muted">No certificate on file that names {contract.district.name}.</p>
             )}
-            <Link className="text-sm text-teal hover:underline" href={`/insurance/new?contractorId=${contract.contractorId}&districtId=${contract.districtId}`}>
-              {insuranceRows.length ? "Add updated insurance" : "Add insurance dates"}
-            </Link>
+            {canFileInsurance ? (
+              <form action={saveInsurance} className="space-y-3 border-t border-line pt-3">
+                <input type="hidden" name="contractorId" value={contract.contractorId} />
+                <input type="hidden" name="districtId" value={contract.districtId} />
+                <input type="hidden" name="schoolYear" value={contract.schoolYear} />
+                <input type="hidden" name="returnTo" value={`/contracts/${contract.id}`} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Coverage start">
+                    <input className={inputClass} type="date" name="startsOn" required />
+                  </Field>
+                  <Field label="Coverage end">
+                    <input className={inputClass} type="date" name="expiresAt" required />
+                  </Field>
+                </div>
+                <Field label="Policy number">
+                  <input className={inputClass} name="policyNumber" />
+                </Field>
+                <Field label="Name on the certificate" hint={`This district is ${contract.district.name}.`}>
+                  <input className={inputClass} name="namedDistrict" defaultValue={contract.district.name} />
+                </Field>
+                <Field label="Certificate file (optional)">
+                  <input className={inputClass} type="file" name="file" />
+                </Field>
+                <Button type="submit">Save insurance</Button>
+              </form>
+            ) : null}
             {ins.kind !== "covers" && ins.kind !== "pending" ? (
               <div className="mt-4">
                 <SimpleEmailForm
@@ -686,6 +721,7 @@ export default async function ContractDetailPage({
               </div>
             ) : null}
           </CollapsibleSection>
+          </div>
 
           <CollapsibleSection
             compact
