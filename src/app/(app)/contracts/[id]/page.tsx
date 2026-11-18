@@ -13,6 +13,7 @@ import { RationaleFlag } from "@/components/rationale-flag";
 import { RationaleLetterAsk } from "@/components/rationale-letter-ask";
 import { SecondReviewNote } from "@/components/second-review-note";
 import { ContractStatusForm } from "@/components/contract-status-form";
+import { ContractRegistrationForm, ContractVendorForm } from "@/components/contract-contractor-fields";
 import { CollapsibleSection } from "@/components/collapsible";
 import { ContractForm } from "@/components/contract-form";
 import { ContractSnapshot } from "@/components/contract-snapshot";
@@ -47,6 +48,8 @@ export default async function ContractDetailPage({
     routeCancelled?: string;
     routeRestored?: string;
     insuranceSaved?: string;
+    codesSaved?: string;
+    brcSaved?: string;
   }>;
 }) {
   const { id } = await params;
@@ -307,7 +310,7 @@ export default async function ContractDetailPage({
         </Flag>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm text-muted">Status</p>
           <div className="mt-2"><StatusChip name={contract.statusName} color={statusColor} /></div>
@@ -359,13 +362,37 @@ export default async function ContractDetailPage({
         </Card>
         <Card>
           <p className="text-sm text-muted">Vendor / OSP</p>
-          <p className="mt-2 font-medium">{contract.contractor.vendorCode || "Vendor not on file"}</p>
-          <p className="text-sm text-muted">OSP {contract.contractor.ospCode || "not on file"}</p>
+          {canEdit ? (
+            <ContractVendorForm
+              contractId={contract.id}
+              contractorId={contract.contractorId}
+              vendorCode={contract.contractor.vendorCode}
+              ospCode={contract.contractor.ospCode}
+              saved={linked.codesSaved === "1"}
+            />
+          ) : (
+            <>
+              <p className="mt-2 font-medium">{contract.contractor.vendorCode || "Vendor not on file"}</p>
+              <p className="text-sm text-muted">OSP {contract.contractor.ospCode || "not on file"}</p>
+            </>
+          )}
         </Card>
         <Card>
           <p className="text-sm text-muted">Business registration</p>
-          <p className="mt-2 font-medium">{contract.contractor.brcStatus}</p>
-          <Link className="text-sm text-teal" href={`/contractors/${contract.contractorId}`}>Open BRC search from contractor</Link>
+          {canEdit ? (
+            <ContractRegistrationForm
+              contractId={contract.id}
+              contractorId={contract.contractorId}
+              legalName={contract.contractor.legalName}
+              brcNumber={contract.contractor.brcNumber}
+              brcNameControl={contract.contractor.brcNameControl}
+              brcStatus={contract.contractor.brcStatus}
+              brcVerifiedAt={contract.contractor.brcVerifiedAt}
+              saved={linked.brcSaved === "1"}
+            />
+          ) : (
+            <p className="mt-2 font-medium">{contract.contractor.brcStatus}</p>
+          )}
         </Card>
       </div>
 

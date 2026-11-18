@@ -106,6 +106,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Joint agreement: host district, joiner district, and routes are entered when the agreement arrives. There is no multi-contract number. A later original, renewal, quote, or parental shows the joint agreement when a route number matches, even though that contract lists only one district.",
           "Addendum: if the cost increased, the bond amount has to increase too.",
           "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
+          "Vendor code, OSP code, and business registration are entered on the contract. Save writes them onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
         ],
       },
       {

@@ -171,6 +171,54 @@ export async function saveContractor(form: FormData) {
   redirect(`/contractors/${row.id}`);
 }
 
+export async function saveContractorCodes(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const id = formString(form, "contractorId");
+  const vendorCode = formString(form, "vendorCode") || null;
+  const ospCode = formString(form, "ospCode") || null;
+  const row = await prisma.contractor.update({
+    where: { id },
+    data: { vendorCode, ospCode },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contractor",
+    entityId: row.id,
+    summary: `Updated vendor and OSP codes for ${row.legalName}`,
+  });
+  revalidateAll();
+  redirect(contractPageWith(formString(form, "returnTo"), "codesSaved=1"));
+}
+
+export async function saveContractorRegistration(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
+  const id = formString(form, "contractorId");
+  const current = await prisma.contractor.findUnique({ where: { id } });
+  if (!current) throw new Error("Contractor not found.");
+  const brcStatus = formString(form, "brcStatus") || "Not on file";
+  const row = await prisma.contractor.update({
+    where: { id },
+    data: {
+      brcNumber: formString(form, "brcNumber") || null,
+      brcNameControl: formString(form, "brcNameControl") || nameControlFrom(current.legalName) || null,
+      brcStatus,
+      ...(form.get("markVerified") ? { brcVerifiedAt: new Date() } : {}),
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contractor",
+    entityId: row.id,
+    summary: `Updated business registration for ${row.legalName}`,
+  });
+  revalidateAll();
+  redirect(contractPageWith(formString(form, "returnTo"), "brcSaved=1"));
+}
+
 export async function addQuickDistrict(name: string, county?: string) {
   const user = await requireSession();
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
@@ -1073,16 +1121,22 @@ export async function saveInsurance(form: FormData) {
     summary: `Saved insurance for a contractor/district pair`,
   });
   revalidateAll();
-  const returnTo = contractInsuranceReturn(formString(form, "returnTo"));
+  const returnTo = contractPageReturn(formString(form, "returnTo"));
   if (returnTo) redirect(`${returnTo}?insuranceSaved=1#insurance`);
   redirect(`/insurance/${row.id}`);
 }
 
 /** Stay on the contract the person was reviewing. Only that path is accepted. */
-function contractInsuranceReturn(value: string) {
+function contractPageReturn(value: string) {
   const path = value.split("?")[0].split("#")[0];
   if (!/^\/contracts\/[A-Za-z0-9_-]+$/.test(path)) return null;
   return path;
+}
+
+function contractPageWith(value: string, query: string) {
+  const path = contractPageReturn(value);
+  if (!path) redirect("/contracts");
+  return `${path}?${query}`;
 }
 
 export async function saveRouteDescription(form: FormData) {
