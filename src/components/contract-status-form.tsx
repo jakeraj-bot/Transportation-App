@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { updateContractStatus } from "@/app/actions";
+import { contractReviewBlock } from "@/lib/review-gates";
 
 const controlClass = "min-w-0 flex-1 rounded-lg border border-line bg-white px-2 py-1 text-sm text-ink";
 
@@ -25,20 +26,33 @@ export function ContractStatusForm({
   statuses,
   secondReviewers,
   secondReviewerId,
+  firstReviewDone,
+  secondReviewDone,
 }: {
   contractId: string;
   statusName: string;
   statuses: Array<{ id: string; name: string }>;
   secondReviewers: Array<{ id: string; name: string }>;
   secondReviewerId?: string | null;
+  firstReviewDone: boolean;
+  secondReviewDone: boolean;
 }) {
   const [status, setStatus] = useState(statusName);
+  const [error, setError] = useState("");
   const names = statuses.some((row) => row.name === statusName)
     ? statuses
     : [{ id: "current", name: statusName }, ...statuses];
 
   return (
-    <form action={updateContractStatus} className="mt-2 space-y-1.5">
+    <form
+      action={updateContractStatus}
+      className="flex flex-wrap items-center gap-1.5"
+      onSubmit={(event) => {
+        const block = contractReviewBlock(status, { firstReviewDone, secondReviewDone }, statusName);
+        setError(block ?? "");
+        if (block) event.preventDefault();
+      }}
+    >
       <input type="hidden" name="id" value={contractId} />
       <div className="flex items-center gap-1.5">
         <select
@@ -58,7 +72,7 @@ export function ContractStatusForm({
       </div>
       {status === "2nd review" ? (
         <select
-          className={`${controlClass} w-full`}
+          className={controlClass}
           name="secondReviewerId"
           aria-label="2nd reviewer"
           required
@@ -72,6 +86,7 @@ export function ContractStatusForm({
           ))}
         </select>
       ) : null}
+      {error ? <p className="text-xs text-rose">{error}</p> : null}
     </form>
   );
 }

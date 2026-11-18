@@ -23,6 +23,7 @@ import {
   splitRoutes,
 } from "@/lib/utils";
 import { parseReviewerChoice, userCanSecondReview } from "@/lib/reviewers";
+import { contractReviewBlock } from "@/lib/review-gates";
 import {
   describeSpreadsheet,
   mapContractType,
@@ -764,6 +765,10 @@ export async function saveContract(form: FormData) {
   if (!can(user, "create") && !can(user, "edit")) throw new Error("You do not have permission.");
   const id = formString(form, "id");
   const mode = formString(form, "mode") || "intake";
+  if (id && mode === "details") {
+    await saveContractDetails(form, user.id, id);
+    return;
+  }
   const statusName = formString(form, "statusName") || "Need Review";
   const schoolYear = normalizeSchoolYear(formString(form, "schoolYear"), await getSchoolYear());
   const type = mapContractType(formString(form, "type"));
@@ -809,6 +814,7 @@ export async function saveContract(form: FormData) {
     redirect(intakeErrorPath(form, type, "Enter the multi-contract number."));
   }
 
+  const keepExistingStatus = mode === "entry" && Boolean(id);
   const intake = {
     districtId,
     contractorId: contractorIds[0],
@@ -819,10 +825,14 @@ export async function saveContract(form: FormData) {
     renewalNumber: packets.primary.renewalNumber || formString(form, "renewalNumber") || null,
     parentName: usesParentName(type) ? formString(form, "parentName") || null : null,
     receivedDate: parseDate(formString(form, "receivedDate")),
-    startsOn: parseDate(formString(form, "startsOn")),
-    endsOn: parseDate(formString(form, "endsOn")),
-    statusName,
-    notes: formString(form, "notes") || null,
+    ...(keepExistingStatus
+      ? {}
+      : {
+          startsOn: parseDate(formString(form, "startsOn")),
+          endsOn: parseDate(formString(form, "endsOn")),
+          statusName,
+          notes: formString(form, "notes") || null,
+        }),
     ...(usesHostJoiner(type)
       ? {
           hostDistrictId,
@@ -849,6 +859,13 @@ export async function saveContract(form: FormData) {
   let secondReviewStartedAt: Date | null | undefined;
   if (mode === "review") {
     const current = id ? await prisma.contract.findUnique({ where: { id } }) : null;
+    const block = current
+      ? contractReviewBlock(statusName, {
+          firstReviewDone: Boolean(current.firstReviewCompletedAt),
+          secondReviewDone: Boolean(current.secondReviewCompletedAt),
+        }, current.statusName)
+      : null;
+    if (block) redirect(`/contracts/${id}?error=${encodeURIComponent(block)}`);
     if (!current?.firstReviewerId && ["1st review missing items", "2nd review"].includes(statusName)) {
       firstReviewerId = user.id;
     }
@@ -857,7 +874,9 @@ export async function saveContract(form: FormData) {
     }
   }
 
-  const assignedSecondReviewerId = await resolveSecondReviewerId(form, statusName, id, type);
+  const assignedSecondReviewerId = keepExistingStatus
+    ? undefined
+    : await resolveSecondReviewerId(form, statusName, id, type);
   const data = {
     ...intake,
     ...review,
@@ -1314,6 +1333,87 @@ export async function saveSecondReviewNote(form: FormData) {
   revalidateAll();
 }
 
+async function saveContractDetails(form: FormData, userId: string, id: string) {
+  const current = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
+  if (!current) throw new Error("That contract could not be found.");
+  const type = current.type;
+  await prisma.contract.update({
+    where: { id },
+    data: {
+      startsOn: parseDate(formString(form, "startsOn")),
+      endsOn: parseDate(formString(form, "endsOn")),
+      boardMeetingDate: parseDate(formString(form, "boardMeetingDate")),
+      cost: parseMoney(formString(form, "cost")),
+      bondAmount: parseMoney(formString(form, "bondAmount")),
+      bondType: formString(form, "bondType") || "none",
+      insuranceAmount: parseMoney(formString(form, "insuranceAmount")),
+      sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
+      ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
+      ...(type === "original" ? { bidSpecId: formString(form, "bidSpecId") || null } : {}),
+      ...(type === "quote" ? { routePacketId: formString(form, "routePacketId") || null } : {}),
+    },
+  });
+  if (type === "original") {
+    const linkedRoutes = form.getAll("routeDescriptionIds").map(String).filter(Boolean);
+    await prisma.contractRouteDescription.deleteMany({ where: { contractId: id } });
+    for (const routeDescriptionId of linkedRoutes) {
+      await prisma.contractRouteDescription.create({
+        data: { contractId: id, routeDescriptionId },
+      });
+    }
+  }
+  await refreshContractFlags(id);
+  await writeAudit({
+    userId,
+    action: "update",
+    entityType: "contract",
+    entityId: id,
+    summary: `Added review information for ${current.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${id}?saved=1`);
+}
+
+export async function saveReviewChecks(form: FormData) {
+  const user = await requireSession();
+  if (!can(user, "edit") && !can(user, "create")) throw new Error("You do not have permission.");
+  const id = formString(form, "id");
+  const contract = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
+  if (!contract) throw new Error("That contract could not be found.");
+  const firstDone = form.get("firstDone") === "on";
+  const secondDone = form.get("secondDone") === "on";
+  const approved = contract.statusName === "Approved" || contract.statusName === "Final Approval";
+  if (!firstDone && (contract.statusName === "2nd review" || approved)) {
+    redirect(
+      `/contracts/${id}?error=${encodeURIComponent("1st review done has to stay checked while this contract is in 2nd review or approved.")}`
+    );
+  }
+  if (!secondDone && approved) {
+    redirect(
+      `/contracts/${id}?error=${encodeURIComponent("2nd review done has to stay checked while this contract is approved.")}`
+    );
+  }
+  await prisma.contract.update({
+    where: { id },
+    data: {
+      firstReviewCompletedAt: firstDone ? contract.firstReviewCompletedAt ?? new Date() : null,
+      firstReviewCompletedById: firstDone ? contract.firstReviewCompletedById ?? user.id : null,
+      ...(!contract.firstReviewerId && firstDone ? { firstReviewerId: user.id } : {}),
+      secondReviewCompletedAt: secondDone ? contract.secondReviewCompletedAt ?? new Date() : null,
+      secondReviewCompletedById: secondDone ? contract.secondReviewCompletedById ?? user.id : null,
+    },
+  });
+  await writeAudit({
+    userId: user.id,
+    action: "update",
+    entityType: "contract",
+    entityId: id,
+    summary: `Updated review checks for ${contract.multiContractNumber}`,
+  });
+  revalidateAll();
+  redirect(`/contracts/${id}?checksSaved=1`);
+}
+
 export async function updateContractStatus(form: FormData) {
   const user = await requireSession();
   if (!can(user, "edit") && !can(user, "create")) throw new Error("You do not have permission.");
@@ -1326,6 +1426,17 @@ export async function updateContractStatus(form: FormData) {
     : null;
   if (!allowed) {
     redirect(`/contracts/${id}?error=${encodeURIComponent("Choose a status from the list.")}`);
+  }
+  const reviewBlock = contractReviewBlock(
+    statusName,
+    {
+      firstReviewDone: Boolean(contract.firstReviewCompletedAt),
+      secondReviewDone: Boolean(contract.secondReviewCompletedAt),
+    },
+    contract.statusName
+  );
+  if (reviewBlock) {
+    redirect(`/contracts/${id}?error=${encodeURIComponent(reviewBlock)}`);
   }
   const assignedSecondReviewerId = await resolveSecondReviewerId(form, statusName, id, contract.type);
   const firstReviewerId =
@@ -1800,6 +1911,17 @@ export async function generateContractLetter(form: FormData): Promise<LetterActi
     return { ok: false, error: "All contracts on one letter must be for the same school year." };
   }
   const ordered = ids.map((id) => contracts.find((row) => row.id === id)!);
+  if (kind === "approved") {
+    const blocked = ordered.filter((row) => !row.firstReviewCompletedAt || !row.secondReviewCompletedAt);
+    if (blocked.length) {
+      return {
+        ok: false,
+        error: `Check 1st review done and 2nd review done before approving ${blocked
+          .map((row) => row.multiContractNumber)
+          .join(", ")}.`,
+      };
+    }
+  }
   const groups = groupByLetter(ordered, (row) => ({
     type: row.type,
     districtId: row.districtId,

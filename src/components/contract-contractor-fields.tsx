@@ -18,7 +18,7 @@ export function ContractVendorForm({
   saved?: boolean;
 }) {
   return (
-    <form action={saveContractorCodes} className="mt-2 space-y-1.5">
+    <form action={saveContractorCodes} className="mt-2 grid grid-cols-[1fr_1fr_auto] items-center gap-1.5">
       <input type="hidden" name="contractorId" value={contractorId} />
       <input type="hidden" name="returnTo" value={`/contracts/${contractId}`} />
       <input
@@ -64,10 +64,10 @@ export function ContractRegistrationForm({
 }) {
   const nameControl = brcNameControl || nameControlFrom(legalName);
   return (
-    <form action={saveContractorRegistration} className="mt-2 space-y-1.5">
+    <form action={saveContractorRegistration} className="mt-2 grid grid-cols-2 gap-1.5">
       <input type="hidden" name="contractorId" value={contractorId} />
       <input type="hidden" name="returnTo" value={`/contracts/${contractId}`} />
-      <select className={controlClass} name="brcStatus" aria-label="Business registration status" defaultValue={brcStatus || "Not on file"}>
+      <select className={controlClass + " col-span-2"} name="brcStatus" aria-label="Business registration status" defaultValue={brcStatus || "Not on file"}>
         <option>Not on file</option>
         <option>Valid</option>
         <option>Could not verify</option>
@@ -87,16 +87,18 @@ export function ContractRegistrationForm({
         maxLength={4}
         defaultValue={nameControl}
       />
-      <label className="flex items-start gap-1.5 text-xs text-ink">
+      <label className="col-span-2 flex items-start gap-1.5 text-xs text-ink">
         <input type="checkbox" name="markVerified" className="mt-0.5" />
         <span>I checked the Treasury site — mark verified today</span>
       </label>
-      <OpenBrcSearchButton />
-      <button type="submit" className="rounded-lg bg-teal px-2 py-1 text-sm font-medium text-white">
-        Save
-      </button>
-      {brcVerifiedAt ? <p className="text-xs text-muted">Verified {formatDate(brcVerifiedAt)}</p> : null}
-      {saved ? <p className="text-xs text-teal">Saved on the contractor file.</p> : null}
+      <div className="col-span-2 flex flex-wrap items-center gap-2">
+        <OpenBrcSearchButton />
+        <button type="submit" className="rounded-lg bg-teal px-2 py-1 text-sm font-medium text-white">
+          Save
+        </button>
+        {brcVerifiedAt ? <span className="text-xs text-muted">Verified {formatDate(brcVerifiedAt)}</span> : null}
+        {saved ? <span className="text-xs text-teal">Saved on the contractor file.</span> : null}
+      </div>
     </form>
   );
 }

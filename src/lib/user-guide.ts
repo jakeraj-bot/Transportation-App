@@ -106,7 +106,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Joint agreement: host district, joiner district, and routes are entered when the agreement arrives. There is no multi-contract number. A later original, renewal, quote, or parental shows the joint agreement when a route number matches, even though that contract lists only one district.",
           "Addendum: if the cost increased, the bond amount has to increase too.",
           "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
-          "Vendor code, OSP code, and business registration are entered on the contract. Save writes them onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
+          "Vendor / OSP and Business registration are buttons on the contract. Each one opens a box. Save writes the codes onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
           "On the Contracts list, filter by the date received, district, contractor, type, and status. Use Received from and Received through for one day or a range. Clear removes those filters.",
         ],
       },
@@ -131,8 +131,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         heading: "Checklist, PT-4, and letters",
         steps: [
           "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
-          "2nd review is its own section, listed under Review process. Check 2nd review done and write what you confirmed. The contract shows the date and your name.",
-          "Create a PT-4. The comments become the missing-items list and the status moves to 1st review missing items. Copy the email into your work Outlook and attach the PT-4 Word file. This app cannot send from a county mailbox until the state gives us that access.",
+          "Check 1st review done when the first look is finished. The contract cannot move to 2nd review until that box is checked. Check 2nd review done when the second look is finished. Both boxes have to be checked before the contract can be approved. Write the notes in Comments.",
+          "Open PT-4 to create the Word file from the checklist comments, or to upload a PT-4 you already have. The status moves to 1st review missing items when a PT-4 is created.",
           "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
           "After it is signed and mailed, enter Date sent to district and mark the signed letter sent.",
         ],
@@ -140,9 +140,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Edit a contract and manage routes",
         bullets: [
-          "Change the status in the Status card at the top of the contract. Pick the new status and choose Update. Choosing 2nd review also asks who will do that review.",
-          "Open Edit contract for district, bus company, dates, costs, bonds, and the other review fields.",
-          "Expand Routes to add more route numbers any time.",
+          "Change the status in the Status card at the top of the contract. Pick the new status and choose Update. 2nd review asks who will do that review, and it stays blocked until 1st review done is checked. Approved and Final Approval stay blocked until both review boxes are checked.",
+          "Edit contract opens the same fields you filled when the contract was entered. Add information opens board meeting date, cost, bond, insurance amount, and the other review fields. Save closes the box.",
+          "Edit routes opens a box to add route numbers or cancel one route. Insurance opens a box to file a certificate without leaving the contract.",
           "If the district cancels one route but keeps the others, use Cancel this route only on that route. The route stays on the contract for the record; other routes stay active.",
           "Addendums belong to a route that is already on a contract. Click a route number to add or edit addendums there.",
         ],
@@ -367,7 +367,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         bullets: [
           "Districts must submit contracts within 30 days after the board award or by September 1. 6A:27-9.9(b).",
-          "If a packet arrives 30 or more days after the board meeting, ask for a rationale letter. Under Review process, check Rationale letter to open the email. Leave it unchecked and the email stays hidden. On that contract, check OK. Do not need a rationale letter when the extra time is a weekend, a closure, or another reason that packet is fine. That contract leaves the Home count. Other late packets stay flagged. Uncheck it if the letter is needed later. Changing the received date or the board meeting date brings the flag back.",
+          "If a packet arrives 30 or more days after the board meeting, the contract stays flagged. Check OK. Do not need a rationale letter when the extra time is a weekend, a closure, or another reason that packet is fine. That contract leaves the Home count. Other late packets stay flagged. Uncheck it if the letter is needed later. Changing the received date or the board meeting date brings the flag back. Notes about the packet go in Comments.",
           "Use Commissioner-prescribed forms. 6A:27-9.9(b).",
           "An original contract may not run more than four years. 18A:39-2, 6A:27-9.9(a).",
           "A multi-year contract may increase beginning in year two by a maximum of 7.5% of the original yearly amount, with ECS approval. 18A:39-2.",

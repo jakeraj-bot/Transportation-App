@@ -30,7 +30,7 @@ export function ContractForm({
   currentUserId,
   secondReviewers = [],
 }: {
-  mode: "intake" | "review";
+  mode: "intake" | "review" | "entry" | "details";
   schoolYear: string;
   districts: Array<{ id: string; name: string }>;
   contractors: ContractorOption[];
@@ -113,6 +113,8 @@ export function ContractForm({
         </p>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2">
+        {mode === "details" ? null : (
+        <>
         <Field label="District">
           <select className={inputClass} name="districtId" required defaultValue={contract?.districtId}>
             <option value="">Choose a district</option>
@@ -353,6 +355,10 @@ export function ContractForm({
             </button>
           </div>
         ) : null}
+        </>
+        )}
+        {mode === "entry" || mode === "details" ? null : (
+        <>
         <Field label="Status">
           <select className={inputClass} name="statusName" value={statusName} onChange={(e) => setStatusName(e.target.value)}>
             {statuses.map((s) => (
@@ -363,6 +369,8 @@ export function ContractForm({
         {statusName === "2nd review" ? (
           <SecondReviewerPicker reviewers={secondReviewers} defaultId={contract?.secondReviewerId} />
         ) : null}
+        </>
+        )}
         {mode === "intake" ? (
           <>
             <Field label="Contract start date" hint="Each contract can have different dates.">
@@ -373,16 +381,20 @@ export function ContractForm({
             </Field>
           </>
         ) : null}
-        <Field label="Notes or comments" className={mode === "intake" ? "md:col-span-2" : undefined}>
-          <textarea className={inputClass} name="notes" rows={3} defaultValue={contract?.notes ?? ""} />
-        </Field>
+        {mode === "entry" || mode === "details" ? null : (
+          <Field label="Notes or comments" className={mode === "intake" ? "md:col-span-2" : undefined}>
+            <textarea className={inputClass} name="notes" rows={3} defaultValue={contract?.notes ?? ""} />
+          </Field>
+        )}
 
-        {mode === "review" ? (
+        {mode === "review" || mode === "details" ? (
           <>
+            {mode === "details" ? null : (
             <p className="md:col-span-2 rounded-xl bg-cream px-4 py-3 text-sm text-muted">
               Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount.
               {checklist ? ` The ${checklist.name.toLowerCase()} checklist is on this page after you save.` : ""} {reviewHint}
             </p>
+            )}
             <Field label="Contract start date" hint="Ask this when review starts. Do not assume September 1 unless that is what the packet says.">
               <input className={inputClass} type="date" name="startsOn" defaultValue={toInputDate(contract?.startsOn)} />
             </Field>

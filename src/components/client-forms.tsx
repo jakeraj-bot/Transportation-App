@@ -225,9 +225,11 @@ export function LetterButtons({
 export function ChecklistRow({
   item,
   commentPlaceholder = "If something is missing or wrong, write it here. It will go on the PT-4.",
+  compact = false,
 }: {
   item: { id: string; itemLabel: string; checked: boolean; comment: string | null };
   commentPlaceholder?: string;
+  compact?: boolean;
 }) {
   const [checked, setChecked] = useState(item.checked);
   const [comment, setComment] = useState(item.comment ?? "");
@@ -241,7 +243,7 @@ export function ChecklistRow({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-white p-3">
+    <div className={compact ? "rounded-lg border border-line bg-white px-2 py-1.5" : "rounded-xl border border-line bg-white p-3"}>
       <label className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -255,8 +257,8 @@ export function ChecklistRow({
         <span className="font-medium">{item.itemLabel}</span>
       </label>
       <textarea
-        className={`${inputClass} mt-2`}
-        rows={2}
+        className={`${inputClass} mt-1`}
+        rows={compact ? 1 : 2}
         placeholder={commentPlaceholder}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
@@ -273,6 +275,7 @@ export function Pt4Form({
   districtName,
   canSend,
   existingPt4Url,
+  showEmail = true,
 }: {
   entityType: string;
   entityId: string;
@@ -280,6 +283,7 @@ export function Pt4Form({
   districtName?: string;
   canSend?: boolean;
   existingPt4Url?: string;
+  showEmail?: boolean;
 }) {
   const subject = districtName
     ? `PT-4 additional information needed — ${districtName}`
@@ -337,7 +341,11 @@ export function Pt4Form({
           try {
             const res = await generatePt4AndEmail(form);
             setFileUrl(res.fileUrl || "");
-            setResult("PT-4 Word file is ready. Copy the email below and attach that file in your work Outlook.");
+            setResult(
+              showEmail
+                ? "PT-4 Word file is ready. Copy the email below and attach that file in your work Outlook."
+                : "PT-4 Word file is ready."
+            );
             if (res.fileUrl) openGeneratedFile(res.fileUrl);
           } catch (err) {
             setResult(err instanceof Error ? err.message : "Could not make the PT-4.");
@@ -347,7 +355,9 @@ export function Pt4Form({
         }}
       >
         <p className="text-sm text-muted">
-          Create the PT-4 first. Then copy the email into your work Outlook and attach the Word file. The app cannot send from a county mailbox until the state gives us that access.
+          {showEmail
+            ? "Create the PT-4 first. Then copy the email into your work Outlook and attach the Word file. The app cannot send from a county mailbox until the state gives us that access."
+            : "Create the PT-4 from the checklist comments, or upload a Word or PDF you already have."}
         </p>
         <Button type="submit">{busy ? "Making PT-4…" : "Create PT-4"}</Button>
         {fileUrl ? (
@@ -359,14 +369,16 @@ export function Pt4Form({
         ) : null}
         {result ? <p className="text-sm text-muted">{result}</p> : null}
       </form>
-      <EmailDraftForm
-        defaultTo={defaultTo}
-        subject={subject}
-        body={body}
-        kind="pt4"
-        canSend={canSend}
-        hint="Copy this into your work email and attach the PT-4. Rewrite with AI only polishes the wording — you still send it from Outlook."
-      />
+      {showEmail ? (
+        <EmailDraftForm
+          defaultTo={defaultTo}
+          subject={subject}
+          body={body}
+          kind="pt4"
+          canSend={canSend}
+          hint="Copy this into your work email and attach the PT-4. Rewrite with AI only polishes the wording — you still send it from Outlook."
+        />
+      ) : null}
     </div>
   );
 }
