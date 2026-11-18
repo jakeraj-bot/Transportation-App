@@ -12,10 +12,20 @@ import { jointMatchesForContract } from "@/lib/joint-agreements";
 export default async function ContractsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flag?: string; status?: string; view?: string; reviewer?: string }>;
+  searchParams: Promise<{
+    flag?: string;
+    status?: string;
+    view?: string;
+    reviewer?: string;
+    receivedFrom?: string;
+    receivedTo?: string;
+    district?: string;
+    contractor?: string;
+    type?: string;
+  }>;
 }) {
   noStore();
-  const { flag, status, view, reviewer } = await searchParams;
+  const { flag, status, view, reviewer, receivedFrom, receivedTo, district, contractor, type } = await searchParams;
   const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
   const secondReviewList = status === "2nd review";
@@ -26,7 +36,6 @@ export default async function ContractsPage({
   if (reviewerMine && session) where.secondReviewerId = session.id;
   if (flag === "late") where.rationaleNeeded = true;
   if (flag === "meeting") where.nextMeetingFlag = true;
-  if (status) where.statusName = status;
   const statusColor = Object.fromEntries(statuses.map((row) => [row.name, row.color]));
 
   const rows = await prisma.contract.findMany({
@@ -62,7 +71,7 @@ export default async function ContractsPage({
               : `Every ${schoolYear} contract in 2nd review, including districts that are not assigned to you. Use Assigned to me to see only yours.`
             : showMine
               ? `Showing ${schoolYear} contracts for your assigned districts. Use View all if a saved contract is missing. Addendums attach to an existing contract instead of creating a new row.`
-              : `Every ${schoolYear} packet that comes in for approval. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
+              : `Every ${schoolYear} packet that comes in for approval. Filter by the date received, district, contractor, type, or status. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
         }
         actions={
           <>
@@ -93,11 +102,24 @@ export default async function ContractsPage({
       ) : (
         <ContractList
           canApprove={can(session, "approve")}
+          districts={namedOptions(rows.map((row) => ({ id: row.districtId, name: row.district.name })))}
+          contractors={namedOptions([
+            ...rows.map((row) => ({ id: row.contractorId, name: row.parentName || row.contractor.legalName })),
+            ...rows.flatMap((row) => row.extraContractors.map((link) => ({ id: link.contractorId, name: link.contractor.legalName }))),
+          ])}
+          statuses={statusChoices(statuses.map((row) => row.name), rows.map((row) => row.statusName), status)}
+          initialReceivedFrom={receivedFrom || ""}
+          initialReceivedTo={receivedTo || ""}
+          initialDistrict={district || ""}
+          initialContractor={contractor || ""}
+          initialType={type || ""}
+          initialStatus={status || ""}
           rows={rows.map((c) => ({
             id: c.id,
             multiContractNumber: c.multiContractNumber,
             districtId: c.districtId,
             districtName: c.district.name,
+            contractorIds: [c.contractorId, ...c.extraContractors.map((link) => link.contractorId)],
             contractorName: formatCompanyNames([
               c.parentName || c.contractor.legalName,
               ...c.extraContractors.map((link) => link.contractor.legalName),
@@ -146,4 +168,22 @@ export default async function ContractsPage({
       )}
     </div>
   );
+}
+
+function statusChoices(saved: string[], used: string[], current?: string) {
+  const names = [...saved];
+  for (const name of [...used, current || ""]) {
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names.map((name) => ({ name }));
+}
+
+function namedOptions(pairs: Array<{ id: string; name: string }>) {
+  const names = new Map<string, string>();
+  for (const pair of pairs) {
+    if (pair.id && !names.has(pair.id)) names.set(pair.id, pair.name);
+  }
+  return [...names.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }

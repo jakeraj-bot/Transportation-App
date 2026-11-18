@@ -107,6 +107,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Addendum: if the cost increased, the bond amount has to increase too.",
           "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
           "Vendor code, OSP code, and business registration are entered on the contract. Save writes them onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
+          "On the Contracts list, filter by the date received, district, contractor, type, and status. Use Received from and Received through for one day or a range. Clear removes those filters.",
         ],
       },
       {

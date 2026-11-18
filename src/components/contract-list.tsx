@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { generateContractLetter } from "@/app/actions";
-import { StatusChip, inputClass } from "@/components/ui";
+import { Card, EmptyState, StatusChip, inputClass } from "@/components/ui";
+import { filterContracts } from "@/lib/contract-list";
 import { openGeneratedFile } from "@/lib/open-generated-file";
 import { groupByLetter } from "@/lib/letter-groups";
+import { CONTRACT_TYPES } from "@/lib/utils";
 
 export type ContractListRow = {
   id: string;
@@ -13,6 +16,7 @@ export type ContractListRow = {
   districtId: string;
   districtName: string;
   contractorName: string;
+  contractorIds: string[];
   contractorIncomplete?: boolean;
   type: string;
   typeLabel: string;
@@ -32,14 +36,101 @@ export type ContractListRow = {
   routes: Array<{ id: string; number: string; hasAddendum: boolean; cancelled?: boolean }>;
 };
 
-export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; canApprove: boolean }) {
+const FILTER_KEYS = ["receivedFrom", "receivedTo", "district", "contractor", "type", "status"] as const;
+
+export function ContractList({
+  rows,
+  canApprove,
+  districts,
+  contractors,
+  statuses,
+  initialReceivedFrom = "",
+  initialReceivedTo = "",
+  initialDistrict = "",
+  initialContractor = "",
+  initialType = "",
+  initialStatus = "",
+}: {
+  rows: ContractListRow[];
+  canApprove: boolean;
+  districts: Array<{ id: string; name: string }>;
+  contractors: Array<{ id: string; name: string }>;
+  statuses: Array<{ name: string }>;
+  initialReceivedFrom?: string;
+  initialReceivedTo?: string;
+  initialDistrict?: string;
+  initialContractor?: string;
+  initialType?: string;
+  initialStatus?: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [receivedFrom, setReceivedFrom] = useState(initialReceivedFrom);
+  const [receivedTo, setReceivedTo] = useState(initialReceivedTo);
+  const [districtId, setDistrictId] = useState(initialDistrict);
+  const [contractorId, setContractorId] = useState(initialContractor);
+  const [type, setType] = useState(initialType);
+  const [status, setStatus] = useState(initialStatus);
   const [selected, setSelected] = useState<string[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fileUrl, setFileUrl] = useState("");
 
-  const picked = rows.filter((row) => selected.includes(row.id));
+  useEffect(() => {
+    setReceivedFrom(initialReceivedFrom);
+    setReceivedTo(initialReceivedTo);
+    setDistrictId(initialDistrict);
+    setContractorId(initialContractor);
+    setType(initialType);
+    setStatus(initialStatus);
+  }, [initialReceivedFrom, initialReceivedTo, initialDistrict, initialContractor, initialType, initialStatus]);
+
+  const filters = { receivedFrom, receivedTo, districtId, contractorId, type, status };
+  const filtered = useMemo(
+    () =>
+      filterContracts(rows, {
+        receivedFrom,
+        receivedTo,
+        districtId,
+        contractorId,
+        type,
+        status,
+      }),
+    [rows, receivedFrom, receivedTo, districtId, contractorId, type, status]
+  );
+  const active = Boolean(receivedFrom || receivedTo || districtId || contractorId || type || status);
+
+  function writeUrl(next: typeof filters) {
+    const params = new URLSearchParams(window.location.search);
+    for (const key of FILTER_KEYS) params.delete(key);
+    if (next.status !== "2nd review") params.delete("reviewer");
+    if (next.receivedFrom) params.set("receivedFrom", next.receivedFrom);
+    if (next.receivedTo) params.set("receivedTo", next.receivedTo);
+    if (next.districtId) params.set("district", next.districtId);
+    if (next.contractorId) params.set("contractor", next.contractorId);
+    if (next.type) params.set("type", next.type);
+    if (next.status) params.set("status", next.status);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  function apply(next: Partial<typeof filters>) {
+    const value = { ...filters, ...next };
+    setReceivedFrom(value.receivedFrom);
+    setReceivedTo(value.receivedTo);
+    setDistrictId(value.districtId);
+    setContractorId(value.contractorId);
+    setType(value.type);
+    setStatus(value.status);
+    writeUrl(value);
+  }
+
+  function clear() {
+    apply({ receivedFrom: "", receivedTo: "", districtId: "", contractorId: "", type: "", status: "" });
+  }
+
+  const picked = filtered.filter((row) => selected.includes(row.id));
   const sameType =
     picked.length > 0 &&
     picked.every((row) => row.type === picked[0].type) &&
@@ -96,6 +187,104 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
 
   return (
     <div className="space-y-4">
+      <Card>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">Received from</span>
+            <input
+              className={inputClass}
+              type="date"
+              value={receivedFrom}
+              aria-label="Received from"
+              onChange={(event) => apply({ receivedFrom: event.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">Received through</span>
+            <input
+              className={inputClass}
+              type="date"
+              value={receivedTo}
+              aria-label="Received through"
+              onChange={(event) => apply({ receivedTo: event.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">District</span>
+            <select
+              className={inputClass}
+              value={districtId}
+              aria-label="Filter by district"
+              onChange={(event) => apply({ districtId: event.target.value })}
+            >
+              <option value="">All districts</option>
+              {districts.map((district) => (
+                <option key={district.id} value={district.id}>
+                  {district.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">Contractor</span>
+            <select
+              className={inputClass}
+              value={contractorId}
+              aria-label="Filter by contractor"
+              onChange={(event) => apply({ contractorId: event.target.value })}
+            >
+              <option value="">All contractors</option>
+              {contractors.map((contractor) => (
+                <option key={contractor.id} value={contractor.id}>
+                  {contractor.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">Type</span>
+            <select
+              className={inputClass}
+              value={type}
+              aria-label="Filter by type"
+              onChange={(event) => apply({ type: event.target.value })}
+            >
+              <option value="">All types</option>
+              {CONTRACT_TYPES.map((row) => (
+                <option key={row.value} value={row.value}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">Status</span>
+            <select
+              className={inputClass}
+              value={status}
+              aria-label="Filter by status"
+              onChange={(event) => apply({ status: event.target.value })}
+            >
+              <option value="">All statuses</option>
+              {statuses.map((row) => (
+                <option key={row.name} value={row.name}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-end gap-3 md:col-span-3">
+            <p className="text-sm text-muted">
+              Showing {filtered.length} of {rows.length}
+            </p>
+            {active ? (
+              <button type="button" className="text-sm text-teal hover:underline" onClick={clear}>
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </Card>
       {canApprove && picked.length > 0 ? (
         <div className="rounded-2xl border border-line bg-card px-5 py-4">
           <p className="text-sm text-muted">{message || "Pick two or more contracts of the same type in the same district."}</p>
@@ -127,6 +316,13 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
           ) : null}
         </div>
       ) : null}
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="No contracts match"
+          body="Try a different date received, district, contractor, type, or status."
+        />
+      ) : null}
+      {filtered.length > 0 ? (
       <div className="overflow-x-auto rounded-2xl bg-card shadow-[0_1px_0_rgba(44,58,71,0.04),0_12px_32px_rgba(44,58,71,0.06)]">
         <table className="w-full text-left">
           <thead className="border-b border-line text-sm text-muted">
@@ -136,12 +332,13 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
               <th className="px-5 py-3 font-medium">District</th>
               <th className="px-5 py-3 font-medium">Contractor</th>
               <th className="px-5 py-3 font-medium">Type</th>
+              <th className="px-5 py-3 font-medium">Received</th>
               <th className="px-5 py-3 font-medium">Routes</th>
               <th className="px-5 py-3 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => (
+            {filtered.map((c) => (
               <tr key={c.id} className="border-b border-line/70">
                 {canApprove ? (
                   <td className="px-5 py-3">
@@ -183,6 +380,7 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
                   {c.contractorIncomplete ? <div className="text-xs">Needs contractor details</div> : null}
                 </td>
                 <td className="px-5 py-3">{c.typeLabel}</td>
+                <td className="px-5 py-3">{c.receivedDateLabel || "—"}</td>
                 <td className="px-5 py-3">
                   {c.routes.map((r, index) => (
                     <span key={r.id} className={r.cancelled ? "text-muted line-through" : undefined}>
@@ -204,6 +402,7 @@ export function ContractList({ rows, canApprove }: { rows: ContractListRow[]; ca
           </tbody>
         </table>
       </div>
+      ) : null}
     </div>
   );
 }
