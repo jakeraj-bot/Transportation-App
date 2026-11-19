@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { saveContractor } from "@/app/actions";
 import { Button, Field, inputClass } from "@/components/ui";
+import { CountySelect } from "@/components/county-select";
 import { brcSearchUrl, nameControlFrom } from "@/lib/utils";
 
 type Values = {
@@ -10,6 +11,7 @@ type Values = {
   dba?: string | null;
   vendorCode?: string | null;
   ospCode?: string | null;
+  county?: string | null;
   busLocation?: string | null;
   contactName?: string | null;
   email?: string | null;
@@ -53,6 +55,11 @@ export function ContractorForm({ id, values }: { id?: string; values?: Values })
       <Field label="Office of Student Protection code">
         <input className={inputClass} name="ospCode" defaultValue={values?.ospCode ?? ""} />
       </Field>
+      <CountySelect
+        name="county"
+        defaultValue={values?.county ?? ""}
+        hint="Where this contractor is based. If they have a terminal in another county, keep this as the main county and add a separate annual cert for that county."
+      />
       <Field label="Bus location">
         <input className={inputClass} name="busLocation" defaultValue={values?.busLocation ?? ""} />
       </Field>

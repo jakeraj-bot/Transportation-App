@@ -209,6 +209,42 @@ function assertTsxInstalled() {
   }
 }
 
+function isRetryableSetupError(error) {
+  const text = [error && error.logTail, error && error.message].filter(Boolean).join("\n");
+  return Boolean(
+    error &&
+      (error.killed ||
+        error.signal === "SIGKILL" ||
+        error.code === "ETIMEDOUT" ||
+        /timedOut=true|P1001|P1002|P1017|Can't reach database|Server has closed the connection|ECONNRESET|ECONNREFUSED|ETIMEDOUT|Connection terminated|timeout expired|sorry, too many clients/i.test(
+          text
+        ))
+  );
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function runWithRetry(label, args, extraEnv, timeoutMs, attempts) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (attempt > 1) {
+      console.log(`Retrying ${label} (attempt ${attempt} of ${attempts}) after Postgres was slow to respond...`);
+      sleepSync(8000);
+    }
+    try {
+      run(label, args, extraEnv, timeoutMs);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`${label} attempt ${attempt} of ${attempts} did not finish.`);
+      if (!isRetryableSetupError(error) || attempt === attempts) throw error;
+    }
+  }
+  throw lastError;
+}
+
 function run(label, args, extraEnv, timeoutMs) {
   const seconds = Math.round(timeoutMs / 1000);
   console.log(`Starting ${label} (CI, ${seconds}s SIGKILL timeout, IPv4 DNS, connect_timeout=10)...`);
@@ -326,7 +362,7 @@ function main() {
   console.log("Pushing Prisma schema to Supabase Postgres (non-interactive db push, DIRECT_URL 5432)...");
   console.log("The orange Prisma 7 warning is harmless. Ignore Supabase Step 1 (npm install prisma).");
   try {
-    run(
+    runWithRetry(
       "prisma db push",
       [
         prisma,
@@ -338,7 +374,8 @@ function main() {
         "--accept-data-loss",
       ],
       prismaEnv,
-      25_000
+      90_000,
+      3
     );
   } catch (error) {
     fail(
@@ -350,7 +387,7 @@ function main() {
   console.log("Seeding empty office (SEED_DEMO=0)...");
   try {
     assertTsxInstalled();
-    run(
+    runWithRetry(
       "seed",
       ["--import", "tsx", "prisma/seed.ts"],
       {
@@ -358,7 +395,8 @@ function main() {
         SEED_DEMO: "0",
         NODE_ENV: "production",
       },
-      60_000
+      60_000,
+      2
     );
   } catch (error) {
     fail("Seed failed after schema push.", error.logTail || error.message);

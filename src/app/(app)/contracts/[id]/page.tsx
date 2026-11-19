@@ -1,298 +1,687 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { markLetterSent, softDelete } from "@/app/actions";
-import { ChecklistRow, LabelButton, LetterButtons, Pt4Form, SimpleEmailForm } from "@/components/client-forms";
+import {
+  addContractComment,
+  deleteContractComment,
+  markLetterSent,
+  saveInsurance,
+  saveSignedApprovalLetter,
+} from "@/app/actions";
+import { ChecklistRow, LabelButton, LetterButtons, Pt4Form } from "@/components/client-forms";
+import { DeleteContractButton } from "@/components/delete-contract-button";
+import { RationaleFlag } from "@/components/rationale-flag";
+import { ContractStatusForm } from "@/components/contract-status-form";
+import { ContractRegistrationForm, ContractVendorForm } from "@/components/contract-contractor-fields";
 import { ContractForm } from "@/components/contract-form";
-import { Button, Card, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
-import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses } from "@/lib/data";
-import { getSession } from "@/lib/auth";
-import { hoursInSecondReview, insuranceCoverage } from "@/lib/flags";
+import { ContractSnapshot } from "@/components/contract-snapshot";
+import { ContractRoutesPanel } from "@/components/contract-routes-panel";
+import { PopupButton } from "@/components/popup";
+import { ReviewChecks } from "@/components/review-checks";
+import { Button, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
+import { activeContractors, activeDistricts, applyContractReviewDefaults, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
+import { can, getSession } from "@/lib/auth";
+import { certificatesCoverContract, formatSecondReviewDays, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
+import { PolicyKindField } from "@/components/policy-kind-field";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 import { prisma } from "@/lib/prisma";
-import { contractTypeLabel, debarmentUrl, formatDate } from "@/lib/utils";
+import { isSuperAdmin } from "@/lib/roles";
+import { checklistDefinition } from "@/lib/checklists";
+import { sameLetterGroup } from "@/lib/letter-groups";
+import { contractTypeLabel, daysBetween, debarmentUrl, formatDate } from "@/lib/utils";
+import { formatCompanyNames } from "@/lib/contract-intake";
+import { jointMatchesForContract } from "@/lib/joint-agreements";
+import { reviewerLabel } from "@/lib/reviewers";
 
-export default async function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ContractDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    statusUpdated?: string;
+    error?: string;
+    addendumLinked?: string;
+    addendumCount?: string;
+    routeCount?: string;
+    routesAdded?: string;
+    routeCancelled?: string;
+    routeRestored?: string;
+    insuranceSaved?: string;
+    codesSaved?: string;
+    brcSaved?: string;
+    checksSaved?: string;
+  }>;
+}) {
   const { id } = await params;
+  const linked = await searchParams;
+  await applyContractReviewDefaults();
   const session = await getSession();
+  const canEdit = can(session, "create") || can(session, "edit");
+  const canFileInsurance = can(session, "upload_files") || can(session, "create") || can(session, "edit");
+  const canApprove = can(session, "approve");
+  const canDelete = can(session, "delete") || isSuperAdmin(session?.role);
   const contract = await prisma.contract.findFirst({
     where: { id, deletedAt: null },
     include: {
       district: true,
       contractor: { include: { annualCerts: true } },
       routes: { include: { addenda: { where: { deletedAt: null } } } },
+      extraPackets: { orderBy: { sortOrder: "asc" } },
+      extraContractors: { include: { contractor: true }, orderBy: { sortOrder: "asc" } },
+      comments: { include: { user: true }, orderBy: { createdAt: "desc" } },
       bidSpec: true,
       routePacket: true,
       hostDistrict: true,
       firstReviewer: true,
+      secondReviewer: true,
+      secondReviewCompletedBy: true,
+      firstReviewCompletedBy: true,
       routeLinks: { include: { routeDescription: true } },
     },
   });
   if (!contract) notFound();
 
-  const [schoolYear, districts, contractors, statuses, bidSpecs, routePackets, checklist, cpi, bidThreshold] =
+  const firstReviewerLabel = reviewerLabel(contract.firstReviewer?.name, contract.firstReviewerName);
+  const secondReviewerLabel = reviewerLabel(contract.secondReviewer?.name, contract.secondReviewerName);
+
+  const [schoolYear, districts, contractors, statuses, reviewers, bidSpecs, routePackets, checklist, cpi, bidThreshold, sameTypeContracts, latestPt4, jointRows, coveredContractRows] =
     await Promise.all([
       getSchoolYear(),
       activeDistricts(),
       activeContractors(),
       getStatuses("contract"),
+      secondReviewers(),
       prisma.bidSpec.findMany({ where: { deletedAt: null } }),
       prisma.routeDescription.findMany({ where: { deletedAt: null } }),
       ensureChecklist("contract", contract.id, contract.type),
       getSetting("cpi", "2.50"),
       getSetting("bidThreshold", "7500"),
+      prisma.contract.findMany({
+        where:
+          contract.type === "joint"
+            ? {
+                id: { not: contract.id },
+                type: "joint",
+                schoolYear: contract.schoolYear,
+                deletedAt: null,
+              }
+            : {
+                id: { not: contract.id },
+                districtId: contract.districtId,
+                type: contract.type,
+                schoolYear: contract.schoolYear,
+                deletedAt: null,
+              },
+        include: { contractor: true, hostDistrict: true },
+        orderBy: { multiContractNumber: "asc" },
+      }),
+      prisma.letter.findFirst({
+        where: { entityType: "contract", entityId: contract.id, kind: "pt4" },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.contract.findMany({
+        where:
+          contract.type === "joint" || contract.type === "addendum"
+            ? { id: "__none__" }
+            : { deletedAt: null, type: "joint", schoolYear: contract.schoolYear },
+        include: { hostDistrict: true, district: true, routes: true },
+      }),
+      prisma.contract.findMany({
+        where:
+          contract.type === "joint"
+            ? { deletedAt: null, schoolYear: contract.schoolYear, type: { notIn: ["joint", "addendum"] } }
+            : { id: "__none__" },
+        include: { district: true, routes: true },
+      }),
     ]);
-
-  const cert = contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
-  const insurance = await prisma.insuranceCertificate.findFirst({
-    where: {
-      contractorId: contract.contractorId,
-      districtId: contract.districtId,
-      deletedAt: null,
+  const existingPt4Url = latestPt4
+    ? `/api/files?path=${encodeURIComponent(latestPt4.filePath)}`
+    : undefined;
+  const jointMatches = jointMatchesForContract(
+    {
+      type: contract.type,
+      routes: contract.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
     },
-    orderBy: { expiresAt: "desc" },
+    jointRows.map((row) => ({
+      id: row.id,
+      hostName: row.hostDistrict?.name || row.district.name,
+      joinerDistricts: row.joinerDistricts,
+      routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+      statusName: row.statusName,
+    }))
+  );
+  const thisJoint = {
+    id: contract.id,
+    hostName: contract.hostDistrict?.name || contract.district.name,
+    joinerDistricts: contract.joinerDistricts,
+    routes: contract.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+  };
+  const contractsOnThisJoint =
+    contract.type === "joint"
+      ? coveredContractRows.flatMap((row) => {
+          const matches = jointMatchesForContract(
+            {
+              type: row.type,
+              routes: row.routes.filter((route) => !route.cancelledAt).map((route) => route.number),
+            },
+            [thisJoint]
+          );
+          if (!matches.length) return [];
+          return [
+            {
+              id: row.id,
+              multiContractNumber: row.multiContractNumber,
+              districtName: row.district.name,
+              routes: matches[0].matchedRoutes,
+            },
+          ];
+        })
+      : [];
+
+  const cert =
+    contract.contractor.annualCerts.find(
+      (c) => c.schoolYear === contract.schoolYear && !c.deletedAt && (c.county === "Passaic" || !c.county)
+    ) ??
+    contract.contractor.annualCerts.find((c) => c.schoolYear === contract.schoolYear && !c.deletedAt);
+  const insuranceRows = (
+    await prisma.insuranceCertificate.findMany({
+      where: {
+        contractorId: contract.contractorId,
+        districtId: contract.districtId,
+        deletedAt: null,
+      },
+    })
+  ).sort((a, b) => {
+    const start = (a.startsOn?.getTime() ?? 0) - (b.startsOn?.getTime() ?? 0);
+    if (start !== 0) return start;
+    return (a.expiresAt?.getTime() ?? 0) - (b.expiresAt?.getTime() ?? 0);
   });
-  const ins = insuranceCoverage({
-    insStart: insurance?.startsOn,
-    insEnd: insurance?.expiresAt,
+  const ins = certificatesCoverContract({
+    certificates: insuranceRows,
     contractStart: contract.startsOn,
     contractEnd: contract.endsOn,
-    namedDistrict: insurance?.namedDistrict,
     districtName: contract.district.name,
   });
   const cpiMax =
     contract.priorYearCost != null
       ? contract.priorYearCost * (1 + Number(cpi) / 100)
       : null;
-  const secondHours = hoursInSecondReview(contract.secondReviewStartedAt);
-
-  async function remove() {
-    "use server";
-    await softDelete("contract", id, "/contracts");
-  }
+  const secondWait = formatSecondReviewDays(contract.secondReviewStartedAt);
+  const rationaleLate = needsRationaleLetter(contract.receivedDate, contract.boardMeetingDate);
+  const rationaleWaived = rationaleLate && !rationaleStillNeeded(contract);
+  const rationaleDays =
+    contract.receivedDate && contract.boardMeetingDate
+      ? daysBetween(contract.receivedDate, contract.boardMeetingDate)
+      : 0;
+  const sortedRoutes = [...contract.routes].sort((a, b) => {
+    if (a.cancelledAt && !b.cancelledAt) return 1;
+    if (!a.cancelledAt && b.cancelledAt) return -1;
+    return a.number.localeCompare(b.number, undefined, { numeric: true });
+  });
+  const activeRouteCount = sortedRoutes.filter((route) => !route.cancelledAt).length;
+  const addendumTotal = contract.routes.reduce((sum, route) => sum + route.addenda.length, 0);
+  const companyNames = formatCompanyNames([
+    contract.parentName || contract.contractor.legalName,
+    ...contract.extraContractors.map((link) => link.contractor.legalName),
+  ]);
+  const statusColor = statuses.find((s) => s.name === contract.statusName)?.color;
+  const snapshotRoutes = sortedRoutes.map((route) => ({
+    id: route.id,
+    number: route.number,
+    cancelledAt: route.cancelledAt,
+    addenda: route.addenda.map((addendum) => ({ id: addendum.id, reason: addendum.reason })),
+  }));
+  const routePanelRoutes = sortedRoutes.map((route) => ({
+    id: route.id,
+    number: route.number,
+    cancelledAt: route.cancelledAt,
+    cancelNote: route.cancelNote,
+    addendaCount: route.addenda.length,
+  }));
+  const insuranceHint = insuranceRows.length
+    ? insuranceRows.length === 1
+      ? `${formatDate(insuranceRows[0].startsOn)} – ${formatDate(insuranceRows[0].expiresAt)}`
+      : `${insuranceRows.length} certificates on file`
+    : "No certificate on file yet";
+  const insuranceSpan = insuranceRows
+    .map((row) => `${formatDate(row.startsOn)} – ${formatDate(row.expiresAt)}`)
+    .join("; ");
+  const superAdmin = isSuperAdmin(session?.role);
+  const defaultIntakeNote = "Entered from the current-system list.";
+  const displayComments = [
+    ...contract.comments.map((comment) => ({
+      id: comment.id,
+      body: comment.body,
+      userName: comment.user.name,
+      createdAt: comment.createdAt,
+      canDelete: superAdmin,
+    })),
+    ...(contract.notes?.trim() &&
+    contract.notes !== defaultIntakeNote &&
+    !contract.comments.some((comment) => comment.body.trim() === contract.notes!.trim())
+      ? [
+          {
+            id: "intake-notes",
+            body: contract.notes,
+            userName: "Intake notes",
+            createdAt: contract.createdAt,
+            canDelete: false,
+          },
+        ]
+      : []),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const checklistDef = checklistDefinition("contract", contract.type);
+  const currentLetterGroup = {
+    type: contract.type,
+    districtId: contract.districtId,
+    schoolYear: contract.schoolYear,
+    hostDistrictId: contract.hostDistrictId,
+    joinerDistricts: contract.joinerDistricts,
+    receivedDate: contract.receivedDate,
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <PageHeader
-        title={contract.multiContractNumber}
+        title="Contract"
+        compact
         backHref="/contracts"
-        hint={`${contract.district.name} · ${contract.contractor.legalName} · ${contractTypeLabel(contract.type)}`}
         actions={
           <>
             <LabelButton contractId={contract.id} />
-            <form action={remove}><button className="rounded-xl bg-rose-soft px-4 py-2.5 text-rose" type="submit">Remove</button></form>
+            {canDelete ? (
+              <DeleteContractButton id={contract.id} multiContractNumber={contract.multiContractNumber} />
+            ) : null}
           </>
         }
       />
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <p className="text-sm text-muted">Status</p>
-          <div className="mt-2"><StatusChip name={contract.statusName} /></div>
-          {contract.statusName === "2nd review" ? (
-            <p className="mt-2 text-sm text-muted">
-              Waiting {Math.max(1, Math.round(secondHours))} hours
-              {contract.firstReviewer ? ` · first review by ${contract.firstReviewer.name}` : ""}
-            </p>
-          ) : null}
-          {contract.sentToDistrictAt ? (
-            <p className="mt-2 text-sm text-muted">Letter sent {formatDate(contract.sentToDistrictAt)}</p>
-          ) : null}
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">Annual certification</p>
-          <p className="mt-2 font-medium">{cert?.statusName ?? "No cert record this year"}</p>
-          {cert ? <Link className="text-sm text-teal" href={`/certs/${cert.id}`}>Open cert</Link> : <Link className="text-sm text-teal" href="/certs/new">Add cert</Link>}
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">Vendor / OSP</p>
-          <p className="mt-2 font-medium">{contract.contractor.vendorCode || "Vendor not on file"}</p>
-          <p className="text-sm text-muted">OSP {contract.contractor.ospCode || "not on file"}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">Business registration</p>
-          <p className="mt-2 font-medium">{contract.contractor.brcStatus}</p>
-          <Link className="text-sm text-teal" href={`/contractors/${contract.contractorId}`}>Open BRC search from contractor</Link>
-        </Card>
+      {linked.saved ? <Flag tone="sage">Saved. This contract is on file.</Flag> : null}
+      {linked.statusUpdated ? <Flag tone="sage">Status updated.</Flag> : null}
+      {linked.checksSaved ? <Flag tone="sage">Review check saved.</Flag> : null}
+      {linked.insuranceSaved ? <Flag tone="sage">Insurance saved. It is on this contract and on the Insurance page.</Flag> : null}
+      {linked.routesAdded ? <Flag tone="sage">Routes saved.</Flag> : null}
+      {linked.error ? <Flag tone="rose">{linked.error}</Flag> : null}
+      {linked.addendumLinked ? (
+        <Flag tone="sage">
+          New addendum linked to this route. This contract now has {linked.addendumCount || addendumTotal} addendum
+          {(linked.addendumCount || String(addendumTotal)) === "1" ? "" : "s"}
+          {linked.routeCount ? ` on ${linked.routeCount} matching route${linked.routeCount === "1" ? "" : "s"}` : ""}.
+        </Flag>
+      ) : null}
+      {contract.contractor.incomplete && contract.type !== "parental" ? (
+        <Flag tone="rose">
+          {contract.contractor.legalName} was added by name only. Fill in the rest on the{" "}
+          <Link className="underline" href={`/contractors/${contract.contractorId}`}>contractor tab</Link> so it is no longer highlighted in red.
+        </Flag>
+      ) : null}
+
+      <div className="grid items-start gap-3 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <ContractSnapshot
+        contractId={contract.id}
+        contract={contract}
+        companyNames={companyNames}
+        routes={snapshotRoutes}
+      />
+      <div className="min-w-0 space-y-2">
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-card px-3 py-2">
+        <StatusChip name={contract.statusName} color={statusColor} />
+        {contract.statusName === "2nd review" ? (
+          <span className="text-xs text-muted">
+            Waiting {secondWait}
+            {secondReviewerLabel ? ` · ${secondReviewerLabel}` : ""}
+          </span>
+        ) : null}
+        {canEdit ? (
+          <ContractStatusForm
+            contractId={contract.id}
+            statusName={contract.statusName}
+            statuses={statuses}
+            secondReviewers={reviewers}
+            secondReviewerId={contract.secondReviewerId}
+            firstReviewDone={Boolean(contract.firstReviewCompletedAt)}
+            secondReviewDone={Boolean(contract.secondReviewCompletedAt)}
+          />
+        ) : null}
+        <span className="text-sm">
+          Cert {cert?.statusName ?? "none"}
+          {cert ? (
+            <Link className="ml-1 text-teal hover:underline" href={`/certs/${cert.id}`}>Open</Link>
+          ) : (
+            <Link className="ml-1 text-teal hover:underline" href="/certs/new">Add</Link>
+          )}
+        </span>
+        <span className="text-sm text-muted">
+          Vendor {contract.contractor.vendorCode || "—"} · OSP {contract.contractor.ospCode || "—"} · BRC {contract.contractor.brcStatus}
+        </span>
       </div>
 
-      <Card>
-        <h2 className="serif mb-3 text-2xl">Routes</h2>
-        <p className="mb-3 text-muted">Click a route to see addendums. Addendums belong to the route, not the multi-contract number.</p>
-        {contract.routes.length === 0 ? (
-          <p className="text-muted">No route numbers yet. Add them when you review or when the packet is entered.</p>
-        ) : (
-          <div className="space-y-2">
-            {contract.routes.map((route) => (
-              <Link
-                key={route.id}
-                href={`/contracts/${contract.id}/routes/${route.id}`}
-                className="flex items-center justify-between rounded-xl border border-line px-4 py-3 hover:bg-teal-soft/40"
-              >
-                <span className="font-medium">{route.number}</span>
-                <span className="text-sm text-muted">
-                  {route.addenda.length
-                    ? `${route.addenda.length} addendum${route.addenda.length === 1 ? "" : "s"}`
-                    : "No addendum"}
-                </span>
-              </Link>
+      {jointMatches.length ? (
+        <Flag tone="teal">
+          <p className="font-medium">This contract has a joint agreement</p>
+          <ul className="mt-2 space-y-1">
+            {jointMatches.map((joint) => (
+              <li key={joint.id}>
+                <Link className="underline" href={`/contracts/${joint.id}`}>
+                  Routes {joint.matchedRoutes.join(", ")}
+                </Link>
+                {" · "}
+                Host {joint.hostName}
+                {joint.joinerDistricts ? ` · Joiner ${joint.joinerDistricts}` : ""}
+                {joint.statusName ? ` · ${joint.statusName}` : ""}
+              </li>
             ))}
-          </div>
-        )}
-      </Card>
+          </ul>
+        </Flag>
+      ) : null}
+      {contractsOnThisJoint.length ? (
+        <Flag tone="teal">
+          <p className="font-medium">Contracts already on file for these joint routes</p>
+          <ul className="mt-2 space-y-1">
+            {contractsOnThisJoint.map((row) => (
+              <li key={row.id}>
+                <Link className="underline" href={`/contracts/${row.id}`}>
+                  {row.multiContractNumber}
+                </Link>
+                {" · "}
+                {row.districtName}
+                {" · routes "}
+                {row.routes.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </Flag>
+      ) : null}
 
-      <div className="space-y-3">
+
+      <div className="flex flex-wrap gap-2">
         {contract.contractor.debarred ? (
-          <Flag tone="rose">This contractor is flagged as debarred. Check the <a className="underline" href={debarmentUrl()} target="_blank">NJDOE debarment list</a> before approving.</Flag>
+          <Flag tone="rose">Debarred. Check the <a className="underline" href={debarmentUrl()} target="_blank">state list</a>.</Flag>
         ) : (
-          <Flag tone="teal">Not flagged as debarred. Still confirm on the <a className="underline" href={debarmentUrl()} target="_blank">state list</a> if you are unsure.</Flag>
+          <Flag tone="teal">Debarment not flagged</Flag>
         )}
-        {contract.rationaleNeeded ? (
-          <Flag tone="rose">
-            Received {formatDate(contract.receivedDate)}, which is 30 or more days after the {formatDate(contract.boardMeetingDate)} board meeting. Ask the district for a rationale letter.
-          </Flag>
+        {rationaleLate ? (
+          <RationaleFlag
+            contractId={contract.id}
+            receivedLabel={formatDate(contract.receivedDate)}
+            boardLabel={formatDate(contract.boardMeetingDate)}
+            days={rationaleDays}
+            waived={rationaleWaived}
+            note={contract.rationaleOkNote ?? ""}
+            canEdit={canEdit}
+          />
         ) : null}
-        {ins.kind !== "covers" ? (
+        {ins.kind === "pending" ? (
+          <Flag tone="amber">{ins.label}</Flag>
+        ) : ins.kind !== "covers" ? (
           <Flag tone={ins.kind === "gap" || ins.kind === "missing" ? "rose" : "amber"}>
-            Insurance for {contract.district.name}: {ins.label}
-            {ins.gapStart && ins.gapEnd ? ` Need coverage ${formatDate(ins.gapStart)} through ${formatDate(ins.gapEnd)}.` : ""}
-            {` Contract runs ${formatDate(contract.startsOn)} – ${formatDate(contract.endsOn)}.`}
+            {ins.kind === "gap" && ins.gapStart && ins.gapEnd
+              ? `Insurance gap ${formatDate(ins.gapStart)} – ${formatDate(ins.gapEnd)}`
+              : ins.kind === "missing"
+                ? "Insurance missing"
+                : ins.label}
           </Flag>
         ) : (
-          <Flag tone="sage">
-            Insurance for {contract.district.name} covers this contract
-            {insurance?.startsOn || insurance?.expiresAt
-              ? ` (${formatDate(insurance?.startsOn)} – ${formatDate(insurance?.expiresAt)})`
-              : ""}.
-          </Flag>
+          <Flag tone="sage">Insurance covers this contract{insuranceSpan ? ` (${insuranceSpan})` : ""}</Flag>
         )}
         {cpiMax != null && contract.cost != null && contract.cost > cpiMax + 0.01 && contract.type === "renewal" ? (
-          <Flag tone="amber">Renewal cost ${contract.cost.toLocaleString()} is above this year’s CPI cap of ${cpiMax.toFixed(2)} ({cpi}%). Confirm a bid-allowed exception.</Flag>
+          <Flag tone="amber">Renewal ${contract.cost.toLocaleString()} is over the {cpi}% CPI cap (${cpiMax.toFixed(2)}).</Flag>
         ) : null}
         {contract.type === "quote" && contract.cost != null && contract.cost > Number(bidThreshold) ? (
-          <Flag tone="amber">Quote amount is over the ${Number(bidThreshold).toLocaleString()} bid threshold. Quotes over the threshold can only run until they would exceed it.</Flag>
+          <Flag tone="amber">Quote is over the ${Number(bidThreshold).toLocaleString()} bid threshold.</Flag>
         ) : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <h2 className="serif mb-4 text-2xl">Review and decide</h2>
+      <ReviewChecks
+        contractId={contract.id}
+        canEdit={canEdit}
+        firstDone={Boolean(contract.firstReviewCompletedAt)}
+        secondDone={Boolean(contract.secondReviewCompletedAt)}
+        firstDetail={
+          contract.firstReviewCompletedAt
+            ? `${formatDate(contract.firstReviewCompletedAt)}${contract.firstReviewCompletedBy?.name ? ` · ${contract.firstReviewCompletedBy.name}` : ""}`
+            : undefined
+        }
+        secondDetail={
+          contract.secondReviewCompletedAt
+            ? `${formatDate(contract.secondReviewCompletedAt)}${contract.secondReviewCompletedBy?.name ? ` · ${contract.secondReviewCompletedBy.name}` : ""}`
+            : undefined
+        }
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {checklist.length ? (
+          <PopupButton label="Checklist" title={checklistDef?.name ?? "Checklist"}>
+            <div className="space-y-2">
+              {checklist.map((item) => (
+                <ChecklistRow key={item.id} item={item} compact />
+              ))}
+            </div>
+          </PopupButton>
+        ) : null}
+        {canEdit ? (
+        <PopupButton label="Edit contract" title="Edit contract">
+            <ContractForm
+              mode="entry"
+              schoolYear={schoolYear}
+              districts={districts}
+              contractors={contractors}
+              statuses={statuses}
+              contract={contract}
+              routes={sortedRoutes}
+              extraPackets={contract.extraPackets}
+              additionalContractorIds={contract.extraContractors.map((link) => link.contractorId)}
+            />
+          </PopupButton>
+        ) : null}
+        {canEdit ? (
+          <PopupButton label="Add information" title="Add information">
+            <ContractForm
+              mode="details"
+              schoolYear={schoolYear}
+              districts={districts}
+              contractors={contractors}
+              statuses={statuses}
+              bidSpecs={bidSpecs}
+              routePackets={routePackets}
+              contract={contract}
+              linkedRouteIds={contract.routeLinks.map((link) => link.routeDescriptionId)}
+            />
+          </PopupButton>
+        ) : null}
+        <PopupButton label="Edit routes" title="Edit routes">
+          <ContractRoutesPanel
+            contractId={contract.id}
+            routes={routePanelRoutes}
+            extraPackets={contract.extraPackets}
+            canEdit={canEdit}
+            saved={{
+              added: linked.routesAdded === "1",
+              cancelled: linked.routeCancelled,
+              restored: linked.routeRestored,
+            }}
+          />
+        </PopupButton>
+        <PopupButton label="Insurance" title="Insurance">
           <p className="mb-3 text-sm text-muted">
-            Generating a letter moves the status to Approved or Disapproved while you wait for a signature. After the signed letter is sent, mark the date it went to the district.
+            On file: {insuranceHint}. The certificate already on file stays. Saving keeps you on this contract and updates the Insurance page.
           </p>
-          <LetterButtons kind="contract" id={contract.id} />
-          {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
-            <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-              <input type="hidden" name="id" value={contract.id} />
-              <Field label="Date sent to district">
-                <input className={inputClass} type="date" name="sentToDistrictAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+          {insuranceRows.length ? (
+            <ul className="mb-3 space-y-2 text-sm">
+              {insuranceRows.map((row) => (
+                <li key={row.id}>
+                  <Link className="text-teal hover:underline" href={`/insurance/${row.id}`}>
+                    {formatDate(row.startsOn)} – {formatDate(row.expiresAt)}
+                  </Link>
+                  {row.policyNumber ? ` · ${row.policyNumber}` : ""}
+                  {umbrellaSuffix(row.policyKind)}
+                  {" · "}Named: {row.namedDistrict || "—"}{" "}
+                  {row.filePath ? (
+                    <a className="text-teal hover:underline" href={`/api/files?path=${encodeURIComponent(row.filePath)}`}>Open file</a>
+                  ) : (
+                    <span className="text-muted">(no file uploaded)</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-3 text-sm text-muted">No certificate on file that names {contract.district.name}.</p>
+          )}
+          {canFileInsurance ? (
+            <form action={saveInsurance} className="space-y-3 border-t border-line pt-3">
+              <input type="hidden" name="contractorId" value={contract.contractorId} />
+              <input type="hidden" name="districtId" value={contract.districtId} />
+              <input type="hidden" name="schoolYear" value={contract.schoolYear} />
+              <input type="hidden" name="returnTo" value={`/contracts/${contract.id}`} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Coverage start">
+                  <input className={inputClass} type="date" name="startsOn" required />
+                </Field>
+                <Field label="Coverage end">
+                  <input className={inputClass} type="date" name="expiresAt" required />
+                </Field>
+              </div>
+              <PolicyKindField />
+              <Field label="Policy number">
+                <input className={inputClass} name="policyNumber" />
               </Field>
-              <Button type="submit">Mark signed letter sent</Button>
+              <Field label="Name on the certificate" hint={`This district is ${contract.district.name}.`}>
+                <input className={inputClass} name="namedDistrict" defaultValue={contract.district.name} />
+              </Field>
+              <Field label="Certificate file (optional)">
+                <input className={inputClass} type="file" name="file" />
+              </Field>
+              <Button type="submit">Save insurance</Button>
             </form>
           ) : null}
-        </Card>
-        <Card>
-          <h2 className="serif mb-4 text-2xl">Insurance for this district</h2>
-          <p className="mb-3 text-sm text-muted">
-            We do not approve insurance. We keep a certificate on the contractor and district so it can cover every contract they have together.
-          </p>
-          {insurance ? (
-            <p className="mb-3">
-              Named: {insurance.namedDistrict || "—"} · {formatDate(insurance.startsOn)} – {formatDate(insurance.expiresAt)}{" "}
-              {insurance.filePath ? (
-                <a className="text-teal" href={`/api/files?path=${encodeURIComponent(insurance.filePath)}`}>Open file</a>
-              ) : null}
-            </p>
-          ) : (
-            <p className="mb-3 text-muted">No certificate on file that names {contract.district.name}.</p>
-          )}
-          <Link className="text-teal" href={`/insurance/new?contractorId=${contract.contractorId}&districtId=${contract.districtId}`}>
-            Upload insurance for this district
-          </Link>
-          {ins.kind !== "covers" && (
-            <div className="mt-4">
-              <SimpleEmailForm
-                districtId={contract.districtId}
-                defaultTo={contract.district.email || ""}
-                kind="insurance"
-                subject={`Updated insurance needed — ${contract.district.name}`}
-                body={`Hello,\n\nPlease send an updated certificate of insurance for ${contract.contractor.legalName} that names ${contract.district.name} as an additional insured${ins.gapStart && ins.gapEnd ? ` and covers ${formatDate(ins.gapStart)} through ${formatDate(ins.gapEnd)}` : ""}.\n\nThank you,\nPassaic County Transportation`}
-              />
-            </div>
-          )}
-        </Card>
+        </PopupButton>
+        {canEdit ? (
+          <PopupButton label="Vendor / OSP" title="Vendor / OSP">
+            <ContractVendorForm
+              contractId={contract.id}
+              contractorId={contract.contractorId}
+              vendorCode={contract.contractor.vendorCode}
+              ospCode={contract.contractor.ospCode}
+              saved={linked.codesSaved === "1"}
+            />
+          </PopupButton>
+        ) : null}
+        {canEdit ? (
+          <PopupButton label="Business registration" title="Business registration">
+            <ContractRegistrationForm
+              contractId={contract.id}
+              contractorId={contract.contractorId}
+              legalName={contract.contractor.legalName}
+              brcNumber={contract.contractor.brcNumber}
+              brcNameControl={contract.contractor.brcNameControl}
+              brcStatus={contract.contractor.brcStatus}
+              brcVerifiedAt={contract.contractor.brcVerifiedAt}
+              saved={linked.brcSaved === "1"}
+            />
+          </PopupButton>
+        ) : null}
+        <PopupButton label="PT-4" title="PT-4">
+          <Pt4Form
+            entityType="contract"
+            entityId={contract.id}
+            districtName={contract.district.name}
+            existingPt4Url={existingPt4Url}
+            showEmail={false}
+          />
+        </PopupButton>
+        {canApprove ? (
+          <PopupButton label="Letters" title="Letters">
+            <LetterButtons
+              kind="contract"
+              id={contract.id}
+              canApprove={canApprove}
+              contractTypeLabel={contractTypeLabel(contract.type)}
+              contractType={contract.type}
+              letterGroup={currentLetterGroup}
+              sameTypeContracts={sameTypeContracts.map((row) => ({
+                id: row.id,
+                multiContractNumber: row.multiContractNumber,
+                contractorName: row.contractor.legalName,
+                hostName: row.hostDistrict?.name,
+                joinerDistricts: row.joinerDistricts,
+                receivedDateLabel: formatDate(row.receivedDate),
+                letterGroup: {
+                  type: row.type,
+                  districtId: row.districtId,
+                  schoolYear: row.schoolYear,
+                  hostDistrictId: row.hostDistrictId,
+                  joinerDistricts: row.joinerDistricts,
+                  receivedDate: row.receivedDate,
+                },
+                sameLetterGroup: sameLetterGroup(currentLetterGroup, {
+                  type: row.type,
+                  districtId: row.districtId,
+                  schoolYear: row.schoolYear,
+                  hostDistrictId: row.hostDistrictId,
+                  joinerDistricts: row.joinerDistricts,
+                  receivedDate: row.receivedDate,
+                }),
+              }))}
+            />
+            {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract.statusName) ? (
+              <form action={markLetterSent} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <input type="hidden" name="id" value={contract.id} />
+                <Field label="Date sent to district">
+                  <input className={inputClass} type="date" name="sentToDistrictAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+                </Field>
+                <Button type="submit">Mark signed letter sent</Button>
+              </form>
+            ) : null}
+            <form action={saveSignedApprovalLetter} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <input type="hidden" name="id" value={contract.id} />
+              <Field
+                label="Signed approval letter (optional)"
+                hint={contract.signedApprovalLetterPath ? "A signed letter is already on file. Upload another to replace it." : "You do not have to upload this."}
+              >
+                <input className={inputClass} type="file" name="file" />
+              </Field>
+              <Button type="submit" variant="secondary">Save signed letter</Button>
+            </form>
+            {contract.signedApprovalLetterPath ? (
+              <p className="mt-2 text-sm">
+                <a className="text-teal hover:underline" href={`/api/files?path=${encodeURIComponent(contract.signedApprovalLetterPath)}`}>
+                  Open signed letter
+                </a>
+              </p>
+            ) : null}
+          </PopupButton>
+        ) : null}
       </div>
 
-      {contract.rationaleNeeded ? (
-        <Card>
-          <h2 className="serif mb-4 text-2xl">Ask for a rationale letter</h2>
-          <SimpleEmailForm
-            districtId={contract.districtId}
-            defaultTo={contract.district.email || ""}
-            kind="rationale"
-            subject={`Rationale letter needed — ${contract.multiContractNumber}`}
-            body={`Hello,\n\nThis contract was received by the county office 30 or more days after the board meeting that awarded it. Please send a rationale letter so we can continue the review.\n\nMulti-contract: ${contract.multiContractNumber}\nBoard meeting: ${formatDate(contract.boardMeetingDate)}\nDate received: ${formatDate(contract.receivedDate)}\n\nThank you,\nPassaic County Transportation`}
-          />
-        </Card>
-      ) : null}
-
-      <Card>
-        <h2 className="serif mb-2 text-2xl">Checklist</h2>
-        <p className="mb-4 text-muted">Use this when the review starts. Comment on anything missing — those comments become the PT-4.</p>
-        <div className="space-y-3">
-          {checklist.map((item) => (
-            <ChecklistRow key={item.id} item={item} />
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <h2 className="serif mb-4 text-2xl">Send a PT-4</h2>
-        <Pt4Form
-          entityType="contract"
-          entityId={contract.id}
-          defaultTo={contract.district.email || ""}
-          districtName={contract.district.name}
-        />
-      </Card>
-
-      {contract.bidSpec ? (
-        <Card>
-          <h2 className="serif mb-2 text-2xl">Linked bid spec</h2>
-          <p>
-            <Link className="text-teal" href={`/bid-specs/${contract.bidSpec.id}`}>{contract.bidSpec.title}</Link>
-            {contract.bidSpec.insuranceAmount ? ` · Insurance $${contract.bidSpec.insuranceAmount.toLocaleString()}` : ""}
-            {contract.bidSpec.bondType ? ` · Bond ${contract.bidSpec.bondType}` : ""}
-          </p>
-        </Card>
-      ) : null}
-
-      {contract.routePacket ? (
-        <Card>
-          <h2 className="serif mb-2 text-2xl">Linked route packet</h2>
-          <Link className="text-teal" href={`/route-descriptions/${contract.routePacket.id}`}>
-            {contract.routePacket.destination || contract.routePacket.title}
-          </Link>
-        </Card>
-      ) : null}
-
-      <Card>
-        <h2 className="serif mb-2 text-2xl">Review details</h2>
-        <p className="mb-4 text-muted">
-          These fields depend on the type of contract. Prior-year cost is only for renewals, host and joiner districts only for joint agreements, route descriptions and bid specs only for originals, and emergency quote packets only for quotes.
-        </p>
-        <ContractForm
-          mode="review"
-          schoolYear={schoolYear}
-          districts={districts}
-          contractors={contractors}
-          statuses={statuses}
-          bidSpecs={bidSpecs}
-          routePackets={routePackets}
-          contract={contract}
-          routes={contract.routes}
-          linkedRouteIds={contract.routeLinks.map((l) => l.routeDescriptionId)}
-          currentUserId={session?.id}
-        />
-      </Card>
+      <section className="min-w-0 rounded-xl border border-line bg-card px-3 py-2">
+          <h2 className="text-sm font-medium">Comments</h2>
+          <div className="mt-1 max-h-16 space-y-1 overflow-auto">
+            {displayComments.length === 0 ? <p className="text-sm text-muted">No comments yet.</p> : null}
+            {displayComments.map((comment) => (
+              <div key={comment.id} className="rounded-lg border border-line px-3 py-2">
+                <p className="text-xs text-muted">
+                  {comment.userName} · {formatDate(comment.createdAt)} {comment.createdAt.toLocaleTimeString()}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{comment.body}</p>
+                {comment.canDelete ? (
+                  <form action={deleteContractComment}>
+                    <input type="hidden" name="id" value={comment.id} />
+                    <button className="text-xs text-rose" type="submit">Delete comment</button>
+                  </form>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          <form action={addContractComment} className="mt-2 flex items-center gap-2">
+            <input type="hidden" name="contractId" value={contract.id} />
+            <textarea className={inputClass} name="body" rows={1} required placeholder="Add a comment" aria-label="Add a comment" />
+            <Button type="submit">Save</Button>
+          </form>
+        </section>
+      </div>
+      </div>
     </div>
   );
 }
