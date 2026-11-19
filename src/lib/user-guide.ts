@@ -98,14 +98,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "When you review",
-        body: "Open the contract. Every type asks for status, contract start date, contract end date, board meeting date, contract total cost, bond amount, bond type, and insurance amount. Extra questions follow the checklist for that type:",
+        body: "Open the contract. Most types ask for status, contract start date, contract end date, board meeting date, contract total cost, bond amount, bond type, and insurance amount. A parental contract asks for insurance amount and umbrella insurance amount instead of a bond. Extra questions follow the checklist for that type:",
         bullets: [
           "Original / bid: link the approved route descriptions and the bid spec.",
           "Renewal: prior-year cost (used to check the CPI increase) and any extra multi-contract numbers.",
           "Quote: link the emergency quote packet.",
           "Joint agreement: host district, joiner district, and routes are entered when the agreement arrives. There is no multi-contract number. A later original, renewal, quote, or parental shows the joint agreement when a route number matches, even though that contract lists only one district.",
           "Addendum: if the cost increased, the bond amount has to increase too.",
-          "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
+          "Parental: parent name is entered when the packet arrives. Add information asks for the insurance amount and the umbrella insurance amount, not a bond. Together those two amounts need to equal $1,500,000. The checklist still asks for the license and the registration.",
           "Vendor / OSP and Business registration are buttons on the contract. Each one opens a box. Save writes the codes onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
           "On the Contracts list, filter by the date received, district, contractor, type, and status. Filters stay inside the list you are looking at. My districts filters only your contracts. View all filters every contract. Clear removes the filters and keeps that same list. Use Received from and Received through for one day or a range.",
         ],
@@ -232,6 +232,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "A certificate is filed per contractor per district. A Clifton cert cannot cover Wayne. The district named as additional insured must match.",
           "Keep every certificate. When you add the updated policy, the current one stays on file. The contract is covered when the dates together span the full run.",
           "On the contract, open Insurance and enter the new dates there. You stay on that contract. The Insurance page shows the same certificate.",
+          "Choose Regular insurance or Umbrella when you enter a certificate. A parental contract usually has one of each. Together they need to equal $1,500,000.",
           "If a contractor has five contracts with the same district, the certificates on file can cover all five.",
           "Enter the coverage start and end dates on the new certificate. Do not replace the dates on the current one.",
           "Example: contract ends June 30, 2027 and the current insurance ends March 3, 2027. Add a certificate for March 4 through June 30. Both stay on file.",
@@ -425,7 +426,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     blocks: [
       {
         heading: "Parental contracts",
-        body: "Negotiated with a parent who transports only their own child. Need minutes, parent automobile insurance, license, and vehicle registration. 6A:27-9.9(e). Parents are exempt from CDL, school-bus registration, and the employee health exam. 6A:27-7.7.",
+        body: "Negotiated with a parent who transports only their own child. Parents do not post a bond. They need regular automobile insurance and umbrella insurance that together equal $1,500,000, plus a license and vehicle registration. 6A:27-9.9(e). Parents are exempt from CDL, school-bus registration, and the employee health exam. 6A:27-7.7.",
       },
       {
         heading: "Addenda",

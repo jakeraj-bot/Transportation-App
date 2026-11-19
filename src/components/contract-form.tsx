@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { addQuickContractor, saveContract } from "@/app/actions";
 import { SaveContractButton, SavingForm } from "@/components/saving-form";
 import { Field, inputClass } from "@/components/ui";
-import { CONTRACT_TYPES, toInputDate } from "@/lib/utils";
+import { CONTRACT_TYPES, parseMoney, toInputDate } from "@/lib/utils";
+import { parentalInsuranceMeetsRequirement, parentalInsuranceMessage, parentalInsuranceTotal } from "@/lib/parental-insurance";
 import { allowsMultipleCompanies, showsBidNumber, showsMultiContractNumber, showsRenewalNumber, usesBusCompany, usesHostJoiner, usesParentName } from "@/lib/contract-intake";
 import { mapContractType } from "@/lib/import-records";
 import { checklistDefinition } from "@/lib/checklists";
@@ -63,6 +64,10 @@ export function ContractForm({
     })) ?? []
   );
   const router = useRouter();
+  const [insuranceText, setInsuranceText] = useState(contract?.insuranceAmount == null ? "" : String(contract.insuranceAmount));
+  const [umbrellaText, setUmbrellaText] = useState(
+    contract?.umbrellaInsuranceAmount == null ? "" : String(contract.umbrellaInsuranceAmount)
+  );
   const ownSecondReview =
     mode === "review" &&
     contract?.statusName === "2nd review" &&
@@ -85,7 +90,7 @@ export function ContractForm({
             ? "Originals need the linked bid spec and approved route descriptions, plus the bid checklist."
             : type === "quote"
               ? "Quotes need the linked emergency quote packet, plus the quote checklist."
-              : "Parental contracts only need the shared review fields plus the parental checklist.";
+              : "Parental contracts ask for insurance amount and umbrella insurance amount instead of a bond. Together they need to equal $1,500,000.";
 
   async function createContractor() {
     setContractorError("");
@@ -391,7 +396,9 @@ export function ContractForm({
           <>
             {mode === "details" ? null : (
             <p className="md:col-span-2 rounded-xl bg-cream px-4 py-3 text-sm text-muted">
-              Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount.
+              {type === "parental"
+                ? "A parental contract asks for status, start and end dates, board meeting date, contract total cost, insurance amount, and umbrella insurance amount. Parents do not post a bond."
+                : "Every contract asks for status, start and end dates, board meeting date, contract total cost, bond amount, bond type, and insurance amount."}
               {checklist ? ` The ${checklist.name.toLowerCase()} checklist is on this page after you save.` : ""} {reviewHint}
             </p>
             )}
@@ -407,22 +414,55 @@ export function ContractForm({
             <Field label="Contract total cost">
               <input className={inputClass} name="cost" defaultValue={contract?.cost ?? ""} />
             </Field>
-            <Field
-              label="Bond amount"
-              hint={type === "addendum" ? "If this addendum increased the cost, the performance bond has to increase too." : undefined}
-            >
-              <input className={inputClass} name="bondAmount" defaultValue={contract?.bondAmount ?? ""} />
-            </Field>
-            <Field label="Bond type">
-              <select className={inputClass} name="bondType" defaultValue={contract?.bondType ?? "none"}>
-                <option value="none">None</option>
-                <option value="corporate">Corporate</option>
-                <option value="personal">Personal</option>
-              </select>
-            </Field>
-            <Field label="Insurance amount">
-              <input className={inputClass} name="insuranceAmount" defaultValue={contract?.insuranceAmount ?? ""} />
-            </Field>
+            {type === "parental" ? (
+              <>
+                <Field label="Insurance amount" hint="The regular automobile policy. Parents do not post a bond.">
+                  <input
+                    className={inputClass}
+                    name="insuranceAmount"
+                    value={insuranceText}
+                    onChange={(event) => setInsuranceText(event.target.value)}
+                  />
+                </Field>
+                <Field label="Umbrella insurance amount" hint="The umbrella policy.">
+                  <input
+                    className={inputClass}
+                    name="umbrellaInsuranceAmount"
+                    value={umbrellaText}
+                    onChange={(event) => setUmbrellaText(event.target.value)}
+                  />
+                </Field>
+                <p
+                  className={`md:col-span-2 text-sm ${
+                    parentalInsuranceTotal(parseMoney(insuranceText), parseMoney(umbrellaText)) != null &&
+                    !parentalInsuranceMeetsRequirement(parseMoney(insuranceText), parseMoney(umbrellaText))
+                      ? "text-rose"
+                      : "text-muted"
+                  }`}
+                >
+                  {parentalInsuranceMessage(parseMoney(insuranceText), parseMoney(umbrellaText))}
+                </p>
+              </>
+            ) : (
+              <>
+                <Field
+                  label="Bond amount"
+                  hint={type === "addendum" ? "If this addendum increased the cost, the performance bond has to increase too." : undefined}
+                >
+                  <input className={inputClass} name="bondAmount" defaultValue={contract?.bondAmount ?? ""} />
+                </Field>
+                <Field label="Bond type">
+                  <select className={inputClass} name="bondType" defaultValue={contract?.bondType ?? "none"}>
+                    <option value="none">None</option>
+                    <option value="corporate">Corporate</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </Field>
+                <Field label="Insurance amount">
+                  <input className={inputClass} name="insuranceAmount" defaultValue={contract?.insuranceAmount ?? ""} />
+                </Field>
+              </>
+            )}
             {["Approved", "Disapproved", "Final Approval", "Final Disapproval"].includes(contract?.statusName ?? "") ? (
               <Field label="Date sent to district" hint="The day the signed letter left the office.">
                 <input className={inputClass} type="date" name="sentToDistrictAt" defaultValue={toInputDate(contract?.sentToDistrictAt)} />

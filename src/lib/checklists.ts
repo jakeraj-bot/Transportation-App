@@ -38,6 +38,7 @@ export const CHECKLISTS: ChecklistDefinition[] = [
     name: "Parental contract",
     items: [
       "Parent automobile insurance",
+      "Umbrella insurance",
       "Copy of a valid driver's license",
       "Copy of current vehicle registration",
     ],

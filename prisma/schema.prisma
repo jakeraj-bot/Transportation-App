@@ -168,6 +168,7 @@ model Contract {
   bondAmount           Float?
   bondType             String    @default("none")
   insuranceAmount      Float?
+  umbrellaInsuranceAmount Float?
   boardMeetingDate     DateTime?
   receivedDate         DateTime?
   statusName           String    @default("Need review")
@@ -370,6 +371,7 @@ model InsuranceCertificate {
   schoolYear    String
   policyNumber  String?
   amount        Float?
+  policyKind    String    @default("regular")
   startsOn      DateTime?
   expiresAt     DateTime?
   namedDistrict String?

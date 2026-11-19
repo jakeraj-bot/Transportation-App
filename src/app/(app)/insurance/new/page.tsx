@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { saveInsurance } from "@/app/actions";
+import { PolicyKindField } from "@/components/policy-kind-field";
 import { Button, Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 import { activeContractors, activeDistricts, getSchoolYear } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
@@ -40,6 +42,7 @@ export default async function NewInsurancePage({
                   {formatDate(cert.startsOn)} – {formatDate(cert.expiresAt)}
                 </Link>
                 {cert.policyNumber ? ` · ${cert.policyNumber}` : ""}
+                {umbrellaSuffix(cert.policyKind)}
               </li>
             ))}
           </ul>
@@ -61,6 +64,7 @@ export default async function NewInsurancePage({
           </Field>
           <Field label="School year"><input className={inputClass} name="schoolYear" defaultValue={schoolYear} /></Field>
           <Field label="Policy number"><input className={inputClass} name="policyNumber" /></Field>
+          <PolicyKindField />
           <Field label="Coverage amount"><input className={inputClass} name="amount" /></Field>
           <Field label="Coverage start date"><input className={inputClass} type="date" name="startsOn" /></Field>
           <Field label="Coverage end date"><input className={inputClass} type="date" name="expiresAt" /></Field>

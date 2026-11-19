@@ -21,6 +21,8 @@ import { Button, Field, Flag, PageHeader, StatusChip, inputClass } from "@/compo
 import { activeContractors, activeDistricts, applyContractReviewDefaults, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { certificatesCoverContract, formatSecondReviewDays, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
+import { PolicyKindField } from "@/components/policy-kind-field";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdmin } from "@/lib/roles";
 import { checklistDefinition } from "@/lib/checklists";
@@ -514,6 +516,7 @@ export default async function ContractDetailPage({
                     {formatDate(row.startsOn)} – {formatDate(row.expiresAt)}
                   </Link>
                   {row.policyNumber ? ` · ${row.policyNumber}` : ""}
+                  {umbrellaSuffix(row.policyKind)}
                   {" · "}Named: {row.namedDistrict || "—"}{" "}
                   {row.filePath ? (
                     <a className="text-teal hover:underline" href={`/api/files?path=${encodeURIComponent(row.filePath)}`}>Open file</a>
@@ -540,6 +543,7 @@ export default async function ContractDetailPage({
                   <input className={inputClass} type="date" name="expiresAt" required />
                 </Field>
               </div>
+              <PolicyKindField />
               <Field label="Policy number">
                 <input className={inputClass} name="policyNumber" />
               </Field>

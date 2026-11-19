@@ -6,6 +6,7 @@ import { Card, Flag, PageHeader, StatusChip } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { certificatesCoverContract } from "@/lib/flags";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 
 export default async function ContractorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -85,6 +86,7 @@ export default async function ContractorPage({ params }: { params: Promise<{ id:
                         {formatDate(ins.startsOn)} – {formatDate(ins.expiresAt)}
                       </Link>
                       {ins.policyNumber ? ` · ${ins.policyNumber}` : ""}
+                      {umbrellaSuffix(ins.policyKind)}
                     </p>
                   ))}
                   <p className="text-sm text-muted">

@@ -1,5 +1,20 @@
 import Link from "next/link";
+import { parentalInsuranceMeetsRequirement, parentalInsuranceTotal } from "@/lib/parental-insurance";
 import { contractTypeLabel, formatCurrency, formatDate } from "@/lib/utils";
+
+function ParentalTotal({
+  insuranceAmount,
+  umbrellaAmount,
+}: {
+  insuranceAmount: number | null;
+  umbrellaAmount?: number | null;
+}) {
+  const total = parentalInsuranceTotal(insuranceAmount, umbrellaAmount);
+  if (total == null) return <span className="text-rose">Needs $1,500,000</span>;
+  const shown = `$${formatCurrency(total)}`;
+  if (parentalInsuranceMeetsRequirement(insuranceAmount, umbrellaAmount)) return shown;
+  return <span className="text-rose">{shown} · needs $1,500,000</span>;
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -34,6 +49,7 @@ export function ContractSnapshot({
     bondAmount: number | null;
     bondType: string;
     insuranceAmount: number | null;
+    umbrellaInsuranceAmount?: number | null;
   };
   companyNames: string;
   routes: Array<{
@@ -85,14 +101,30 @@ export function ContractSnapshot({
         <Field label="Cost">
           {contract.cost != null ? `$${formatCurrency(contract.cost)}` : null}
         </Field>
-        <Field label="Bond">
-          {contract.bondAmount != null || contract.bondType !== "none"
-            ? `${contract.bondType !== "none" ? contract.bondType : "None"}${contract.bondAmount != null ? ` · $${formatCurrency(contract.bondAmount)}` : ""}`
-            : null}
-        </Field>
-        <Field label="Insurance">
-          {contract.insuranceAmount != null ? `$${formatCurrency(contract.insuranceAmount)}` : null}
-        </Field>
+        {contract.type === "parental" ? (
+          <>
+            <Field label="Insurance">
+              {contract.insuranceAmount != null ? `$${formatCurrency(contract.insuranceAmount)}` : null}
+            </Field>
+            <Field label="Umbrella">
+              {contract.umbrellaInsuranceAmount != null ? `$${formatCurrency(contract.umbrellaInsuranceAmount)}` : null}
+            </Field>
+            <Field label="Together">
+              <ParentalTotal insuranceAmount={contract.insuranceAmount} umbrellaAmount={contract.umbrellaInsuranceAmount} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label="Bond">
+              {contract.bondAmount != null || contract.bondType !== "none"
+                ? `${contract.bondType !== "none" ? contract.bondType : "None"}${contract.bondAmount != null ? ` · $${formatCurrency(contract.bondAmount)}` : ""}`
+                : null}
+            </Field>
+            <Field label="Insurance">
+              {contract.insuranceAmount != null ? `$${formatCurrency(contract.insuranceAmount)}` : null}
+            </Field>
+          </>
+        )}
         <Field label="Routes">
           {routes.length === 0
             ? "No routes yet"

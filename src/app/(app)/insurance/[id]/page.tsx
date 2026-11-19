@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { saveInsurance, softDelete } from "@/app/actions";
 import { SimpleEmailForm } from "@/components/client-forms";
+import { PolicyKindField } from "@/components/policy-kind-field";
 import { Button, Card, Field, Flag, PageHeader, inputClass } from "@/components/ui";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 import { activeContractors, activeDistricts } from "@/lib/data";
 import { outlookConfigured } from "@/lib/email";
 import { certificatesCoverContract } from "@/lib/flags";
@@ -76,12 +78,14 @@ export default async function InsuranceDetailPage({ params }: { params: Promise<
               {cert.id === row.id ? (
                 <span>
                   {formatDate(cert.startsOn)} – {formatDate(cert.expiresAt)}
-                  {cert.policyNumber ? ` · ${cert.policyNumber}` : ""} · this certificate
+                  {cert.policyNumber ? ` · ${cert.policyNumber}` : ""}
+                  {umbrellaSuffix(cert.policyKind)} · this certificate
                 </span>
               ) : (
                 <Link className="text-teal hover:underline" href={`/insurance/${cert.id}`}>
                   {formatDate(cert.startsOn)} – {formatDate(cert.expiresAt)}
                   {cert.policyNumber ? ` · ${cert.policyNumber}` : ""}
+                  {umbrellaSuffix(cert.policyKind)}
                 </Link>
               )}
             </li>
@@ -123,6 +127,7 @@ export default async function InsuranceDetailPage({ params }: { params: Promise<
           </Field>
           <Field label="School year"><input className={inputClass} name="schoolYear" defaultValue={row.schoolYear} /></Field>
           <Field label="Policy number"><input className={inputClass} name="policyNumber" defaultValue={row.policyNumber ?? ""} /></Field>
+          <PolicyKindField defaultValue={row.policyKind} />
           <Field label="Coverage amount"><input className={inputClass} name="amount" defaultValue={row.amount ?? ""} /></Field>
           <Field label="Coverage start date"><input className={inputClass} type="date" name="startsOn" defaultValue={toInputDate(row.startsOn)} /></Field>
           <Field label="Coverage end date"><input className={inputClass} type="date" name="expiresAt" defaultValue={toInputDate(row.expiresAt)} /></Field>

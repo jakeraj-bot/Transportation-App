@@ -2,6 +2,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { Button, Card, EmptyState, PageHeader, StatusChip } from "@/components/ui";
 import { certificatesCoverContract } from "@/lib/flags";
+import { umbrellaSuffix } from "@/lib/parental-insurance";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
@@ -73,7 +74,7 @@ export default async function InsurancePage({
                   <tr key={r.id} className="border-b border-line/70">
                     <td className="px-5 py-3"><Link className="text-teal" href={`/insurance/${r.id}`}>{r.contractor.legalName}</Link></td>
                     <td className="px-5 py-3">{r.district.name}</td>
-                    <td className="px-5 py-3">{formatDate(r.startsOn)} – {formatDate(r.expiresAt)}</td>
+                    <td className="px-5 py-3">{formatDate(r.startsOn)} – {formatDate(r.expiresAt)}{umbrellaSuffix(r.policyKind)}</td>
                     <td className="px-5 py-3"><StatusChip name={chip.name} color={chip.color} /></td>
                   </tr>
                 );

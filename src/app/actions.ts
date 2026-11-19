@@ -844,9 +844,7 @@ export async function saveContract(form: FormData) {
     mode === "review"
       ? {
           cost: parseMoney(formString(form, "cost")),
-          bondAmount: parseMoney(formString(form, "bondAmount")),
-          bondType: formString(form, "bondType") || "none",
-          insuranceAmount: parseMoney(formString(form, "insuranceAmount")),
+          ...contractCoverageFields(form, type),
           boardMeetingDate: parseDate(formString(form, "boardMeetingDate")),
           sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
           ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
@@ -1123,6 +1121,7 @@ export async function saveInsurance(form: FormData) {
     schoolYear: formString(form, "schoolYear"),
     policyNumber: formString(form, "policyNumber") || null,
     amount: parseMoney(formString(form, "amount")),
+    policyKind: formString(form, "policyKind") === "umbrella" ? "umbrella" : "regular",
     startsOn: parseDate(formString(form, "startsOn")),
     expiresAt: parseDate(formString(form, "expiresAt")),
     namedDistrict: formString(form, "namedDistrict") || null,
@@ -1333,6 +1332,24 @@ export async function saveSecondReviewNote(form: FormData) {
   revalidateAll();
 }
 
+function contractCoverageFields(form: FormData, type: string) {
+  const insuranceAmount = parseMoney(formString(form, "insuranceAmount"));
+  if (type === "parental") {
+    return {
+      bondAmount: null,
+      bondType: "none",
+      insuranceAmount,
+      umbrellaInsuranceAmount: parseMoney(formString(form, "umbrellaInsuranceAmount")),
+    };
+  }
+  return {
+    bondAmount: parseMoney(formString(form, "bondAmount")),
+    bondType: formString(form, "bondType") || "none",
+    insuranceAmount,
+    umbrellaInsuranceAmount: null,
+  };
+}
+
 async function saveContractDetails(form: FormData, userId: string, id: string) {
   const current = await prisma.contract.findFirst({ where: { id, deletedAt: null } });
   if (!current) throw new Error("That contract could not be found.");
@@ -1344,9 +1361,7 @@ async function saveContractDetails(form: FormData, userId: string, id: string) {
       endsOn: parseDate(formString(form, "endsOn")),
       boardMeetingDate: parseDate(formString(form, "boardMeetingDate")),
       cost: parseMoney(formString(form, "cost")),
-      bondAmount: parseMoney(formString(form, "bondAmount")),
-      bondType: formString(form, "bondType") || "none",
-      insuranceAmount: parseMoney(formString(form, "insuranceAmount")),
+      ...contractCoverageFields(form, type),
       sentToDistrictAt: parseDate(formString(form, "sentToDistrictAt")),
       ...(type === "renewal" ? { priorYearCost: parseMoney(formString(form, "priorYearCost")) } : {}),
       ...(type === "original" ? { bidSpecId: formString(form, "bidSpecId") || null } : {}),
