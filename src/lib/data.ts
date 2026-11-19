@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { CHECKLISTS, checklistDefinition } from "./checklists";
 import { prisma } from "./prisma";
+import { RETIRED_CONTRACT_CHECKLIST_ITEMS, reviewChecksForStatus } from "./review-defaults";
 import { userCanSecondReview } from "./reviewers";
 import { currentSchoolYear } from "./utils";
 
@@ -12,6 +13,26 @@ export async function getSetting(key: string, fallback = "") {
 
 export async function getSchoolYear() {
   return getSetting("schoolYear", currentSchoolYear());
+}
+
+export async function applyContractReviewDefaults() {
+  const now = new Date();
+  const contracts = await prisma.contract.findMany({
+    where: { deletedAt: null },
+    select: { id: true, statusName: true, firstReviewCompletedAt: true, secondReviewCompletedAt: true },
+  });
+  for (const contract of contracts) {
+    const checks = reviewChecksForStatus(contract.statusName);
+    const data: { firstReviewCompletedAt?: Date; secondReviewCompletedAt?: Date } = {};
+    if (checks.first && !contract.firstReviewCompletedAt) data.firstReviewCompletedAt = now;
+    if (checks.second && !contract.secondReviewCompletedAt) data.secondReviewCompletedAt = now;
+    if (Object.keys(data).length) {
+      await prisma.contract.update({ where: { id: contract.id }, data });
+    }
+  }
+  await prisma.checklistResponse.deleteMany({
+    where: { entityType: "contract", itemLabel: { in: RETIRED_CONTRACT_CHECKLIST_ITEMS } },
+  });
 }
 
 export async function getStatuses(entityType: string) {
@@ -123,6 +144,10 @@ export async function ensureChecklist(
   const defined = checklistDefinition(entityType, contractType);
   const template = defined ? null : await getChecklistTemplate(entityType, contractType);
   const labels = defined?.items ?? template?.items.map((item) => item.label) ?? [];
+  if (defined && defined.items.length === 0) {
+    await prisma.checklistResponse.deleteMany({ where: { entityType, entityId } });
+    return [];
+  }
   if (!labels.length) return [];
   for (const itemLabel of labels) {
     await prisma.checklistResponse.upsert({

@@ -3,9 +3,9 @@ import { contractTypeLabel, formatCurrency, formatDate } from "@/lib/utils";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
-      <div className="mt-0.5 text-sm font-medium break-words">{children || "—"}</div>
+    <div className="flex items-baseline justify-between gap-3 border-b border-line/80 py-1">
+      <p className="shrink-0 text-[11px] uppercase tracking-wide text-muted">{label}</p>
+      <div className="min-w-0 text-right text-sm font-medium break-words">{children || "—"}</div>
     </div>
   );
 }
@@ -49,9 +49,9 @@ export function ContractSnapshot({
       : contract.district.name;
 
   return (
-    <div className="rounded-xl border border-line bg-card px-4 py-2 shadow-sm">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-2">
-        <span className="serif text-xl">
+    <div className="rounded-xl border border-line bg-card px-3 py-2 shadow-sm">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-line pb-1.5">
+        <span className="serif text-lg">
           {contract.type === "joint"
             ? `Routes ${routes.map((route) => route.number).filter(Boolean).join(", ") || "—"}`
             : contract.multiContractNumber}
@@ -60,7 +60,7 @@ export function ContractSnapshot({
         <span className="text-sm text-muted">{contract.schoolYear}</span>
       </div>
 
-      <div className="mt-2 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="mt-1">
         <Field label="District">
           <Link className="text-teal hover:underline" href={`/districts/${contract.district.id}`}>
             {districtLabel}

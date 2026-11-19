@@ -4,14 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function BackLink({ href }: { href?: string }) {
+export function BackLink({ href, compact = false }: { href?: string; compact?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   if (pathname === "/") return null;
   return (
     <button
       type="button"
-      className="mb-3 text-sm font-medium text-teal hover:underline"
+      className={(compact ? "" : "mb-3 ") + "text-sm font-medium text-teal hover:underline"}
       onClick={() => (href ? router.push(href) : router.back())}
     >
       ← Back

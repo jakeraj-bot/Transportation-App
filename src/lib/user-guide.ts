@@ -130,7 +130,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Checklist, PT-4, and letters",
         steps: [
-          "Work the checklist for that type of contract while you review. A renewal only shows the renewal items, an original only shows the bid items, and so on. Comment on anything missing.",
+          "The contract information sits on the left. Status, the two review checkboxes, and comments sit beside it. PT-1, bid specifications, board minutes, the insurance certificate, bonds, and the other bid-packet boxes are no longer on the contract. Notes about those go in Comments. Open Checklist when that type of contract still has items left, such as the CPI check on a renewal.",
           "Check 1st review done when the first look is finished. The contract cannot move to 2nd review until that box is checked. Check 2nd review done when the second look is finished. Both boxes have to be checked before the contract can be approved. Write the notes in Comments.",
           "Open PT-4 to create the Word file from the checklist comments, or to upload a PT-4 you already have. The status moves to 1st review missing items when a PT-4 is created.",
           "When the packet is ready, generate the approval or disapproval letter. For most types, other contracts of the same type and district can share one letter, with each multi-contract number on its own row. Joint agreements share a letter only when the host district, joiner district, and date received all match; any other combination prints as its own letter.",
@@ -140,7 +140,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         heading: "Edit a contract and manage routes",
         bullets: [
-          "Change the status in the Status card at the top of the contract. Pick the new status and choose Update. 2nd review asks who will do that review, and it stays blocked until 1st review done is checked. Approved and Final Approval stay blocked until both review boxes are checked.",
+          "Change the status beside the contract information. Pick the new status and choose Update. 2nd review asks who will do that review, and it stays blocked until 1st review done is checked. Approved and Final Approval stay blocked until both review boxes are checked. Contracts already approved, disapproved, final approved, final disapproved, or in the Trenton log have both boxes checked. A contract already in 2nd review has 1st review done checked.",
           "Edit contract opens the same fields you filled when the contract was entered. Add information opens board meeting date, cost, bond, insurance amount, and the other review fields. Save closes the box.",
           "Edit routes opens a box to add route numbers or cancel one route. Insurance opens a box to file a certificate without leaving the contract.",
           "If the district cancels one route but keeps the others, use Cancel this route only on that route. The route stays on the contract for the record; other routes stay active.",

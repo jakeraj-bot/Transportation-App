@@ -41,11 +41,18 @@ export function PageHeader({
   compact?: boolean;
 }) {
   return (
-    <div className={cn(compact ? "mb-2" : "mb-6", className)}>
-      <BackLink href={backHref} />
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className={cn(compact ? "mb-1" : "mb-6", className)}>
+      {compact ? null : <BackLink href={backHref} />}
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className={compact ? "serif text-2xl text-ink" : "serif text-3xl text-ink"}>{title}</h1>
+          {compact ? (
+            <div className="flex items-center gap-3">
+              <BackLink href={backHref} compact />
+              <h1 className="serif text-2xl text-ink">{title}</h1>
+            </div>
+          ) : (
+            <h1 className="serif text-3xl text-ink">{title}</h1>
+          )}
           {hint ? <p className="mt-1 max-w-2xl text-muted">{hint}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

@@ -18,7 +18,7 @@ import { ContractRoutesPanel } from "@/components/contract-routes-panel";
 import { PopupButton } from "@/components/popup";
 import { ReviewChecks } from "@/components/review-checks";
 import { Button, Field, Flag, PageHeader, StatusChip, inputClass } from "@/components/ui";
-import { activeContractors, activeDistricts, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
+import { activeContractors, activeDistricts, applyContractReviewDefaults, ensureChecklist, getSchoolYear, getSetting, getStatuses, secondReviewers } from "@/lib/data";
 import { can, getSession } from "@/lib/auth";
 import { certificatesCoverContract, formatSecondReviewDays, needsRationaleLetter, rationaleStillNeeded } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
@@ -53,6 +53,7 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const linked = await searchParams;
+  await applyContractReviewDefaults();
   const session = await getSession();
   const canEdit = can(session, "create") || can(session, "edit");
   const canFileInsurance = can(session, "upload_files") || can(session, "create") || can(session, "edit");
@@ -314,12 +315,14 @@ export default async function ContractDetailPage({
         </Flag>
       ) : null}
 
+      <div className="grid items-start gap-3 lg:grid-cols-[18rem_minmax(0,1fr)]">
       <ContractSnapshot
         contractId={contract.id}
         contract={contract}
         companyNames={companyNames}
         routes={snapshotRoutes}
       />
+      <div className="min-w-0 space-y-2">
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-card px-3 py-2">
         <StatusChip name={contract.statusName} color={statusColor} />
@@ -447,8 +450,17 @@ export default async function ContractDetailPage({
       />
 
       <div className="flex flex-wrap gap-2">
+        {checklist.length ? (
+          <PopupButton label="Checklist" title={checklistDef?.name ?? "Checklist"}>
+            <div className="space-y-2">
+              {checklist.map((item) => (
+                <ChecklistRow key={item.id} item={item} compact />
+              ))}
+            </div>
+          </PopupButton>
+        ) : null}
         {canEdit ? (
-          <PopupButton label="Edit contract" title="Edit contract">
+        <PopupButton label="Edit contract" title="Edit contract">
             <ContractForm
               mode="entry"
               schoolYear={schoolYear}
@@ -639,19 +651,9 @@ export default async function ContractDetailPage({
         ) : null}
       </div>
 
-      <div className="grid items-start gap-3 lg:grid-cols-2">
-        <section className="min-w-0 rounded-xl border border-line bg-card px-3 py-2">
-          <h2 className="text-sm font-medium">{checklistDef?.name ?? "Checklist"}</h2>
-          <div className="mt-2 max-h-36 space-y-1.5 overflow-auto">
-            {checklist.length === 0 ? <p className="text-sm text-muted">No checklist items for this type.</p> : null}
-            {checklist.map((item) => (
-              <ChecklistRow key={item.id} item={item} compact />
-            ))}
-          </div>
-        </section>
-        <section className="min-w-0 rounded-xl border border-line bg-card px-3 py-2">
+      <section className="min-w-0 rounded-xl border border-line bg-card px-3 py-2">
           <h2 className="text-sm font-medium">Comments</h2>
-          <div className="mt-2 max-h-24 space-y-1.5 overflow-auto">
+          <div className="mt-1 max-h-16 space-y-1 overflow-auto">
             {displayComments.length === 0 ? <p className="text-sm text-muted">No comments yet.</p> : null}
             {displayComments.map((comment) => (
               <div key={comment.id} className="rounded-lg border border-line px-3 py-2">
@@ -674,6 +676,7 @@ export default async function ContractDetailPage({
             <Button type="submit">Save</Button>
           </form>
         </section>
+      </div>
       </div>
     </div>
   );
