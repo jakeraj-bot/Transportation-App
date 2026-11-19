@@ -20,6 +20,11 @@ function day(value?: string | null) {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : "";
 }
 
+/** My districts stays on unless this person has no districts, or they chose View all. Filters do not change that. */
+export function limitContractsToAssignedDistricts(input: { assignedDistrictIds: string[]; view?: string | null }) {
+  return input.assignedDistrictIds.length > 0 && input.view !== "all";
+}
+
 /** Keep contracts that match every chosen filter. A blank filter does not narrow the list. */
 export function filterContracts<T extends FilterableContract>(rows: T[], filter: ContractListFilter) {
   const from = day(filter.receivedFrom);

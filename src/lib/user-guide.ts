@@ -107,7 +107,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           "Addendum: if the cost increased, the bond amount has to increase too.",
           "Parental: parent name is entered when the packet arrives, plus the shared review fields and the parental checklist.",
           "Vendor / OSP and Business registration are buttons on the contract. Each one opens a box. Save writes the codes onto the contractor file, and you stay on the contract. Open BRC search opens the Treasury site in a new tab.",
-          "On the Contracts list, filter by the date received, district, contractor, type, and status. Use Received from and Received through for one day or a range. Clear removes those filters.",
+          "On the Contracts list, filter by the date received, district, contractor, type, and status. Filters stay inside the list you are looking at. My districts filters only your contracts. View all filters every contract. Clear removes the filters and keeps that same list. Use Received from and Received through for one day or a range.",
         ],
       },
       {
@@ -333,7 +333,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       },
       {
         heading: "Users",
-        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts. Super Admin, contract reviewers, and office managers can be picked for a 2nd review. Check Do 2nd reviews to add anyone else. The 2nd review list still shows every district; Assigned to me filters it to the person you picked.",
+        body: "Add each person and choose what they do: Super Admin, contract reviewer, intake, office manager, or route and bid spec reviewer. Check their districts if Home should start with only their contracts. Super Admin, contract reviewers, and office managers can be picked for a 2nd review. Check Do 2nd reviews to add anyone else. On Contracts, My districts and View all decide which contracts the filters can see. Assigned to me, inside a 2nd review list, keeps only the person you picked.",
       },
       {
         heading: "Statuses and letters",

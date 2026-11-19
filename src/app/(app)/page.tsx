@@ -120,12 +120,12 @@ export default async function HomePage({
   );
 
   const tiles: AttentionTile[] = [
-    { key: "secondReview", href: "/contracts?status=2nd%20review", label: "Waiting on 2nd review", value: secondReview.length, hint: "Every contract in 2nd review, including other districts." },
-    { key: "rationale", href: "/contracts?flag=late", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting. A contract marked OK is left off this count." },
-    { key: "quotes", href: "/contracts?flag=meeting", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
+    { key: "secondReview", href: "/contracts?status=2nd%20review&view=all", label: "Waiting on 2nd review", value: secondReview.length, hint: "Every contract in 2nd review, including other districts." },
+    { key: "rationale", href: showMine ? "/contracts?flag=late" : "/contracts?flag=late&view=all", label: "Need a rationale letter", value: late, hint: "Received 30 or more days after the board meeting. A contract marked OK is left off this count." },
+    { key: "quotes", href: showMine ? "/contracts?flag=meeting" : "/contracts?flag=meeting&view=all", label: "Quote timing flags", value: quotes, hint: "Board may have waited past the next meeting" },
     { key: "insurance", href: "/insurance?flag=expired", label: "Insurance to update", value: expiredIns + gapCount, hint: "Expired, expiring, or does not cover the full contract" },
     { key: "certs", href: "/certs?open=1", label: "Certs not approved yet", value: openCerts, hint: `Due August 15 for ${schoolYear}` },
-    { key: "missing", href: "/contracts?status=1st%20review%20missing%20items", label: "1st review missing items", value: missing, hint: "PT-4 sent or packet still needs fixing" },
+    { key: "missing", href: showMine ? "/contracts?status=1st%20review%20missing%20items" : "/contracts?status=1st%20review%20missing%20items&view=all", label: "1st review missing items", value: missing, hint: "PT-4 sent or packet still needs fixing" },
   ];
   const visibleTiles = tiles.filter((tile) => !prefs.hiddenTiles.includes(tile.key));
   const showTiles = prefs.showAttentionTiles && visibleTiles.length > 0;
@@ -161,7 +161,11 @@ export default async function HomePage({
           {statusCounts.map((status) => (
             <Link
               key={status.name}
-              href={`/contracts?status=${encodeURIComponent(status.name)}`}
+              href={
+                !showMine || status.name === "2nd review"
+                  ? `/contracts?status=${encodeURIComponent(status.name)}&view=all`
+                  : `/contracts?status=${encodeURIComponent(status.name)}`
+              }
               className="home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center lg:w-auto lg:min-w-0 lg:flex-1"
               style={statusFillStyle(status.color)}
             >
@@ -169,7 +173,7 @@ export default async function HomePage({
               <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">{status.label}</span>
             </Link>
           ))}
-          <Link href="/contracts" className="home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center stat-navy lg:w-auto lg:min-w-0 lg:flex-1">
+          <Link href={showMine ? "/contracts" : "/contracts?view=all"} className="home-stat flex w-24 shrink-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center stat-navy lg:w-auto lg:min-w-0 lg:flex-1">
             <span className="text-xl font-semibold leading-none">{total}</span>
             <span className="mt-1 text-[10px] leading-tight opacity-95 sm:text-[11px]">Total contracts</span>
           </Link>

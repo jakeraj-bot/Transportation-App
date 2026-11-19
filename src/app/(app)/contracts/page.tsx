@@ -8,6 +8,7 @@ import { formatSecondReviewDays } from "@/lib/flags";
 import { contractTypeLabel, formatDate, toInputDate } from "@/lib/utils";
 import { formatCompanyNames } from "@/lib/contract-intake";
 import { jointMatchesForContract } from "@/lib/joint-agreements";
+import { limitContractsToAssignedDistricts } from "@/lib/contract-list";
 
 export default async function ContractsPage({
   searchParams,
@@ -29,8 +30,9 @@ export default async function ContractsPage({
   const [schoolYear, session, statuses] = await Promise.all([getSchoolYear(), getSession(), getStatuses("contract")]);
   const assigned = session?.districtIds ?? [];
   const secondReviewList = status === "2nd review";
-  const showMine = !secondReviewList && Boolean(assigned.length) && view !== "all";
+  const showMine = limitContractsToAssignedDistricts({ assignedDistrictIds: assigned, view });
   const reviewerMine = secondReviewList && reviewer === "me";
+  const listQuery = { view, status, reviewer, flag, receivedFrom, receivedTo, district, contractor, type };
   const where: Record<string, unknown> = { deletedAt: null, schoolYear };
   if (showMine) where.districtId = { in: assigned };
   if (reviewerMine && session) where.secondReviewerId = session.id;
@@ -67,22 +69,24 @@ export default async function ContractsPage({
         hint={
           secondReviewList
             ? reviewerMine
-              ? `${schoolYear} contracts in 2nd review that are assigned to you.`
-              : `Every ${schoolYear} contract in 2nd review, including districts that are not assigned to you. Use Assigned to me to see only yours.`
+              ? `${schoolYear} contracts in 2nd review with your name${showMine ? ", in your districts" : ""}.`
+              : showMine
+                ? `${schoolYear} contracts in 2nd review for your districts. View all to include the rest of the office. Assigned to me keeps only your name.`
+                : `Every ${schoolYear} contract in 2nd review. Assigned to me keeps only your name.`
             : showMine
-              ? `Showing ${schoolYear} contracts for your assigned districts. Use View all if a saved contract is missing. Addendums attach to an existing contract instead of creating a new row.`
-              : `Every ${schoolYear} packet that comes in for approval. Filter by the date received, district, contractor, type, or status. Approve contracts, print folder tabs, or print labels in batches. Addendums attach to an existing contract instead of creating a new row.`
+              ? `Showing ${schoolYear} contracts for your districts. Filters stay on these contracts. View all to filter the whole office.`
+              : `Every ${schoolYear} contract. Filters stay on this full list. My districts returns to the contracts assigned to you.`
         }
         actions={
           <>
             {secondReviewList ? (
               <>
-                <Button href="/contracts?status=2nd%20review" variant={reviewerMine ? "secondary" : "primary"}>All 2nd reviews</Button>
-                <Button href="/contracts?status=2nd%20review&reviewer=me" variant={reviewerMine ? "primary" : "secondary"}>Assigned to me</Button>
+                <Button href={listHref(listQuery, { status: "2nd review", reviewer: "" })} variant={reviewerMine ? "secondary" : "primary"}>All 2nd reviews</Button>
+                <Button href={listHref(listQuery, { status: "2nd review", reviewer: "me" })} variant={reviewerMine ? "primary" : "secondary"}>Assigned to me</Button>
               </>
             ) : null}
-            {!secondReviewList && assigned.length ? (
-              <Button href={showMine ? "/contracts?view=all" : "/contracts"} variant="secondary">
+            {assigned.length ? (
+              <Button href={listHref(listQuery, { view: showMine ? "all" : "" })} variant="secondary">
                 {showMine ? "View all" : "My districts"}
               </Button>
             ) : null}
@@ -168,6 +172,29 @@ export default async function ContractsPage({
       )}
     </div>
   );
+}
+
+function listHref(
+  current: {
+    view?: string;
+    status?: string;
+    reviewer?: string;
+    flag?: string;
+    receivedFrom?: string;
+    receivedTo?: string;
+    district?: string;
+    contractor?: string;
+    type?: string;
+  },
+  patch: Partial<typeof current>
+) {
+  const next = { ...current, ...patch };
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(next)) {
+    if (value) params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `/contracts?${qs}` : "/contracts";
 }
 
 function statusChoices(saved: string[], used: string[], current?: string) {

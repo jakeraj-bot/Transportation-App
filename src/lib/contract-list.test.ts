@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterContracts } from "./contract-list";
+import { filterContracts, limitContractsToAssignedDistricts } from "./contract-list";
 
 const rows = [
   {
@@ -56,6 +56,13 @@ test("a contractor on an extra company still matches", () => {
 test("a received-date filter skips contracts with no date", () => {
   const matched = filterContracts(rows, { receivedFrom: "2026-08-10", receivedTo: "2026-09-02" });
   assert.deepEqual(matched.map((row) => row.id), ["wayne-quote", "paterson-renewal"]);
+});
+
+test("filters stay inside my districts until View all is chosen", () => {
+  const assigned = ["wayne", "clifton"];
+  assert.equal(limitContractsToAssignedDistricts({ assignedDistrictIds: assigned }), true);
+  assert.equal(limitContractsToAssignedDistricts({ assignedDistrictIds: assigned, view: "all" }), false);
+  assert.equal(limitContractsToAssignedDistricts({ assignedDistrictIds: [] }), false);
 });
 
 test("one received date matches that day", () => {
